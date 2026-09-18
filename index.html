@@ -12,12 +12,15 @@
 <meta property="og:site_name" content="Fluentopia" />
 <meta property="og:title" content="Fluentopia — Învață engleză jucându-te" />
 <meta property="og:description" content="Demo gratuit, interactiv, fără cont. Copiii învață engleză jucându-se, cu profesori adevărați." />
-<meta property="og:image" content="https://fluentopia-app.netlify.app/icon-512.png" />
-<meta property="og:url" content="https://fluentopia-app.netlify.app/?demo=1" />
+<meta property="og:image" content="https://val101010.github.io/fluentopia-app/icon-512.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Fluentopia" />
+<meta property="og:url" content="https://val101010.github.io/fluentopia-app/?demo=1" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Fluentopia — Învață engleză jucându-te" />
 <meta name="twitter:description" content="Demo gratuit, interactiv, fără cont." />
-<meta name="twitter:image" content="https://fluentopia-app.netlify.app/icon-512.png" />
+<meta name="twitter:image" content="https://val101010.github.io/fluentopia-app/icon-512.png" />
 <!-- Meta Pixel Code -->
 <script>
 !function(f,b,e,v,n,t,s)
@@ -4086,7 +4089,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
-        const shareUrl = 'https://fluentopia-app.netlify.app/?demo=1';
+        const shareUrl = 'https://val101010.github.io/fluentopia-app/?demo=1';
         const shareTextNoUrl = 'Fiul/fiica mea învață engleză la Fluentopia jucând Minecraft — au și un demo gratuit, interactiv, fără cont!';
         const shareText = `${shareTextNoUrl} ${shareUrl}`;
         const referrals = student.parentReferrals || 0;
@@ -7904,7 +7907,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.055';
+const APP_VERSION = 'v2.056';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

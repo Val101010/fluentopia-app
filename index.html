@@ -1478,6 +1478,36 @@ async function resetDemoLeads() {
     return true;
   } catch (e) { console.error('resetDemoLeads error', e); return false; }
 }
+async function resetParentShareClicks() {
+  const db = getDb(); if (!db) return false;
+  try {
+    const snap = await db.collection('fluentopia_parent_share_clicks').get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    return true;
+  } catch (e) { console.error('resetParentShareClicks error', e); return false; }
+}
+async function resetHeroDownloads() {
+  const db = getDb(); if (!db) return false;
+  try {
+    const snap = await db.collection('fluentopia_hero_downloads').get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    return true;
+  } catch (e) { console.error('resetHeroDownloads error', e); return false; }
+}
+async function resetLoginEvents() {
+  const db = getDb(); if (!db) return false;
+  try {
+    const snap = await db.collection('fluentopia_login_events').get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    return true;
+  } catch (e) { console.error('resetLoginEvents error', e); return false; }
+}
 /* ---------- Teste create de elevi ---------- */
 const STUDENT_TEST_REWARD = 5;
 function listenStudentTests(classId, cb) {
@@ -5934,6 +5964,7 @@ function TeacherApp({ onExit, teacherName }) {
   const [attendanceViewMode, setAttendanceViewMode] = useState('mark');
   const [showRolesWheel, setShowRolesWheel] = useState(false);
   const [showBulkPoints, setShowBulkPoints] = useState(false);
+  const [showAppStats, setShowAppStats] = useState(false);
   const [bulkAmount, setBulkAmount] = useState('5');
   const [bulkReason, setBulkReason] = useState('');
   const [pickedMonitor, setPickedMonitor] = useState(null);
@@ -6357,6 +6388,10 @@ function TeacherApp({ onExit, teacherName }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
               }}>🎁 Puncte pentru toată clasa</button>
+              <button onClick={() => setShowAppStats(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
+              }}>📊 Statistici Aplicație (reale)</button>
               <button onClick={() => { setEditingAnnouncement(v => !v); setAnnouncementDraft(announcement); }} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
@@ -7270,6 +7305,98 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
+      {showAppStats && (() => {
+        const totalStudents = students.length;
+        const totalClasses = classes.length;
+        const unpaidCount = students.filter(s => (s.cardDebts || []).length > 0).length;
+        const totalPoints = students.reduce((sum, s) => sum + (s.points || 0), 0);
+        const totalLei = students.reduce((sum, s) => sum + ((s.parentStickers || []).filter(x => x.stickerId === 'referral5').length * 5), 0);
+        const Section = ({ icon, title, color, children, onReset }) => (
+          <div style={{
+            background: `linear-gradient(160deg, ${color}14, #0F0C1C)`, border: `1px solid ${color}55`, borderRadius: 18,
+            padding: 18, marginBottom: 14, boxShadow: `0 4px 20px ${color}18`,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{icon}</span> {title}
+              </div>
+              {onReset && (
+                <button onClick={onReset} style={{ background: 'none', border: `1px solid ${color}55`, borderRadius: 8, padding: '4px 10px', color, fontSize: 10, cursor: 'pointer', fontWeight: 700 }}>
+                  🔄 Reset
+                </button>
+              )}
+            </div>
+            {children}
+          </div>
+        );
+        const StatBox = ({ value, label, color }) => (
+          <div style={{ background: '#0B0A14', border: '1px solid #2E2850', borderRadius: 14, padding: '16px 10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color }}>{value}</div>
+            <div style={{ fontSize: 10.5, color: '#8A86A8', marginTop: 4 }}>{label}</div>
+          </div>
+        );
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{
+              backgroundImage: 'linear-gradient(#151225, #151225), linear-gradient(135deg, #38BDF8, #4ADE80, #9B3CE0, #F5C542)',
+              backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box', border: '1px solid transparent',
+              borderRadius: 22, padding: 26, maxWidth: 560, width: '100%', maxHeight: '88vh', overflowY: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <h3 className="heading-font" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>📊 Statistici Aplicație</h3>
+                <button onClick={() => setShowAppStats(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button>
+              </div>
+
+              <Section icon="🏫" title="Prezență generală" color="#F5C542">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  <StatBox value={totalStudents} label="Total elevi" color="#F5C542" />
+                  <StatBox value={totalClasses} label="Total clase" color="#F5C542" />
+                </div>
+              </Section>
+
+              <Section icon="🔵" title="Conectări în aplicația reală, azi" color="#38BDF8" onReset={async () => { if (window.confirm('Ștergi istoricul de conectări?')) { await resetLoginEvents(); } }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  <StatBox value={todayLoginCounts.students} label="Elevi conectați azi" color="#38BDF8" />
+                  <StatBox value={todayLoginCounts.parents} label="Părinți conectați azi" color="#38BDF8" />
+                </div>
+              </Section>
+
+              <Section icon="💰" title="Puncte & bani" color="#4ADE80">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  <StatBox value={totalPoints.toLocaleString('ro-RO')} label="Puncte totale acordate" color="#4ADE80" />
+                  <StatBox value={`${totalLei} lei`} label="Economisiți din recomandări" color="#4ADE80" />
+                </div>
+              </Section>
+
+              <Section icon="👪" title="Distribuiri din Catalog Părinți" color="#25D366" onReset={async () => { if (window.confirm('Ștergi contorul de click-uri de distribuire?')) { await resetParentShareClicks(); } }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  <StatBox value={parentShareClicks.whatsapp} label="Click-uri WhatsApp" color="#25D366" />
+                  <StatBox value={parentShareClicks.facebook} label="Click-uri Facebook" color="#1877F2" />
+                </div>
+              </Section>
+
+              <Section icon="🚦" title="Disciplină" color="#F87171">
+                <StatBox value={unpaidCount} label="Elevi cu cartonașe neplătite" color="#F87171" />
+              </Section>
+
+              <Section icon="🦸" title="Cartonașe Erou descărcate" color="#9B3CE0" onReset={async () => { if (window.confirm('Ștergi istoricul de descărcări cartonaș erou?')) { await resetHeroDownloads(); } }}>
+                <StatBox value={heroDownloads.length} label="Total descărcări (ultimele 50)" color="#9B3CE0" />
+                {heroDownloads.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', marginTop: 10 }}>
+                    {heroDownloads.slice(0, 15).map((d, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: '#0B0A14', borderRadius: 8, padding: '7px 10px', fontSize: 11 }}>
+                        <span style={{ color: '#C7C8E0' }}>{d.studentName} · HERO{String(d.cardNumber).padStart(5, '0')}</span>
+                        <span style={{ color: '#F5C542', fontWeight: 700 }}>⚡ {d.powerScore} · {d.tierLabel}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            </div>
+          </div>
+        );
+      })()}
       {showRolesWheel && (() => {
         const today = new Date().toISOString().slice(0, 10);
         const presentNames = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).map(s => s.name);
@@ -7543,43 +7670,6 @@ function TeacherApp({ onExit, teacherName }) {
                       <div style={{ fontSize: 10, color: '#8A86A8', marginTop: 2 }}>Click-uri WhatsApp</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 10.5, color: '#6E6A8C', fontWeight: 700, margin: '14px 0 8px', letterSpacing: 0.5 }}>CONECTĂRI ÎN APLICAȚIA REALĂ, AZI</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    <div style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#38BDF8' }}>{todayLoginCounts.students}</div>
-                      <div style={{ fontSize: 10, color: '#8A86A8', marginTop: 2 }}>Elevi conectați azi</div>
-                    </div>
-                    <div style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#F5C542' }}>{todayLoginCounts.parents}</div>
-                      <div style={{ fontSize: 10, color: '#8A86A8', marginTop: 2 }}>Părinți conectați azi</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 10.5, color: '#6E6A8C', fontWeight: 700, margin: '14px 0 8px', letterSpacing: 0.5 }}>👪 DISTRIBUIRI DIN CATALOG PĂRINȚI</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 8 }}>
-                    <div style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#25D366' }}>{parentShareClicks.whatsapp}</div>
-                      <div style={{ fontSize: 10, color: '#8A86A8', marginTop: 2 }}>Click-uri WhatsApp</div>
-                    </div>
-                    <div style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: '#1877F2' }}>{parentShareClicks.facebook}</div>
-                      <div style={{ fontSize: 10, color: '#8A86A8', marginTop: 2 }}>Click-uri Facebook</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 10.5, color: '#6E6A8C', fontWeight: 700, margin: '14px 0 8px', letterSpacing: 0.5 }}>🦸 CARTONAȘE EROU DESCĂRCATE</div>
-                  <div style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 12, padding: '12px 8px', textAlign: 'center', marginBottom: 8 }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: '#9B3CE0' }}>{heroDownloads.length}</div>
-                    <div style={{ fontSize: 10, color: '#8A86A8', marginTop: 2 }}>Total descărcări (ultimele 50)</div>
-                  </div>
-                  {heroDownloads.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                      {heroDownloads.slice(0, 15).map((d, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: '#151225', borderRadius: 8, padding: '6px 10px', fontSize: 11 }}>
-                          <span style={{ color: '#C7C8E0' }}>{d.studentName} · HERO{String(d.cardNumber).padStart(5, '0')}</span>
-                          <span style={{ color: '#F5C542', fontWeight: 700 }}>⚡ {d.powerScore} · {d.tierLabel}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               );
             })()}
@@ -7907,7 +7997,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.056';
+const APP_VERSION = 'v2.057';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

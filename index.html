@@ -588,6 +588,121 @@ function ArticleVisual({ id, lang }) {
   }
   return null;
 }
+/* ---------- Bară de meniu jos (orizontală, compactă, interactivă) ---------- */
+const GROUP_ICONS = { acasa: '🏠', social: '💬', distractie: '🎮', aurabuddy: '🐣', clasamente: '🏆', finante: '💰', progres: '📈' };
+function navBuzz() { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
+function BottomNav({ groups, tabs, tab, setTab, groupLabels, colors, alertOf }) {
+  const [chipsHidden, setChipsHidden] = useState(false);
+  const lastTabRef = useRef({});
+  const chipsRef = useRef(null);
+  const firstRun = useRef(true);
+  const activeTab = tabs.find(t => t.id === tab);
+  const activeGroup = activeTab ? activeTab.group : null;
+  const groupTabs = tabs.filter(t => t.group === activeGroup);
+  const c = colors[activeGroup] || colors.acasa;
+
+  useEffect(() => {
+    if (activeTab) lastTabRef.current[activeTab.group] = activeTab.id;
+    setChipsHidden(false);
+    if (firstRun.current) { firstRun.current = false; return; }
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+    const box = chipsRef.current;
+    if (box) {
+      const el = box.querySelector('[data-on="1"]');
+      if (el) box.scrollTo({ left: Math.max(0, el.offsetLeft - box.clientWidth / 2 + el.clientWidth / 2), behavior: 'smooth' });
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY, dy = y - lastY;
+      if (Math.abs(dy) < 10) return;
+      setChipsHidden(dy > 0 && y > 90);
+      lastY = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  function pickGroup(g) {
+    navBuzz();
+    const gt = tabs.filter(t => t.group === g);
+    if (!gt.length) return;
+    if (g === activeGroup) { setChipsHidden(h => !h); return; }
+    const last = lastTabRef.current[g];
+    setTab(last && gt.find(t => t.id === last) ? last : gt[0].id);
+  }
+
+  const showChips = groupTabs.length > 1;
+  return (
+    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 40, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}>
+      <style>{`
+        @keyframes fnavPop { 0% { transform: scale(.55) translateY(8px); } 55% { transform: scale(1.32) translateY(-3px); } 100% { transform: scale(1) translateY(0); } }
+        @keyframes fnavGlow { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+        .fnav-pop { display: inline-block; animation: fnavPop .42s cubic-bezier(.34,1.56,.64,1); }
+        .fnav-chips::-webkit-scrollbar { display: none; }
+        .fnav-btn:active { transform: scale(.9); }
+        .fnav-chip:active { transform: scale(.94); }
+      `}</style>
+      <div style={{
+        pointerEvents: 'auto', width: 'calc(100% - 16px)', maxWidth: 620, borderRadius: 26, overflow: 'hidden',
+        background: 'rgba(16,12,31,0.9)', backdropFilter: 'blur(18px) saturate(1.5)', WebkitBackdropFilter: 'blur(18px) saturate(1.5)',
+        border: `1px solid ${c.from}66`, boxShadow: `0 10px 34px rgba(0,0,0,.6), 0 0 28px ${c.glow}`, transition: 'border-color .25s ease, box-shadow .25s ease',
+      }}>
+        <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${c.from}, ${c.to}, transparent)`, animation: 'fnavGlow 2.4s ease-in-out infinite' }}></div>
+        {showChips && (
+          <div ref={chipsRef} className="fnav-chips" style={{
+            display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+            padding: chipsHidden ? '0 10px' : '9px 10px 3px', maxHeight: chipsHidden ? 0 : 60, opacity: chipsHidden ? 0 : 1,
+            transition: 'max-height .26s ease, opacity .2s ease, padding .26s ease',
+          }}>
+            {groupTabs.map(t => {
+              const on = tab === t.id;
+              return (
+                <button key={t.id} data-on={on ? '1' : '0'} className="fnav-chip" onClick={() => { navBuzz(); setTab(t.id); }} style={{
+                  flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 16, cursor: 'pointer', position: 'relative',
+                  border: on ? '1px solid transparent' : '1px solid rgba(255,255,255,0.08)',
+                  background: on ? `linear-gradient(135deg, ${c.from}, ${c.to})` : 'rgba(255,255,255,0.06)',
+                  color: on ? '#fff' : '#C7C8E0', fontSize: 11.5, fontWeight: on ? 800 : 600, whiteSpace: 'nowrap',
+                  boxShadow: on ? `0 4px 14px ${c.glow}` : 'none', transform: on ? 'scale(1.04)' : 'scale(1)', transition: 'transform .18s ease, background .2s ease',
+                }}>
+                  <span key={on ? 'a' : 'b'} className={on ? 'fnav-pop' : ''} style={{ fontSize: 15, lineHeight: 1 }}>{t.icon}</span>
+                  <span style={on ? { textShadow: '0 1px 2px rgba(0,0,0,.3)' } : undefined}>{t.label}</span>
+                  {alertOf(t) && <span style={{ position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #100C1F' }}></span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 2, padding: '7px 8px 7px' }}>
+          {groups.map(g => {
+            const gt = tabs.filter(t => t.group === g);
+            if (!gt.length) return null;
+            const on = g === activeGroup;
+            const gc = colors[g] || colors.acasa;
+            const label = groupLabels[g] || g;
+            const alert = gt.some(alertOf);
+            return (
+              <button key={g} className="fnav-btn" onClick={() => pickGroup(g)} title={label} aria-label={label} style={{
+                flex: on ? '2.7 1 0' : '1 1 0', minWidth: 30, height: 46, borderRadius: 18, border: 'none', cursor: 'pointer', position: 'relative',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 0, overflow: 'hidden',
+                background: on ? `linear-gradient(135deg, ${gc.from}, ${gc.to})` : 'transparent',
+                boxShadow: on ? `0 4px 16px ${gc.glow}` : 'none',
+                transition: 'flex .3s cubic-bezier(.34,1.56,.64,1), background .2s ease, box-shadow .2s ease, transform .12s ease',
+              }}>
+                <span key={on ? 'on' : 'off'} className={on ? 'fnav-pop' : ''} style={{ fontSize: on ? 22 : 21, lineHeight: 1, opacity: on ? 1 : 0.85 }}>{GROUP_ICONS[g] || '•'}</span>
+                {on && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>}
+                {alert && <span style={{ position: 'absolute', top: 5, right: on ? 8 : 4, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #100C1F' }}></span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Roata norocului ---------- */
 const WHEEL_PRIZES = [
   { label: '1 punct', type: 'points', value: 1, weight: 20, color: '#EC1E8F' },
@@ -4130,7 +4245,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
   return (
     <div style={{
       minHeight: '100vh', background: 'radial-gradient(ellipse 800px 500px at 15% 10%, #2A0F3D 0%, #0B0A14 55%)',
-      color: '#fff', padding: 24, maxWidth: 640, margin: '0 auto',
+      color: '#fff', padding: 24, paddingBottom: 150, maxWidth: 640, margin: '0 auto',
     }}>
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
       {announcement && announcement.trim() && (
@@ -4278,57 +4393,8 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       )}
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-        <div style={{ width: 116, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '80vh', overflowY: 'auto', position: 'sticky', top: 12 }} className="scrollbar">
-          {TAB_GROUPS.map(group => {
-            const groupTabs = TABS.filter(t => t.group === group);
-            if (groupTabs.length === 0) return null;
-            const c = GROUP_COLORS[group] || GROUP_COLORS['acasa'];
-            return (
-            <div key={group}>
-              <button onClick={() => toggleGroup(group)} style={{
-                width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                fontSize: 9.5, fontWeight: 800, color: c.from, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6, paddingLeft: 4,
-                display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-start',
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: `linear-gradient(135deg, ${c.from}, ${c.to})`, flexShrink: 0 }}></span>
-                <span style={{ flex: 1, textAlign: 'left' }}>{mt.groups[group] || group}</span>
-                <span style={{ fontSize: 8, transform: expandedGroups[group] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease', color: '#6E6A8C' }}>▼</span>
-              </button>
-              {expandedGroups[group] && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {groupTabs.map(t => {
-                  const active = tab === t.id;
-                  const showAlert = (t.id === 'overview' || t.id === 'discipline') && !isParentView && (student.cardDebts || []).length > 0;
-                  return (
-                  <button key={t.id} onClick={() => setTab(t.id)} style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: active ? '9px 4px' : '7px 4px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                    background: active ? `linear-gradient(135deg, ${c.from}, ${c.to})` : 'rgba(255,255,255,0.03)',
-                    boxShadow: active ? `0 4px 14px ${c.glow}` : 'none',
-                    transform: active ? 'scale(1.04)' : 'scale(1)',
-                    transition: 'all 0.15s ease',
-                  }}>
-                    <span style={{ position: 'relative' }}>
-                      <span style={{
-                        fontSize: 17, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: active ? 'rgba(255,255,255,0.25)' : `linear-gradient(135deg, ${c.from}33, ${c.to}33)`,
-                      }}>{t.icon}</span>
-                      {showAlert && (
-                        <span style={{
-                          position: 'absolute', top: -3, right: -3, width: 12, height: 12, borderRadius: '50%',
-                          background: '#F87171', border: '2px solid #0B0A14',
-                        }}></span>
-                      )}
-                    </span>
-                    <span style={{ fontSize: 9, fontWeight: active ? 800 : 600, color: active ? '#fff' : '#A5A2C0', textAlign: 'center', lineHeight: 1.2 }}>{t.label}</span>
-                  </button>
-                  );
-                })}
-              </div>
-              )}
-            </div>
-            );
-          })}
-        </div>
+        <BottomNav groups={TAB_GROUPS} tabs={TABS} tab={tab} setTab={setTab} groupLabels={mt.groups} colors={GROUP_COLORS}
+          alertOf={t => (t.id === 'overview' || t.id === 'discipline') && !isParentView && (student.cardDebts || []).length > 0} />
         <div style={{ flex: 1, minWidth: 0 }}>
 
       {tab === 'wall' && <WallView student={student} classmates={classmates} isParentView={isParentView} />}
@@ -8365,7 +8431,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.067';
+const APP_VERSION = 'v2.068';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

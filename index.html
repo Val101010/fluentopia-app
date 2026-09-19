@@ -7579,9 +7579,9 @@ function TeacherApp({ onExit, teacherName }) {
             {(() => {
               const FUNNEL_STEPS = [
                 { key: 'welcome', label: '1. Pagina de start', via: 'Deschide link-ul demo' },
-                { key: 'pick', label: '2. Alege un Aura Buddy', via: 'Buton „Începe demo-ul! →" sau automat, după 4.5s' },
+                { key: 'pick', label: '2. Alege un Aura Buddy', via: 'Buton „Începe demo-ul! →"' },
                 { key: 'egg', label: '3. Ou / animăluț ales', via: 'Alege specia' },
-                { key: 'game', label: '4. Quiz (5 cuvinte)', via: 'Automat, după animația de eclozare' },
+                { key: 'game', label: '4. Quiz (3 cuvinte)', via: 'Automat, după animația de eclozare' },
                 { key: 'shop', label: '5. Magazin abțibilduri', via: 'Automat, după a 5-a întrebare' },
                 { key: 'wheel', label: '6. Roata norocului', via: 'Automat, după ce alege un abțibild' },
                 { key: 'certificate', label: '7. Cartonaș digital', via: 'Automat, la 2.8s după premiu' },
@@ -8019,7 +8019,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.058';
+const APP_VERSION = 'v2.060';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -8195,6 +8195,180 @@ What we do differently at Fluentopia is build these principles directly into the
 The long-term result is a lesson where time is used efficiently, where small misunderstandings are caught early, before they become large obstacles, and where the child leaves every lesson having genuinely practised — not just listened to — English. It isn't a flashy or novel method; it's simply the consistent, disciplined application of a few simple principles, tested for decades in language-teacher training.`,
   },
 ];
+function FastLeadForm({ species, onDone }) {
+  const [childName, setChildName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(false);
+  const isValid = childName.trim() && phone.trim().length >= 8;
+
+  async function submit() {
+    if (!isValid || submitting) return;
+    setSubmitting(true); setError(false);
+    const ok = await submitLead({
+      parentName: '(nemenționat)', childName: childName.trim(), childAge: '',
+      phone: phone.trim(), email: '', note: '',
+      source: 'demo_fast', demoSpecies: species ? species.name : null,
+    });
+    setSubmitting(false);
+    if (ok) onDone(); else setError(true);
+  }
+
+  function sendOnWhatsApp() {
+    logDemoEvent('fast_whatsapp_click');
+    const text = `Bună! Sunt părintele lui ${childName.trim() || '(copilul meu)'}. Am încercat demo-ul rapid Fluentopia și vreau să aflu mai multe despre lecția gratuită.`;
+    const phoneNum = '40734054877';
+    const waScheme = `whatsapp://send?phone=${phoneNum}&text=${encodeURIComponent(text)}`;
+    const waWeb = `https://wa.me/${phoneNum}?text=${encodeURIComponent(text)}`;
+    let handed = false;
+    const onBlur = () => { handed = true; };
+    window.addEventListener('blur', onBlur, { once: true });
+    try { window.location.href = waScheme; } catch (e) {}
+    setTimeout(() => { window.removeEventListener('blur', onBlur); if (!handed) window.open(waWeb, '_blank'); }, 900);
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 44, marginBottom: 10 }}>🎁</div>
+      <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Aproape gata!</h2>
+      <p style={{ fontSize: 13, color: '#8A86A8', lineHeight: 1.5, marginBottom: 18 }}>Doar 2 lucruri, și te contactăm noi cât mai repede — locurile gratuite sunt limitate.</p>
+      <input value={childName} onChange={e => setChildName(e.target.value)} placeholder="Numele copilului" style={{
+        width: '100%', padding: '13px 14px', borderRadius: 12, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 15, marginBottom: 10,
+      }} />
+      <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Telefon (WhatsApp)" type="tel" style={{
+        width: '100%', padding: '13px 14px', borderRadius: 12, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 15, marginBottom: 16,
+      }} />
+      {error && <div style={{ color: '#F87171', fontSize: 12, marginBottom: 10 }}>Ceva n-a mers — încearcă din nou.</div>}
+      <button onClick={submit} disabled={!isValid || submitting} style={{
+        width: '100%', padding: '15px 0', borderRadius: 14, border: 'none', cursor: (!isValid || submitting) ? 'default' : 'pointer',
+        background: (!isValid || submitting) ? '#221D3A' : 'linear-gradient(135deg, #EC1E8F, #9B3CE0)', color: (!isValid || submitting) ? '#5A5570' : '#fff',
+        fontWeight: 800, fontSize: 16, marginBottom: 10,
+      }}>{submitting ? 'Se trimite...' : 'Trimite-mi locul gratuit →'}</button>
+      <button onClick={sendOnWhatsApp} style={{
+        width: '100%', padding: '12px 0', borderRadius: 14, border: '1px solid rgba(37,211,102,0.4)', cursor: 'pointer',
+        background: 'rgba(37,211,102,0.1)', color: '#25D366', fontWeight: 700, fontSize: 14,
+      }}>💬 Sau scrie-mi direct pe WhatsApp</button>
+    </div>
+  );
+}
+
+function DemoModeFast() {
+  const [step, setStep] = useState('hook');
+  const [species, setSpecies] = useState(null);
+  const [liveCount] = useState(() => 40 + Math.floor(Math.random() * 25));
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [quizAnswered, setQuizAnswered] = useState(false);
+  const [quizCorrect, setQuizCorrect] = useState(false);
+  const [quizWord] = useState(() => {
+    const word = WORD_BANK[Math.floor(Math.random() * WORD_BANK.length)];
+    const distractors = shuffleArr(WORD_BANK.filter(w => w.en !== word.en)).slice(0, 3);
+    return { word, options: shuffleArr([word, ...distractors]) };
+  });
+
+  useEffect(() => { logDemoEvent('fast_' + step); }, [step]);
+
+  function pickSpecies(sp) { setSpecies(sp); setStep('quiz'); }
+  function answerQuiz(opt) {
+    if (quizAnswered) return;
+    setQuizAnswered(true);
+    const correct = opt.en === quizWord.word.en;
+    setQuizCorrect(correct);
+    if (correct) setShowConfetti(true);
+    setTimeout(() => setStep('reward'), 1300);
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'radial-gradient(ellipse 800px 500px at 50% 0%, #2A0F3D 0%, #0B0A14 55%)', color: '#fff', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
+      <div style={{ width: '100%', maxWidth: 420, textAlign: 'center', paddingTop: 30 }}>
+
+        {step === 'hook' && (
+          <div>
+            <div style={{ fontSize: 54, marginBottom: 8 }}>🎉</div>
+            <h1 style={{ fontSize: 25, fontWeight: 800, marginBottom: 10, background: 'linear-gradient(135deg, #EC1E8F, #9B3CE0, #466FEE)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Engleză pe care copilul tău o cere singur</h1>
+            <p style={{ fontSize: 14, color: '#C7C8E0', lineHeight: 1.6, marginBottom: 14 }}>Fluentopia — lecții online prin joacă, pentru copii 7-15 ani.</p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 999, padding: '6px 14px', marginBottom: 26 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 999, background: '#34D399', boxShadow: '0 0 8px #34D399' }} />
+              <span style={{ fontSize: 12, color: '#6EE7B7', fontWeight: 700 }}>🔥 {liveCount} de copii se joacă acum în Fluentopia</span>
+            </div>
+            <button onClick={() => setStep('lead')} style={{
+              width: '100%', padding: '17px 0', borderRadius: 16, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, #EC1E8F, #9B3CE0)', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 12,
+              boxShadow: '0 8px 24px rgba(236,30,143,0.35)',
+            }}>🎁 Vreau locul gratuit acum</button>
+            <button onClick={() => setStep('pick')} style={{
+              width: '100%', padding: '12px 0', borderRadius: 14, border: '1px solid #2E2850', cursor: 'pointer',
+              background: 'transparent', color: '#8A86A8', fontWeight: 600, fontSize: 13.5,
+            }}>Arată-mi întâi un joc (30 sec) →</button>
+          </div>
+        )}
+
+        {step === 'pick' && (
+          <div>
+            <h2 style={{ fontSize: 19, fontWeight: 700, marginBottom: 6 }}>🥚 Alege-ți un Aura Buddy</h2>
+            <p style={{ fontSize: 13.5, color: '#F5C542', fontWeight: 700, marginBottom: 22 }}>⬆️ Atinge un animăluț!</p>
+            <style>{`@keyframes pulseCardFast { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }`}</style>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              {PET_SPECIES.map((sp, i) => (
+                <button key={sp.id} onClick={() => pickSpecies(sp)} style={{
+                  background: '#151225', border: `1px solid ${sp.color}40`, borderRadius: 16, padding: 16, cursor: 'pointer', flex: 1,
+                  animation: `pulseCardFast 1.8s ease-in-out ${i * 0.25}s infinite`,
+                }}>
+                  <img src={sp.stages[4]} alt={sp.name} style={{ width: 80, height: 80, objectFit: 'contain', marginBottom: 8 }} />
+                  <div style={{ color: sp.color, fontWeight: 700, fontSize: 13 }}>{sp.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 'quiz' && species && (
+          <div>
+            <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Un cuvânt rapid, cu {species.name}:</div>
+            <div style={{ fontSize: 70, marginBottom: 10, width: 110, height: 110, margin: '0 auto 18px', borderRadius: '50%', background: '#EDEBFB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{quizWord.word.emoji}</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 18 }}>Cum se zice „{quizWord.word.ro}" în engleză?</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {quizWord.options.map(opt => {
+                const isCorrectAnswer = quizAnswered && opt.en === quizWord.word.en;
+                return (
+                  <button key={opt.en} onClick={() => answerQuiz(opt)} disabled={quizAnswered} style={{
+                    padding: '14px 10px', borderRadius: 12, border: 'none', cursor: quizAnswered ? 'default' : 'pointer', fontSize: 14, fontWeight: 600,
+                    background: isCorrectAnswer ? 'rgba(74,222,128,0.25)' : '#151225', color: isCorrectAnswer ? '#4ADE80' : '#C7C8E0',
+                  }}>{opt.en}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {step === 'reward' && (
+          <div>
+            <div style={{ fontSize: 54, marginBottom: 10 }}>{quizCorrect ? '🎉' : '👍'}</div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>{quizCorrect ? 'Perfect!' : 'Aproape!'}</h2>
+            <p style={{ fontSize: 13.5, color: '#C7C8E0', lineHeight: 1.6, marginBottom: 24 }}>Așa arată o lecție Fluentopia — joc, nu temă plictisitoare. {species?.name} te așteaptă să continuați împreună!</p>
+            <button onClick={() => setStep('lead')} style={{
+              width: '100%', padding: '16px 0', borderRadius: 16, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, #EC1E8F, #9B3CE0)', color: '#fff', fontWeight: 800, fontSize: 16,
+              boxShadow: '0 8px 24px rgba(236,30,143,0.35)',
+            }}>🎁 Trimite-mi locul gratuit →</button>
+          </div>
+        )}
+
+        {step === 'lead' && <FastLeadForm species={species} onDone={() => setStep('done')} />}
+
+        {step === 'done' && (
+          <div>
+            <div style={{ fontSize: 50, marginBottom: 14 }}>✅</div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 10 }}>Am primit datele!</h2>
+            <p style={{ fontSize: 14, color: '#C7C8E0', lineHeight: 1.6 }}>Vă contactăm în cel mai scurt timp la numărul lăsat.</p>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 function DemoMode() {
   const DEMO_STICKER_IDS = ['burger', 'spin', 'iobject', 'sharescreen', 'musicbreak', 'funpass', 'headphones', 'postcard', 'breaktime', 'mothertongue', 'homework'];
   const DEMO_STICKER_DESC = {
@@ -8292,11 +8466,7 @@ function DemoMode() {
       logDemoEvent('step_' + step);
     }
   }, [step]);
-  useEffect(() => {
-    if (step !== 'welcome') return;
-    const t = setTimeout(() => setStep('pick'), 7500);
-    return () => clearTimeout(t);
-  }, [step]);
+  // (no auto-advance from welcome — the visitor must tap "Începe demo-ul!" to continue, on purpose)
   const [showConfetti, setShowConfetti] = useState(true);
   const [species, setSpecies] = useState(null);
   const [eggCracked, setEggCracked] = useState(false);
@@ -8316,7 +8486,7 @@ function DemoMode() {
   const [skillValues] = useState(() => DEMO_SKILLS.map(() => 78 + Math.floor(Math.random() * 20)));
   const [quizFeedback, setQuizFeedback] = useState(null);
   const [quizQuestions] = useState(() => {
-    const vocabWords = shuffleArr(WORD_BANK).slice(0, 5);
+    const vocabWords = shuffleArr(WORD_BANK).slice(0, 3);
     return vocabWords.map(word => {
       const distractors = shuffleArr(WORD_BANK.filter(w => w.en !== word.en)).slice(0, 3);
       return {
@@ -8494,7 +8664,7 @@ function DemoMode() {
           <div>
             <div style={{ fontSize: 60, marginBottom: 10 }}>🎉</div>
             <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 10, background: 'linear-gradient(135deg, #EC1E8F, #9B3CE0, #466FEE)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Bine ai venit în Fluentopia!</h1>
-            <p style={{ fontSize: 14, color: '#C7C8E0', lineHeight: 1.6, marginBottom: 16 }}>Ai câteva minute la dispoziție să încerci chiar acum câteva din lucrurile pe care le fac zilnic copiii din Fluentopia. Fără cont, fără parolă — doar joacă!</p>
+            <p style={{ fontSize: 14, color: '#C7C8E0', lineHeight: 1.6, marginBottom: 16 }}>Ai doar <b style={{ color: '#F5C542' }}>un minut</b> să încerci chiar acum câteva din lucrurile pe care le fac zilnic copiii din Fluentopia. Fără cont, fără parolă — doar joacă!</p>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.35)', borderRadius: 999, padding: '6px 14px', marginBottom: 10 }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: '#34D399', boxShadow: '0 0 8px #34D399' }} />
               <span style={{ fontSize: 12, color: '#6EE7B7', fontWeight: 700 }}>🔥 {liveCount} de copii se joacă acum în Fluentopia</span>
@@ -9075,6 +9245,8 @@ function Root() {
 
   const isDemoMode = (() => { try { return new URLSearchParams(window.location.search).get('demo') === '1'; } catch (e) { return false; } })();
   if (isDemoMode) return <DemoMode />;
+  const isDemoModeFast = (() => { try { return new URLSearchParams(window.location.search).get('demo') === '2'; } catch (e) { return false; } })();
+  if (isDemoModeFast) return <DemoModeFast />;
   const isParentSession = viewMode === 'parent';
 
   async function persistStudentsLocal(next, prev) {

@@ -588,124 +588,168 @@ function ArticleVisual({ id, lang }) {
   }
   return null;
 }
-/* ---------- Bară de meniu jos (orizontală, compactă, interactivă) ---------- */
+/* ---------- Bară de meniu jos: 4 butoane + buton central „Joacă” + „Mai mult” (foaie cu plăci) ---------- */
 const GROUP_ICONS = { acasa: '🏠', social: '💬', distractie: '🎮', aurabuddy: '🐣', clasamente: '🏆', finante: '💰', progres: '📈' };
 function navBuzz() { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
 function BottomNav({ groups, tabs, tab, setTab, groupLabels, colors, alertOf }) {
-  const [chipsHidden, setChipsHidden] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const [focusGroup, setFocusGroup] = useState(null);
   const lastTabRef = useRef({});
-  const chipsRef = useRef(null);
+  const sheetRef = useRef(null);
   const firstRun = useRef(true);
+  const nonEmpty = groups.filter(g => tabs.some(t => t.group === g));
   const activeTab = tabs.find(t => t.id === tab);
   const activeGroup = activeTab ? activeTab.group : null;
-  const groupTabs = tabs.filter(t => t.group === activeGroup);
+  const primary = ['acasa', 'social', 'distractie', 'aurabuddy'].filter(g => nonEmpty.includes(g));
+  const more = nonEmpty.filter(g => !primary.includes(g));
   const c = colors[activeGroup] || colors.acasa;
+  const en = !!groupLabels && groupLabels.acasa === 'Home';
+  const T = en ? { more: 'More', menu: 'Menu', close: 'Close', play: 'Play' } : { more: 'Mai mult', menu: 'Meniu', close: 'Închide', play: 'Joacă' };
 
   useEffect(() => {
     if (activeTab) lastTabRef.current[activeTab.group] = activeTab.id;
-    setChipsHidden(false);
+    setSheet(false);
     if (firstRun.current) { firstRun.current = false; return; }
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
-    const box = chipsRef.current;
-    if (box) {
-      const el = box.querySelector('[data-on="1"]');
-      if (el) box.scrollTo({ left: Math.max(0, el.offsetLeft - box.clientWidth / 2 + el.clientWidth / 2), behavior: 'smooth' });
-    }
   }, [tab]);
 
   useEffect(() => {
-    let lastY = window.scrollY;
-    const onScroll = () => {
-      const y = window.scrollY, dy = y - lastY;
-      if (Math.abs(dy) < 10) return;
-      setChipsHidden(dy > 0 && y > 90);
-      lastY = y;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    if (!sheet) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const t = setTimeout(() => {
+      const box = sheetRef.current;
+      const el = box && focusGroup ? box.querySelector(`[data-g="${focusGroup}"]`) : null;
+      if (box && el) box.scrollTo({ top: Math.max(0, el.offsetTop - 64), behavior: 'smooth' });
+    }, 80);
+    return () => { clearTimeout(t); document.body.style.overflow = prev; };
+  }, [sheet]);
 
-  function pickGroup(g) {
+  function goGroup(g) {
     navBuzz();
     const gt = tabs.filter(t => t.group === g);
     if (!gt.length) return;
-    if (g === activeGroup) { setChipsHidden(h => !h); return; }
+    if (g === activeGroup) { setFocusGroup(g); setSheet(true); return; }
     const last = lastTabRef.current[g];
     setTab(last && gt.find(t => t.id === last) ? last : gt[0].id);
   }
+  function openMore() { navBuzz(); setFocusGroup(more.includes(activeGroup) ? activeGroup : null); setSheet(true); }
+  function pick(id) { navBuzz(); setSheet(false); setTab(id); }
 
-  const showChips = groupTabs.length > 1;
+  const moreActive = more.includes(activeGroup);
+  const mc = moreActive ? (colors[activeGroup] || colors.acasa) : null;
+  const slot = { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', color: 'inherit' };
+  const dot = { position: 'absolute', top: -2, right: 2, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #100C1F' };
+
   return (
-    <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 40, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}>
+    <>
       <style>{`
-        @keyframes fnavPop { 0% { transform: scale(.55) translateY(8px); } 55% { transform: scale(1.32) translateY(-3px); } 100% { transform: scale(1) translateY(0); } }
-        @keyframes fnavGlow { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+        @keyframes fnavPop { 0% { transform: scale(.55) translateY(8px); } 55% { transform: scale(1.3) translateY(-3px); } 100% { transform: scale(1) translateY(0); } }
+        @keyframes fnavPulse { 0% { box-shadow: 0 8px 22px var(--fab-glow), 0 0 0 0 var(--fab-ring); } 70% { box-shadow: 0 8px 22px var(--fab-glow), 0 0 0 12px rgba(236,30,143,0); } 100% { box-shadow: 0 8px 22px var(--fab-glow), 0 0 0 0 rgba(236,30,143,0); } }
+        @keyframes fnavSlide { from { transform: translateY(60px); opacity: .4; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fnavFade { from { opacity: 0; } to { opacity: 1; } }
         .fnav-pop { display: inline-block; animation: fnavPop .42s cubic-bezier(.34,1.56,.64,1); }
-        .fnav-chips::-webkit-scrollbar { display: none; }
+        .fnav-slot:active { transform: scale(.92); }
+        .fnav-tile:active { transform: scale(.94); }
         :root { --fl-max: 640px; }
         @media (min-width: 720px) { :root { --fl-max: 860px; } }
-        @media (min-width: 1000px) { :root { --fl-max: 1080px; } .fnav-lab-off { display: inline !important; } }
-        @media (min-width: 1360px) { :root { --fl-max: 1240px; } }
-        .fnav-btn:active { transform: scale(.9); }
-        .fnav-chip:active { transform: scale(.94); }
       `}</style>
-      <div style={{
-        pointerEvents: 'auto', width: 'calc(100% - 16px)', maxWidth: 'min(calc(var(--fl-max, 640px) - 20px), 1000px)', borderRadius: 26, overflow: 'hidden',
-        background: 'rgba(16,12,31,0.9)', backdropFilter: 'blur(18px) saturate(1.5)', WebkitBackdropFilter: 'blur(18px) saturate(1.5)',
-        border: `1px solid ${c.from}66`, boxShadow: `0 10px 34px rgba(0,0,0,.6), 0 0 28px ${c.glow}`, transition: 'border-color .25s ease, box-shadow .25s ease',
-      }}>
-        <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${c.from}, ${c.to}, transparent)`, animation: 'fnavGlow 2.4s ease-in-out infinite' }}></div>
-        {showChips && (
-          <div ref={chipsRef} className="fnav-chips" style={{
-            display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
-            padding: chipsHidden ? '0 10px' : '9px 10px 3px', maxHeight: chipsHidden ? 0 : 60, opacity: chipsHidden ? 0 : 1,
-            transition: 'max-height .26s ease, opacity .2s ease, padding .26s ease',
-          }}>
-            {groupTabs.map((t, ti) => {
-              const on = tab === t.id;
+      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 40, display: 'flex', justifyContent: 'center', pointerEvents: 'none', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}>
+        <div style={{
+          pointerEvents: 'auto', width: 'calc(100% - 16px)', maxWidth: 'min(calc(var(--fl-max, 640px) - 20px), 560px)', height: 66, borderRadius: 26, position: 'relative',
+          background: 'rgba(16,12,31,0.92)', backdropFilter: 'blur(18px) saturate(1.5)', WebkitBackdropFilter: 'blur(18px) saturate(1.5)',
+          border: `1px solid ${c.from}66`, boxShadow: `0 10px 34px rgba(0,0,0,.6), 0 0 26px ${c.glow}`, transition: 'border-color .25s ease, box-shadow .25s ease',
+          display: 'flex', alignItems: 'center', padding: '0 6px',
+        }}>
+          {primary.map(g => {
+            const gc = colors[g] || colors.acasa;
+            const on = g === activeGroup;
+            const label = groupLabels[g] || g;
+            const alert = tabs.filter(t => t.group === g).some(alertOf);
+            if (g === 'distractie') {
               return (
-                <button key={t.id} data-on={on ? '1' : '0'} className="fnav-chip" onClick={() => { navBuzz(); setTab(t.id); }} style={{
-                  flex: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 16, cursor: 'pointer', position: 'relative',
-                  marginLeft: ti === 0 ? 'auto' : 0, marginRight: ti === groupTabs.length - 1 ? 'auto' : 0,
-                  border: on ? '1px solid transparent' : '1px solid rgba(255,255,255,0.08)',
-                  background: on ? `linear-gradient(135deg, ${c.from}, ${c.to})` : 'rgba(255,255,255,0.06)',
-                  color: on ? '#fff' : '#C7C8E0', fontSize: 11.5, fontWeight: on ? 800 : 600, whiteSpace: 'nowrap',
-                  boxShadow: on ? `0 4px 14px ${c.glow}` : 'none', transform: on ? 'scale(1.04)' : 'scale(1)', transition: 'transform .18s ease, background .2s ease',
-                }}>
-                  <span key={on ? 'a' : 'b'} className={on ? 'fnav-pop' : ''} style={{ fontSize: 15, lineHeight: 1 }}>{t.icon}</span>
-                  <span style={on ? { textShadow: '0 1px 2px rgba(0,0,0,.3)' } : undefined}>{t.label}</span>
-                  {alertOf(t) && <span style={{ position: 'absolute', top: -2, right: -2, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #100C1F' }}></span>}
+                <button key={g} className="fnav-slot" onClick={() => goGroup(g)} aria-label={label} title={label} style={{ ...slot, height: '100%', transition: 'transform .12s ease' }}>
+                  <span style={{
+                    position: 'absolute', top: -30, width: 62, height: 62, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+                    background: `linear-gradient(135deg, ${gc.from}, ${gc.to})`, border: '3px solid #100C1F',
+                    '--fab-glow': `${gc.from}88`, '--fab-ring': `${gc.from}66`, animation: 'fnavPulse 2.2s ease-out infinite',
+                    transform: on ? 'scale(1.08)' : 'scale(1)', transition: 'transform .2s cubic-bezier(.34,1.56,.64,1)',
+                  }}>
+                    <span key={on ? 'on' : 'off'} className={on ? 'fnav-pop' : ''} style={{ lineHeight: 1 }}>{GROUP_ICONS[g]}</span>
+                  </span>
+                  <span style={{ marginTop: 38, fontSize: 9.5, fontWeight: 800, color: on ? '#fff' : gc.from, whiteSpace: 'nowrap' }}>{T.play}</span>
+                  {alert && <span style={{ ...dot, top: -26, right: 'calc(50% - 32px)' }}></span>}
                 </button>
               );
-            })}
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 2, padding: '7px 8px 7px' }}>
-          {groups.map(g => {
-            const gt = tabs.filter(t => t.group === g);
-            if (!gt.length) return null;
-            const on = g === activeGroup;
-            const gc = colors[g] || colors.acasa;
-            const label = groupLabels[g] || g;
-            const alert = gt.some(alertOf);
+            }
             return (
-              <button key={g} className="fnav-btn" onClick={() => pickGroup(g)} title={label} aria-label={label} style={{
-                flex: on ? '2.7 1 0' : '1 1 0', minWidth: 30, height: 46, borderRadius: 18, border: 'none', cursor: 'pointer', position: 'relative',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 0, overflow: 'hidden',
-                background: on ? `linear-gradient(135deg, ${gc.from}, ${gc.to})` : 'transparent',
-                boxShadow: on ? `0 4px 16px ${gc.glow}` : 'none',
-                transition: 'flex .3s cubic-bezier(.34,1.56,.64,1), background .2s ease, box-shadow .2s ease, transform .12s ease',
-              }}>
-                <span key={on ? 'on' : 'off'} className={on ? 'fnav-pop' : ''} style={{ fontSize: on ? 22 : 21, lineHeight: 1, opacity: on ? 1 : 0.85 }}>{GROUP_ICONS[g] || '•'}</span>
-                {on && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>}
-                {!on && <span className="fnav-lab-off" style={{ display: 'none', fontSize: 11.5, fontWeight: 700, color: '#A5A2C0', whiteSpace: 'nowrap' }}>{label}</span>}
-                {alert && <span style={{ position: 'absolute', top: 5, right: on ? 8 : 4, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #100C1F' }}></span>}
+              <button key={g} className="fnav-slot" onClick={() => goGroup(g)} aria-label={label} title={label} style={{ ...slot, height: '100%', justifyContent: 'center', transition: 'transform .12s ease' }}>
+                <span style={{ position: 'relative', fontSize: 22, lineHeight: 1, padding: '5px 13px', borderRadius: 14, background: on ? `linear-gradient(135deg, ${gc.from}, ${gc.to})` : 'transparent', boxShadow: on ? `0 4px 14px ${gc.glow}` : 'none', transition: 'background .2s ease, box-shadow .2s ease' }}>
+                  <span key={on ? 'on' : 'off'} className={on ? 'fnav-pop' : ''} style={{ opacity: on ? 1 : 0.85 }}>{GROUP_ICONS[g] || '•'}</span>
+                  {alert && <span style={dot}></span>}
+                </span>
+                <span style={{ fontSize: 9.5, fontWeight: on ? 800 : 600, color: on ? '#fff' : '#8f8bad', whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
               </button>
             );
           })}
+          {more.length > 0 && (
+            <button className="fnav-slot" onClick={openMore} aria-label={T.more} title={T.more} style={{ ...slot, height: '100%', justifyContent: 'center', transition: 'transform .12s ease' }}>
+              <span style={{ position: 'relative', fontSize: 22, lineHeight: 1, padding: '5px 13px', borderRadius: 14, background: moreActive ? `linear-gradient(135deg, ${mc.from}, ${mc.to})` : 'transparent', boxShadow: moreActive ? `0 4px 14px ${mc.glow}` : 'none' }}>
+                <span key={moreActive ? activeGroup : 'more'} className={moreActive ? 'fnav-pop' : ''}>{moreActive ? (GROUP_ICONS[activeGroup] || '•') : '⋯'}</span>
+                {more.some(g => tabs.filter(t => t.group === g).some(alertOf)) && <span style={dot}></span>}
+              </span>
+              <span style={{ fontSize: 9.5, fontWeight: moreActive ? 800 : 600, color: moreActive ? '#fff' : '#8f8bad', whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{moreActive ? (groupLabels[activeGroup] || activeGroup) : T.more}</span>
+            </button>
+          )}
         </div>
       </div>
-    </div>
+      {sheet && (
+        <div onClick={() => setSheet(false)} style={{ position: 'fixed', inset: 0, zIndex: 45, background: 'rgba(5,3,12,0.68)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fnavFade .2s ease' }}>
+          <div ref={sheetRef} onClick={e => e.stopPropagation()} style={{
+            width: '100%', maxWidth: 620, maxHeight: '84vh', overflowY: 'auto', background: '#130F26', borderRadius: '28px 28px 0 0',
+            border: '1px solid #4a3a7a', borderBottom: 'none', padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)',
+            animation: 'fnavSlide .28s cubic-bezier(.2,.9,.3,1.1)', boxShadow: '0 -14px 50px rgba(0,0,0,.6)',
+          }}>
+            <div style={{ position: 'sticky', top: -10, zIndex: 2, background: '#130F26', margin: '-10px -16px 10px', padding: '10px 16px 8px' }}>
+              <div style={{ width: 44, height: 4, borderRadius: 3, background: '#3a3060', margin: '0 auto 10px' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="heading-font" style={{ fontSize: 16, fontWeight: 800 }}>{T.menu}</div>
+                <button onClick={() => setSheet(false)} aria-label={T.close} style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#221D3A', color: '#C7C8E0', fontSize: 14, cursor: 'pointer' }}>✕</button>
+              </div>
+            </div>
+            {nonEmpty.map(g => {
+              const gc = colors[g] || colors.acasa;
+              const gt = tabs.filter(t => t.group === g);
+              return (
+                <div key={g} data-g={g} style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontWeight: 800, color: gc.from, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 7 }}>
+                    <span style={{ fontSize: 14 }}>{GROUP_ICONS[g]}</span>{groupLabels[g] || g}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                    {gt.map(t => {
+                      const on = tab === t.id;
+                      return (
+                        <button key={t.id} className="fnav-tile" onClick={() => pick(t.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'center', color: 'inherit', position: 'relative', transition: 'transform .1s ease' }}>
+                          <div style={{
+                            width: '100%', aspectRatio: '1', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, position: 'relative',
+                            background: on ? `linear-gradient(135deg, ${gc.from}, ${gc.to})` : `linear-gradient(135deg, ${gc.from}2E, ${gc.to}1A)`,
+                            border: on ? '1px solid rgba(255,255,255,.7)' : `1px solid ${gc.from}55`, boxShadow: on ? `0 6px 18px ${gc.glow}` : 'none',
+                          }}>
+                            <span key={on ? 'a' : 'b'} className={on ? 'fnav-pop' : ''}>{t.icon}</span>
+                            {alertOf(t) && <span style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #130F26' }}></span>}
+                          </div>
+                          <div style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: on ? '#fff' : '#C7C8E0', marginTop: 5, lineHeight: 1.2 }}>{t.label}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -4336,7 +4380,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       minHeight: '100vh', background: 'radial-gradient(ellipse 800px 500px at 15% 10%, #2A0F3D 0%, #0B0A14 55%)',
       color: '#fff', padding: 24,
       ...(isDesktop ? { paddingBottom: 60, boxSizing: 'border-box', width: 'min(1000px, calc(100vw - 276px))', margin: '0 0 0 calc(236px + (100vw - 236px - min(1000px, 100vw - 276px)) / 2)' }
-        : { paddingBottom: 150, maxWidth: 'var(--fl-max, 640px)', margin: '0 auto' }),
+        : { paddingBottom: 120, maxWidth: 'var(--fl-max, 640px)', margin: '0 auto' }),
     }}>
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
       {announcement && announcement.trim() && (
@@ -8525,7 +8569,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.070';
+const APP_VERSION = 'v2.071';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

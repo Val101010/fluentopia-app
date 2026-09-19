@@ -4229,32 +4229,48 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             </div>
           )}
           {student.cardDebts && student.cardDebts.length > 0 && (
-            <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 14, padding: 16, marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#F87171', marginBottom: 8 }}>⚠️ Cartonașe/reguli neplătite</div>
+            <div style={{ background: 'linear-gradient(135deg, rgba(248,113,113,0.12), #151225)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <span style={{
+                  fontSize: 17, width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(248,113,113,0.22)', flexShrink: 0,
+                }}>⚠️</span>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#F87171' }}>Cartonașe/reguli neplătite</div>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                 {student.cardDebts.map(d => (
                   <div key={d.id} style={{ fontSize: 12, color: '#C7C8E0' }}>{d.emoji} {d.label} — <b style={{ color: '#F87171' }}>{d.amount} pct</b></div>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: '#8A86A8' }}>Trebuie plătite (din tab-ul „Bancă" sau „Jocuri") ca să poți accesa împrumuturi sau jocuri.</div>
+              <div style={{ fontSize: 11, color: '#8A86A8' }}>Trebuie plătite (din tab-ul „Disciplină") ca să poți accesa împrumuturi, jocuri sau Hero Battle.</div>
             </div>
           )}
           {(() => {
             const myClass = (classes || []).find(c => c.id === student.classId);
             if (!myClass || (!myClass.schedule && !myClass.nextEvent)) return null;
             return (
-              <div style={{ background: '#151225', borderRadius: 14, padding: 16, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(255,180,67,0.10), #151225)', border: '1px solid rgba(255,180,67,0.35)',
+                borderRadius: 14, padding: 16, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
                 {myClass.schedule && <div style={{ fontSize: 13, color: '#C7C8E0' }}>🕐 {myClass.schedule}</div>}
-                {myClass.nextEvent && <div style={{ fontSize: 13, color: '#F5C542' }}>📌 {myClass.nextEvent}</div>}
+                {myClass.nextEvent && <div style={{ fontSize: 13, color: '#FFB443', fontWeight: 700 }}>📌 {myClass.nextEvent}</div>}
               </div>
             );
           })()}
           {student.diplomas && student.diplomas.length > 0 && (
             <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 13, color: '#8A86A8', marginBottom: 10 }}>Diplomele tale</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#818CF8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}></span>
+                Diplomele tale
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {student.diplomas.map(d => (
-                  <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#151225', borderRadius: 10, fontSize: 13, color: '#9B3CE0', textDecoration: 'none' }}>
+                  <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer" style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px',
+                    background: 'linear-gradient(135deg, rgba(99,102,241,0.10), #151225)', border: '1px solid rgba(99,102,241,0.3)',
+                    borderRadius: 10, fontSize: 13, color: '#A5AEFF', textDecoration: 'none',
+                  }}>
                     <span>🏆 {d.name}</span>
                     <span style={{ color: '#6E6A8C', fontSize: 11 }}>{fmtDate(d.date)}</span>
                   </a>
@@ -4267,7 +4283,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
               .map(id => STREAK_MILESTONES.find(m => m.stickerId === id))
               .find(m => m.days > (student.streak || 0));
             return (
-              <div style={{ background: '#151225', borderRadius: 14, padding: '12px 16px', marginBottom: 20 }}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(255,122,69,0.12), #151225)', border: '1px solid rgba(255,122,69,0.35)', borderRadius: 14, padding: '12px 16px', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 22 }}>🔥</span>
                   <span style={{ fontSize: 13, color: '#C7C8E0' }}><b style={{ color: '#F5C542' }}>{student.streak}</b> {student.streak === 1 ? 'zi' : 'zile'} la rând</span>
@@ -4285,7 +4301,10 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           })()}
           {(student.badges.length > 0 || autoBadges.length > 0) && (
             <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 13, color: '#8A86A8', marginBottom: 10 }}>Badge-urile tale</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#B368F5', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'linear-gradient(135deg, #9B3CE0, #B368F5)' }}></span>
+                Badge-urile tale
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {student.badges.map(b => (
                   <span key={b.id} style={{ padding: '6px 12px', borderRadius: 20, background: 'rgba(155, 60, 224, 0.18)', color: '#C9A6EE', fontSize: 12 }}>{b.label}</span>
@@ -4310,7 +4329,10 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                 </div>
               );
             })()}
-            <div style={{ fontSize: 13, color: '#8A86A8', marginBottom: 10 }}>Rezultatele tale la teste, pe module</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#818CF8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'linear-gradient(135deg, #6366F1, #818CF8)' }}></span>
+              Rezultatele tale la teste, pe module
+            </div>
             {student.testResults.length === 0 ? <div style={{ color: '#4A4666', fontSize: 13 }}>Niciun test încă.</div> : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {groupTestsByModule(student.testResults).map(group => (
@@ -7997,7 +8019,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.057';
+const APP_VERSION = 'v2.058';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

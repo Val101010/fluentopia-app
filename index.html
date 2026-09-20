@@ -588,6 +588,250 @@ function ArticleVisual({ id, lang }) {
   }
   return null;
 }
+/* ---------- Panou mare pentru share screen: se scalează automat ca să umple ecranul ---------- */
+function toggleFullscreen() {
+  try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
+}
+function PresentationBox({ baseW = 520, baseH = 460, style, children }) {
+  const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const on = () => setVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  const canZoom = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '1.5');
+  const scale = canZoom ? Math.max(1, Math.min(2.2, (vp.w * 0.92) / baseW, (vp.h * 0.9) / baseH)) : 1;
+  const width = Math.min(baseW, (vp.w * 0.94) / scale);
+  const maxHeight = (vp.h * 0.94) / scale;
+  return (
+    <div className="scrollbar" style={{ ...style, zoom: scale, width, maxHeight, overflowY: 'auto', boxSizing: 'border-box' }}>
+      <style>{`
+        @keyframes rpRoll { 0% { transform: translateY(70%); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+        @keyframes rpPop { 0% { transform: scale(.55); } 55% { transform: scale(1.22); } 80% { transform: scale(.96); } 100% { transform: scale(1); } }
+        @keyframes rpGlow { 0%, 100% { box-shadow: 0 0 0 0 var(--glow, transparent); } 50% { box-shadow: 0 0 30px 5px var(--glow, transparent); } }
+        @keyframes rpFloat { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-9px) rotate(5deg); } }
+        @keyframes rpShine { 0% { transform: translateX(-140%) skewX(-18deg); } 60%, 100% { transform: translateX(330%) skewX(-18deg); } }
+        @keyframes rpSpark { 0% { transform: translate(0,0) scale(.3) rotate(0deg); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1.15) rotate(200deg); opacity: 0; } }
+        @keyframes rpCardIn { 0% { transform: translateY(30px) scale(.8); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+        @keyframes rpBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+      `}</style>
+      {children}
+    </div>
+  );
+}
+/* ---------- Roata de final de lecție: extragi un norocos dintre cei prezenți, apoi norocosul învârte roata ---------- */
+const END_WHEEL_POINTS = [
+  { v: 10, w: 9 }, { v: 500, w: 2 }, { v: 25, w: 8 }, { v: 100, w: 5 }, { v: 1, w: 10 },
+  { v: 250, w: 3 }, { v: 50, w: 6 }, { v: 1000, w: 1 }, { v: 5, w: 10 },
+];
+const END_WHEEL_EXCLUDE = ['ticket', 'ticket2', 'ticket3'];   // fără lecțiile gratuite
+function stickerWheelWeight(id) {
+  const price = STICKER_PRICE[id] || 500;
+  return price <= 300 ? 4 : price <= 700 ? 3 : price <= 1200 ? 2 : 1;
+}
+function buildEndWheelPrizes() {
+  const st = STICKERS.filter(s => !s.miningTier && !s.miningBonus && !s.earnOnly && !s.parentOnly && !END_WHEEL_EXCLUDE.includes(s.id))
+    .map(s => ({ type: 'sticker', stickerId: s.id, label: s.label, weight: stickerWheelWeight(s.id), color: s.color, mono: s.mono }));
+  const pts = END_WHEEL_POINTS.map(p => ({ type: 'points', amount: p.v, label: `${p.v} pct`, weight: p.w }));
+  // puncte intercalate printre abțibilduri, ca roata să arate vie
+  const out = []; const step = Math.max(1, Math.floor(st.length / pts.length));
+  let pi = 0;
+  st.forEach((s, i) => { out.push(s); if ((i + 1) % step === 0 && pi < pts.length) out.push(pts[pi++]); });
+  while (pi < pts.length) out.push(pts[pi++]);
+  return out;
+}
+function pickWeighted(prizes) {
+  const total = prizes.reduce((s, p) => s + p.weight, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < prizes.length; i++) { if (r < prizes[i].weight) return i; r -= prizes[i].weight; }
+  return 0;
+}
+function PrizeWheel({ prizes, rotation, spinning, size = 460, width = 460 }) {
+  const N = prizes.length, sa = 360 / N, c = size / 2, R = size / 2 - 6, rc = R * 0.76;
+  const pt = (deg, r) => [c + r * Math.sin(deg * Math.PI / 180), c - r * Math.cos(deg * Math.PI / 180)];
+  const ptsColor = v => v >= 1000 ? '#EC1E8F' : v >= 250 ? '#FF8A3D' : v >= 50 ? '#F5C542' : '#FFD86B';
+  return (
+    <div style={{ position: 'relative', width: '100%', maxWidth: width, aspectRatio: '1', margin: '0 auto', pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 3, width: 0, height: 0, borderLeft: '15px solid transparent', borderRight: '15px solid transparent', borderTop: '30px solid #fff', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.6))' }}></div>
+      <div data-wheel="1" style={{ width: '100%', height: '100%', pointerEvents: 'none', transform: `rotate(${rotation}deg)`, transition: spinning ? 'transform 5.8s cubic-bezier(0.12, 0.72, 0.13, 1)' : 'none', borderRadius: '50%', boxShadow: '0 0 0 6px #241B45, 0 0 40px rgba(155,60,224,.45)' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+          {prizes.map((p, i) => {
+            const a0 = i * sa, a1 = (i + 1) * sa, mid = (i + 0.5) * sa;
+            const [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R);
+            const isPts = p.type === 'points';
+            const fill = isPts ? ptsColor(p.amount) : (i % 2 ? '#2D2358' : '#3F2F7A');
+            const src = !isPts ? STICKER_IMG[p.stickerId] : null;
+            return (
+              <g key={i}>
+                <path d={`M ${c} ${c} L ${x0} ${y0} A ${R} ${R} 0 0 1 ${x1} ${y1} Z`} fill={fill} stroke="#0B0A14" strokeWidth="1.2" />
+                {isPts
+                  ? <text transform={`rotate(${mid} ${c} ${c})`} x={c} y={c - rc + 5} textAnchor="middle" fontSize={p.amount >= 100 ? 13 : 15} fontWeight="900" fill={p.amount >= 1000 ? '#fff' : '#3a2600'}>{p.amount}</text>
+                  : src
+                    ? <image href={src} transform={`rotate(${mid} ${c} ${c})`} x={c - 15} y={c - rc - 15} width="30" height="30" />
+                    : <text transform={`rotate(${mid} ${c} ${c})`} x={c} y={c - rc + 5} textAnchor="middle" fontSize="12" fontWeight="800" fill={p.color || '#fff'}>{p.mono}</text>}
+              </g>
+            );
+          })}
+          <circle cx={c} cy={c} r={size * 0.075} fill="#151225" stroke="#F5C542" strokeWidth="4" />
+          <text x={c} y={c + 9} textAnchor="middle" fontSize="26">🍀</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+function EndLessonWheel({ students, onAward, onRevert, onClose }) {
+  const prizes = React.useMemo(() => buildEndWheelPrizes(), []);
+  const [phase, setPhase] = useState('draw');           // draw -> spin -> done
+  const [winner, setWinner] = useState(null);
+  const [rotation, setRotation] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+  const [result, setResult] = useState(null);           // { prize, token }
+  const [reverted, setReverted] = useState(false);
+  const [past, setPast] = useState([]);                 // câștigători din sesiune
+  const [showOdds, setShowOdds] = useState(false);
+  const [burst, setBurst] = useState(0);
+  const [conf, setConf] = useState(false);
+  const timer = useRef(null);
+  const timers = useRef([]);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); timers.current.forEach(clearTimeout); }, []);
+  const wonIds = past.map(x => x.studentId);
+  const pool = students.filter(s => !wonIds.includes(s.id));
+
+  function onPickName(name) {
+    const st = pool.find(s => s.name === name) || pool[0];
+    if (st) { setWinner(st); setPhase('spin'); }
+  }
+  function spin() {
+    if (spinning || !winner) return;
+    const idx = pickWeighted(prizes);
+    const sa = 360 / prizes.length, center = (idx + 0.5) * sa, jitter = (Math.random() - 0.5) * sa * 0.7;
+    const cur = ((rotation % 360) + 360) % 360;
+    const delta = (((360 - center - jitter - cur) % 360) + 360) % 360;
+    const next = rotation + 360 * 6 + delta;
+    setSpinning(true); setReverted(false);
+    setRotation(next);
+    // sunet de "clic-clic" care încetinește odată cu roata
+    let lastT = -100;
+    for (let k = 1; k <= 260; k++) {
+      const th = k / 260, tt = 5800 * (1 - Math.pow(1 - th, 1 / 3.4));
+      if (tt - lastT >= 55) { lastT = tt; timers.current.push(setTimeout(() => pickerTick(k, 260), tt)); }
+    }
+    timer.current = setTimeout(() => {
+      const prize = prizes[idx];
+      const token = onAward(winner, prize);
+      setResult({ prize, token, idx });
+      setPast(p => [...p, { studentId: winner.id, name: winner.name, prize }]);
+      setSpinning(false); setPhase('done'); setBurst(b => b + 1); setConf(true); pickerFanfare();
+    }, 5900);
+  }
+  function nextWinner() { setWinner(null); setResult(null); setPhase('draw'); }
+  function undo() { if (result && !reverted) { onRevert(result.token); setReverted(true); setPast(p => p.slice(0, -1)); } }
+  const totalW = prizes.reduce((s, p) => s + p.weight, 0);
+  const pct = w => (w / totalW * 100).toFixed(1).replace('.0', '') + '%';
+  const stickerTiers = [[4, 'Abțibilduri mici (≤300 pct)'], [3, 'Abțibilduri medii (≤700 pct)'], [2, 'Abțibilduri mari (≤1200 pct)'], [1, 'Abțibilduri rare (peste 1200 pct)']]
+    .map(([w, label]) => { const n = prizes.filter(p => p.type === 'sticker' && p.weight === w); return { label, n: n.length, chance: n.length * w }; }).filter(t => t.n > 0);
+  const prize = result && result.prize;
+  const wide = useMediaQuery('(min-width: 900px)');
+  const controls = (
+    <div>
+      <p style={{ fontSize: 13, color: '#8A86A8', margin: '0 0 12px' }}>
+        {students.length} {students.length === 1 ? 'elev prezent participă' : 'elevi prezenți participă'}. Întâi extragi norocosul, apoi el învârte roata.
+      </p>
+      {phase === 'draw' && (
+        pool.length === 0
+          ? <div style={{ textAlign: 'center', color: '#F5C542', fontSize: 14, padding: 12 }}>Toți elevii prezenți au câștigat deja azi 🎉</div>
+          : <div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>🍀 Cine e norocosul?</div>
+              <RandomPicker big names={pool.map(s => s.name)} color="#F5C542" buttonLabel="🎲 Extrage norocosul" onPick={onPickName} />
+            </div>
+      )}
+      {(phase === 'spin' || phase === 'done') && winner && (
+        <div style={{ textAlign: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: '#8A86A8', letterSpacing: 1.5, textTransform: 'uppercase' }}>Norocosul</div>
+          <div className="heading-font" style={{ fontSize: 30, fontWeight: 800, color: '#F5C542', lineHeight: 1.15 }}>🍀 {winner.name}</div>
+        </div>
+      )}
+      {phase === 'spin' && (
+        <button onClick={spin} disabled={spinning} style={{
+          width: '100%', marginTop: 8, padding: '15px 0', borderRadius: 14, border: 'none', cursor: spinning ? 'default' : 'pointer', fontWeight: 800, fontSize: 17,
+          background: spinning ? '#221D3A' : 'linear-gradient(135deg, #F5C542, #EC1E8F)', color: spinning ? '#5A5570' : '#0B0A14',
+        }}>{spinning ? '🎡 Se învârte...' : '🎡 Învârte roata!'}</button>
+      )}
+      {phase === 'spin' && spinning && <div style={{ textAlign: 'center', marginTop: 10, fontSize: 13, color: '#8A86A8' }}>Ține pumnii pentru {winner && winner.name}… 🤞</div>}
+      {phase === 'done' && prize && (
+        <div style={{ position: 'relative', marginTop: 6, textAlign: 'center', background: 'linear-gradient(135deg, rgba(245,197,66,.16), rgba(236,30,143,.12))', border: '1px solid rgba(245,197,66,.5)', borderRadius: 18, padding: '16px 14px', animation: 'rpCardIn .55s cubic-bezier(.34,1.56,.64,1) both, rpGlow 2.2s 0.6s ease-in-out infinite', '--glow': 'rgba(245,197,66,.45)' }}>
+          {!reverted && <Sparks key={burst} n={18} radius={130} />}
+          {reverted ? (
+            <div style={{ color: '#F87171', fontSize: 15, fontWeight: 700 }}>Premiul a fost anulat.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 13, color: '#C7C8E0', marginBottom: 8 }}>{winner.name} a câștigat:</div>
+              {prize.type === 'sticker'
+                ? <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14 }}>
+                    <span style={{ display: 'inline-block', animation: 'rpBounce 1.4s ease-in-out infinite' }}><IconBadge sticker={STICKERS.find(s => s.id === prize.stickerId)} size={96} /></span>
+                    <div style={{ textAlign: 'left' }}><div className="heading-font" style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>{prize.label}</div><div style={{ fontSize: 12, color: '#8A86A8' }}>abțibild adăugat în Sticker Chart</div></div>
+                  </div>
+                : <div className="heading-font" style={{ fontSize: 40, fontWeight: 900, color: '#F5C542' }}>⭐ +{prize.amount} puncte</div>}
+            </>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {!reverted && <button onClick={undo} style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid #2E2850', background: 'transparent', color: '#8A86A8', fontSize: 12, cursor: 'pointer' }}>↩ Anulează premiul</button>}
+            <button onClick={nextWinner} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#221D3A', color: '#C7C8E0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🍀 Extrage alt norocos</button>
+            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #4ADE80, #38BDF8)', color: '#0B0A14', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Gata</button>
+          </div>
+        </div>
+      )}
+      {past.length > 0 && (
+        <div style={{ marginTop: 12, fontSize: 11.5, color: '#8A86A8' }}>
+          Azi: {past.map((x, i) => <span key={i} style={{ color: '#C7C8E0' }}>{i ? ' · ' : ''}{x.name} ({x.prize.type === 'points' ? `+${x.prize.amount} pct` : x.prize.label})</span>)}
+        </div>
+      )}
+    </div>
+  );
+  const odds = (
+    <div style={{ marginTop: 12 }}>
+      <button onClick={() => setShowOdds(v => !v)} style={{ background: 'none', border: 'none', color: '#6E6A8C', fontSize: 11.5, cursor: 'pointer', padding: 0 }}>{showOdds ? '▲' : '▼'} Șansele premiilor</button>
+      {showOdds && (
+        <div style={{ marginTop: 8, background: '#0F0C1C', borderRadius: 12, padding: 12, fontSize: 11.5, color: '#C7C8E0', lineHeight: 1.7 }}>
+          <div style={{ color: '#8A86A8', marginBottom: 4 }}>Roata are {prizes.length} felii egale, dar premiile mari ies mai rar (șansele de mai jos):</div>
+          {END_WHEEL_POINTS.slice().sort((a, b) => a.v - b.v).map(p => <div key={p.v} style={{ display: 'flex', justifyContent: 'space-between' }}><span>⭐ {p.v} puncte</span><b>{pct(p.w)}</b></div>)}
+          {stickerTiers.map(t => <div key={t.label} style={{ display: 'flex', justifyContent: 'space-between' }}><span>🎫 {t.label} ({t.n})</span><b>{pct(t.chance)}</b></div>)}
+          <div style={{ color: '#6E6A8C', marginTop: 4 }}>Fără lecțiile gratuite. Abțibildurile de mining și cel de recomandare nu sunt pe roată.</div>
+        </div>
+      )}
+    </div>
+  );
+  const wheel = <PrizeWheel prizes={prizes} rotation={rotation} spinning={spinning} width={wide ? 470 : 380} />;
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {conf && <Confetti onDone={() => setConf(false)} />}
+      <PresentationBox baseW={wide ? 1020 : 480} baseH={wide ? 600 : 900} style={{
+        background: 'linear-gradient(#151225, #151225) padding-box, linear-gradient(135deg, #F5C542, #EC1E8F, #38BDF8) border-box', border: '2px solid transparent',
+        borderRadius: 24, padding: '20px 24px 18px', boxShadow: '0 20px 60px rgba(0,0,0,.6)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h3 className="heading-font" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🎡 Roata de final de lecție</h3>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <SoundToggle />
+            <button onClick={toggleFullscreen} aria-label="Ecran complet" title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button>
+            <button onClick={onClose} aria-label="Închide" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', fontSize: 20 }}>✕</button>
+          </div>
+        </div>
+        {students.length === 0 ? (
+          <div style={{ color: '#F87171', fontSize: 13, textAlign: 'center', padding: 16 }}>Niciun elev marcat „Prezent" azi. Mergi la 📋 Prezență întâi.</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: wide ? '470px 1fr' : '1fr', gap: wide ? 30 : 14, alignItems: 'center', paddingTop: 14 }}>
+              {wide ? <>{wheel}<div>{controls}</div></> : <><div>{controls}</div>{wheel}</>}
+            </div>
+            {odds}
+          </>
+        )}
+      </PresentationBox>
+    </div>
+  );
+}
+
 /* ---------- Bară de meniu jos: 4 butoane + buton central „Joacă” + „Mai mult” (foaie cu plăci) ---------- */
 const GROUP_ICONS = { acasa: '🏠', social: '💬', distractie: '🎮', aurabuddy: '🐣', clasamente: '🏆', finante: '💰', progres: '📈' };
 function navBuzz() { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} }
@@ -3105,42 +3349,144 @@ function playDemoIntro() {
   try { const yay = new Audio(DEMO_INTRO_KIDSYAY); yay.volume = 0.7; yay.play().catch(() => {}); } catch (e) {}
 }
 
-function RandomPicker({ names, onPick, color, buttonLabel }) {
-  const [spinning, setSpinning] = useState(false);
-  const [display, setDisplay] = useState(null);
-  const [picked, setPicked] = useState(null);
-  function spin() {
-    if (spinning || names.length === 0) return;
-    setSpinning(true);
-    setPicked(null);
-    let ticks = 0;
-    const totalTicks = 18;
-    const interval = setInterval(() => {
-      setDisplay(names[Math.floor(Math.random() * names.length)]);
-      ticks++;
-      if (ticks >= totalTicks) {
-        clearInterval(interval);
-        const winner = names[Math.floor(Math.random() * names.length)];
-        setDisplay(winner);
-        setPicked(winner);
-        setSpinning(false);
-        onPick(winner);
-      }
-    }, 90 + ticks * 4);
-  }
+/* ---------- Animații + sunete pentru extrageri live (Șef & Judecător, Roata de final de lecție) ---------- */
+let PICK_SOUND = true;
+let _pickCtx = null;
+function pickCtx() {
+  try {
+    if (!_pickCtx) _pickCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_pickCtx.state === 'suspended') _pickCtx.resume();
+    return _pickCtx;
+  } catch (e) { return null; }
+}
+function pickerTick(i, total) {
+  if (!PICK_SOUND) return;
+  const ctx = pickCtx(); if (!ctx) return;
+  try {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle'; o.frequency.value = 380 + (i / Math.max(1, total)) * 280;
+    o.connect(g); g.connect(ctx.destination);
+    const t0 = ctx.currentTime;
+    g.gain.setValueAtTime(0.07, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06);
+    o.start(t0); o.stop(t0 + 0.07);
+  } catch (e) {}
+}
+function pickerFanfare() {
+  if (!PICK_SOUND) return;
+  const ctx = pickCtx(); if (!ctx) return;
+  try {
+    [523, 659, 784, 1047].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+      const t0 = ctx.currentTime + i * 0.09;
+      g.gain.setValueAtTime(0.13, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
+      o.start(t0); o.stop(t0 + 0.6);
+    });
+  } catch (e) {}
+}
+function SoundToggle() {
+  const [on, setOn] = useState(PICK_SOUND);
   return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{
-        background: '#0F0C1C', border: `2px solid ${picked ? color : '#2E2850'}`, borderRadius: 14, padding: '20px 14px', marginBottom: 12,
-        fontSize: 20, fontWeight: 800, color: picked ? color : '#C7C8E0', minHeight: 30,
-      }}>{display || '—'}</div>
-      <button onClick={spin} disabled={spinning || names.length === 0} style={{
-        padding: '11px 22px', borderRadius: 10, border: 'none', cursor: (spinning || names.length === 0) ? 'default' : 'pointer',
-        background: (spinning || names.length === 0) ? '#221D3A' : `linear-gradient(135deg, ${color}, #9B3CE0)`, color: (spinning || names.length === 0) ? '#5A5570' : '#fff', fontWeight: 700, fontSize: 13,
-      }}>{spinning ? '🎲 ...' : buttonLabel}</button>
+    <button onClick={() => { PICK_SOUND = !PICK_SOUND; setOn(PICK_SOUND); if (PICK_SOUND) pickerTick(4, 10); }} aria-label="Sunet" title={on ? 'Sunet pornit' : 'Sunet oprit'}
+      style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>{on ? '🔊' : '🔇'}</button>
+  );
+}
+function Sparks({ n = 16, radius = 150, emojis = ['✨', '⭐', '🎉', '💫'] }) {
+  const items = React.useMemo(() => Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.4, r = radius * (0.6 + Math.random() * 0.6);
+    return { dx: Math.cos(a) * r, dy: Math.sin(a) * r * 0.7, e: emojis[i % emojis.length], d: Math.random() * 0.15, s: 14 + Math.random() * 14 };
+  }), []);
+  return (
+    <div style={{ position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, pointerEvents: 'none', zIndex: 5 }}>
+      {items.map((it, i) => (
+        <span key={i} style={{ position: 'absolute', left: 0, top: 0, fontSize: it.s, '--dx': `${it.dx}px`, '--dy': `${it.dy}px`, animation: `rpSpark 1.1s ${it.d}s ease-out forwards`, opacity: 0 }}>{it.e}</span>
+      ))}
     </div>
   );
 }
+function RoleCard({ emoji, label, name, color, delay = 0 }) {
+  return (
+    <div style={{
+      flex: 1, position: 'relative', overflow: 'hidden', borderRadius: 18, padding: '30px 14px 22px', textAlign: 'center',
+      background: `linear-gradient(135deg, ${color}2E, ${color}0D)`, border: `1px solid ${color}77`, '--glow': `${color}66`,
+      animation: `rpCardIn .65s ${delay}s cubic-bezier(.34,1.56,.64,1) both, rpGlow 2.6s ${delay + 0.8}s ease-in-out infinite`,
+    }}>
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '38%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent)', animation: `rpShine 3.4s ${delay + 1}s ease-in-out infinite`, pointerEvents: 'none' }}></div>
+      <Sparks n={12} radius={90} />
+      <div style={{ fontSize: 46, lineHeight: 1.1, marginBottom: 6, display: 'inline-block', animation: `rpFloat 2.8s ${delay}s ease-in-out infinite` }}>{emoji}</div>
+      <div style={{ fontSize: 11.5, color: '#A5A2C0', marginBottom: 2, letterSpacing: 0.4 }}>{label}</div>
+      <div className="heading-font" style={{ fontSize: 24, color, fontWeight: 800, textShadow: `0 0 18px ${color}66` }}>{name}</div>
+    </div>
+  );
+}
+function RandomPicker({ names, onPick, color, buttonLabel, big }) {
+  const [spinning, setSpinning] = useState(false);
+  const [cur, setCur] = useState({ name: null, prev: null, next: null, tick: 0, delay: 200 });
+  const [picked, setPicked] = useState(null);
+  const [burst, setBurst] = useState(0);
+  const [conf, setConf] = useState(false);
+  const timers = useRef([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const total = big ? 32 : 20;
+  function spin() {
+    if (spinning || names.length === 0) return;
+    timers.current.forEach(clearTimeout); timers.current = [];
+    setSpinning(true); setPicked(null);
+    const winner = names[Math.floor(Math.random() * names.length)];
+    const seq = []; let last = null;
+    for (let i = 0; i < total; i++) {
+      let n; let guard = 0;
+      do { n = names[Math.floor(Math.random() * names.length)]; guard++; } while (names.length > 1 && n === last && guard < 12);
+      seq.push(n); last = n;
+    }
+    seq[total - 1] = winner;
+    let t = 0;
+    seq.forEach((n, i) => {
+      const delay = 55 + Math.pow(i / (total - 1), 2.3) * 460;
+      t += delay;
+      timers.current.push(setTimeout(() => {
+        setCur({ name: n, prev: i > 0 ? seq[i - 1] : null, next: i < total - 1 ? seq[i + 1] : null, tick: i, delay });
+        pickerTick(i, total);
+        if (i === total - 1) {
+          timers.current.push(setTimeout(() => {
+            setPicked(winner); setSpinning(false); setBurst(b => b + 1); setConf(true); pickerFanfare(); onPick(winner);
+          }, 380));
+        }
+      }, t));
+    });
+  }
+  const dis = spinning || names.length === 0;
+  const progress = spinning ? Math.min(100, ((cur.tick + 1) / total) * 100) : (picked ? 100 : 0);
+  return (
+    <div style={{ textAlign: 'center' }}>
+      {conf && <Confetti onDone={() => setConf(false)} />}
+      <div style={{
+        position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at center, #1a1433, #0F0C1C 70%)', border: `2px solid ${picked ? color : '#2E2850'}`, borderRadius: 16,
+        padding: big ? '14px 14px 18px' : '12px 12px 14px', marginBottom: 12, minHeight: big ? 150 : 96, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        '--glow': `${color}88`, animation: picked ? 'rpGlow 1.8s ease-in-out infinite' : 'none', transition: 'border-color .3s ease',
+      }}>
+        <div style={{ fontSize: big ? 15 : 12, height: big ? 22 : 16, opacity: 0.28, filter: 'blur(1.2px)', color: '#C7C8E0', overflow: 'hidden', whiteSpace: 'nowrap' }}>{spinning ? cur.prev : ''}</div>
+        <div key={`${cur.tick}-${picked ? 'p' : 'n'}`} style={{
+          fontSize: big ? 40 : 22, fontWeight: 800, lineHeight: 1.15, color: picked ? color : '#E4E2F5', minHeight: big ? 50 : 28,
+          animation: picked ? 'rpPop .65s cubic-bezier(.34,1.56,.64,1)' : (spinning ? `rpRoll ${Math.max(60, Math.min(cur.delay * 0.9, 300))}ms ease-out` : 'none'),
+          filter: spinning ? `blur(${Math.max(0, 2.4 - (cur.tick / Math.max(1, total - 1)) * 2.4).toFixed(1)}px)` : 'none',
+          textShadow: picked ? `0 0 26px ${color}99` : 'none',
+        }}>{cur.name || '—'}</div>
+        <div style={{ fontSize: big ? 15 : 12, height: big ? 22 : 16, opacity: 0.28, filter: 'blur(1.2px)', color: '#C7C8E0', overflow: 'hidden', whiteSpace: 'nowrap' }}>{spinning ? cur.next : ''}</div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, background: 'rgba(255,255,255,0.05)' }}>
+          <div style={{ width: `${progress}%`, height: '100%', background: `linear-gradient(90deg, ${color}, #EC1E8F)`, transition: 'width .25s ease' }}></div>
+        </div>
+        {picked && <Sparks key={burst} n={20} radius={big ? 190 : 120} />}
+      </div>
+      <button onClick={spin} disabled={dis} style={{
+        padding: big ? '14px 30px' : '11px 22px', borderRadius: 12, border: 'none', cursor: dis ? 'default' : 'pointer',
+        background: dis ? '#221D3A' : `linear-gradient(135deg, ${color}, #9B3CE0)`, color: dis ? '#5A5570' : '#fff', fontWeight: 700, fontSize: big ? 16 : 13,
+        boxShadow: dis ? 'none' : `0 6px 20px ${color}55`,
+      }}>{spinning ? '🎲 Se extrage…' : buttonLabel}</button>
+    </div>
+  );
+}
+
 function WheelOfFortune({ onResult, onExit }) {
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -6484,6 +6830,14 @@ function TeacherApp({ onExit, teacherName }) {
   const [showAttendance, setShowAttendance] = useState(false);
   const [attendanceViewMode, setAttendanceViewMode] = useState('mark');
   const [showRolesWheel, setShowRolesWheel] = useState(false);
+  const [showEndWheel, setShowEndWheel] = useState(false);
+  const [pinReveal, setPinReveal] = useState({});
+  useEffect(() => { if (!showPasswordsManager) setPinReveal({}); }, [showPasswordsManager]);
+  useEffect(() => {
+    if (Object.keys(pinReveal).length === 0) return;
+    const t = setTimeout(() => setPinReveal({}), 30000);
+    return () => clearTimeout(t);
+  }, [pinReveal]);
   const [showBulkPoints, setShowBulkPoints] = useState(false);
   const [showAppStats, setShowAppStats] = useState(false);
   const [bulkAmount, setBulkAmount] = useState('5');
@@ -6796,6 +7150,19 @@ function TeacherApp({ onExit, teacherName }) {
     }));
     playDing();
   }
+  function awardWheelPrize(student, prize) {
+    const entryId = uid();
+    updateStudents(prev => prev.map(s => s.id !== student.id ? s : (prize.type === 'points'
+      ? { ...s, points: s.points + prize.amount, pointsLog: [{ id: entryId, delta: prize.amount, reason: 'Roata Norocului (final de lecție)', date: new Date().toISOString() }, ...(s.pointsLog || [])] }
+      : { ...s, stickers: [...(s.stickers || []), { id: entryId, stickerId: prize.stickerId, date: new Date().toISOString() }] })));
+    playDing();
+    return { studentId: student.id, entryId, prize };
+  }
+  function revertWheelPrize(t) {
+    updateStudents(prev => prev.map(s => s.id !== t.studentId ? s : (t.prize.type === 'points'
+      ? { ...s, points: Math.max(0, s.points - t.prize.amount), pointsLog: (s.pointsLog || []).filter(x => x.id !== t.entryId) }
+      : { ...s, stickers: (s.stickers || []).filter(x => x.id !== t.entryId) })));
+  }
   function forgiveCardDebt(debtId) {
     if (!selectedStudent) return;
     if (!window.confirm('Anulezi (ierți) acest cartonaș/regulă?')) return;
@@ -6896,7 +7263,7 @@ function TeacherApp({ onExit, teacherName }) {
               <button onClick={() => setShowPasswordsManager(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>🔑 Parole elevi</button>
+              }}>🛡️ Security</button>
               <button onClick={() => setShowAttendance(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
@@ -6905,6 +7272,10 @@ function TeacherApp({ onExit, teacherName }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
               }}>🎲 Șef & Judecător de azi</button>
+              <button onClick={() => setShowEndWheel(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg, rgba(245,197,66,0.16), rgba(236,30,143,0.14))', color: '#F5C542', fontSize: 12.5, fontWeight: 700, textAlign: 'left',
+              }}>🎡 Roata de final de lecție</button>
               <button onClick={() => setShowBulkPoints(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
@@ -7647,7 +8018,7 @@ function TeacherApp({ onExit, teacherName }) {
                   </div>
                   <p style={{ color: '#6E6A8C', fontSize: 12, marginTop: 12, lineHeight: 1.5 }}>
                     Cu această parolă, elevul se poate conecta la ecranul „Sunt elev" și își vede propriile puncte, badge-uri, stickere și rezultate — nu poate modifica nimic, dar își poate schimba parola din contul lui.
-                    Toate parolele elevilor pot fi văzute oricând din butonul „Parole elevi" din meniul din stânga.
+                    Toate parolele elevilor pot fi văzute oricând din butonul „Security" din meniul din stânga.
                   </p>
                 </div>
                 <div style={{ background: '#151225', borderRadius: 14, padding: 18, marginBottom: 12 }}>
@@ -7925,16 +8296,16 @@ function TeacherApp({ onExit, teacherName }) {
         const judgeCandidates = presentNames.filter(n => n !== (pickedMonitor || (todayRoles && todayRoles.monitorName)));
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{
+            <PresentationBox baseW={560} baseH={650} style={{
               background: 'linear-gradient(135deg, #1A1530, #151225)', border: '1px solid transparent',
               backgroundImage: 'linear-gradient(#151225, #151225), linear-gradient(135deg, #F5C542, #38BDF8, #EC1E8F)',
               backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box',
-              borderRadius: 22, padding: 26, maxWidth: 520, width: '100%', maxHeight: '88vh', overflowY: 'auto',
+              borderRadius: 22, padding: 26,
               boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <h3 className="heading-font" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🎲 Șef & Judecător — {classes.find(c => c.id === activeClassId)?.name}</h3>
-                <button onClick={() => { setShowRolesWheel(false); setPickedMonitor(null); setPickedJudge(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SoundToggle /><button onClick={toggleFullscreen} aria-label="Ecran complet" title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button><button onClick={() => { setShowRolesWheel(false); setPickedMonitor(null); setPickedJudge(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button></div>
               </div>
               <p style={{ fontSize: 13, color: '#8A86A8', marginBottom: 20 }}>Extrage din elevii marcați „Prezent" azi. Fă mai întâi Prezența, dacă n-ai făcut-o încă.</p>
               {presentNames.length === 0 ? (
@@ -7943,16 +8314,8 @@ function TeacherApp({ onExit, teacherName }) {
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 12 }}>Rolurile de azi au fost deja extrase:</div>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
-                    <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(245,197,66,0.18), rgba(245,197,66,0.05))', border: '1px solid rgba(245,197,66,0.4)', borderRadius: 16, padding: 18 }}>
-                      <div style={{ fontSize: 30, marginBottom: 6 }}>👮</div>
-                      <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 2 }}>Șeful clasei</div>
-                      <div style={{ fontSize: 15, color: '#F5C542', fontWeight: 800 }}>{todayRoles.monitorName}</div>
-                    </div>
-                    <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(56,189,248,0.18), rgba(56,189,248,0.05))', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 16, padding: 18 }}>
-                      <div style={{ fontSize: 30, marginBottom: 6 }}>⚖️</div>
-                      <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 2 }}>Judecătorul</div>
-                      <div style={{ fontSize: 15, color: '#38BDF8', fontWeight: 800 }}>{todayRoles.judgeName}</div>
-                    </div>
+                    <RoleCard emoji="👮" label="Șeful clasei" name={todayRoles.monitorName} color="#F5C542" />
+                    <RoleCard emoji="⚖️" label="Judecătorul" name={todayRoles.judgeName} color="#38BDF8" delay={0.18} />
                   </div>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 22 }}>
                     <button onClick={() => setPickedMonitor('__redo__')} style={{ background: 'none', border: '1px solid #2E2850', borderRadius: 10, padding: '8px 16px', color: '#8A86A8', fontSize: 12, cursor: 'pointer' }}>Extrage din nou</button>
@@ -7979,11 +8342,11 @@ function TeacherApp({ onExit, teacherName }) {
               ) : (
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>👮 Șeful clasei</div>
-                  <RandomPicker names={monitorCandidates} color="#F5C542" buttonLabel="🎲 Extrage șeful" onPick={setPickedMonitor} />
+                  <RandomPicker big names={monitorCandidates} color="#F5C542" buttonLabel="🎲 Extrage șeful" onPick={setPickedMonitor} />
                   {pickedMonitor && pickedMonitor !== '__redo__' && (
                     <div style={{ marginTop: 22 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>⚖️ Judecătorul</div>
-                      <RandomPicker names={judgeCandidates} color="#38BDF8" buttonLabel="🎲 Extrage judecătorul" onPick={setPickedJudge} />
+                      <RandomPicker big names={judgeCandidates} color="#38BDF8" buttonLabel="🎲 Extrage judecătorul" onPick={setPickedJudge} />
                     </div>
                   )}
                   {pickedMonitor && pickedMonitor !== '__redo__' && pickedJudge && (
@@ -7996,9 +8359,14 @@ function TeacherApp({ onExit, teacherName }) {
                   )}
                 </div>
               )}
-            </div>
+            </PresentationBox>
           </div>
         );
+      })()}
+      {showEndWheel && (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        const present = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).map(s => ({ id: s.id, name: s.name }));
+        return <EndLessonWheel students={present} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
       })()}
       {showAcademicAdmin && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -8329,33 +8697,72 @@ function TeacherApp({ onExit, teacherName }) {
         );
       })()}
 
-      {showPasswordsManager && (
-        <div onClick={() => setShowPasswordsManager(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#151225', borderRadius: 16, padding: 24, maxWidth: 520, width: '100%', maxHeight: '80vh', overflowY: 'auto', border: '1px solid #2E2850' }} className="scrollbar">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🔑 Parole elevi</h3>
-              <button onClick={() => setShowPasswordsManager(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
-            </div>
-            {classes.map(c => {
-              const list = students.filter(s => s.classId === c.id);
-              if (!list.length) return null;
-              return (
-                <div key={c.id} style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 12, color: '#8A86A8', fontWeight: 600, marginBottom: 8 }}>{c.name}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {list.map(s => (
-                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#0F0C1C', borderRadius: 10 }}>
-                        <span style={{ fontSize: 13, color: '#C7C8E0' }}>{s.name}</span>
-                        <span style={{ fontSize: 13, fontFamily: 'monospace', color: s.pin ? '#F5C542' : '#4A4666' }}>{s.pin || '— nesetată —'}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+      {showPasswordsManager && (() => {
+        const pinKey = p => String(p || '').trim().toLowerCase();
+        const counts = {};
+        students.forEach(st => { if (st.pin) counts[pinKey(st.pin)] = (counts[pinKey(st.pin)] || 0) + 1; });
+        const isWeak = p => {
+          const x = pinKey(p);
+          if (x.length < 4) return true;
+          if (/^(.)\1+$/.test(x)) return true;
+          if ('0123456789'.includes(x) || '9876543210'.includes(x)) return true;
+          return ['1234', '12345', '123456', 'password', 'parola', 'qwerty'].includes(x);
+        };
+        const missingN = students.filter(st => !st.pin).length;
+        const weakN = students.filter(st => st.pin && isWeak(st.pin)).length;
+        const dupN = students.filter(st => st.pin && counts[pinKey(st.pin)] > 1).length;
+        const anyRevealed = Object.keys(pinReveal).length > 0;
+        const chip = (n, label) => (
+          <div style={{ flex: 1, background: n === 0 ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.12)', border: `1px solid ${n === 0 ? 'rgba(74,222,128,0.35)' : 'rgba(248,113,113,0.4)'}`, borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: n === 0 ? '#4ADE80' : '#F87171' }}>{n === 0 ? '✓' : n}</div>
+            <div style={{ fontSize: 10.5, color: '#C7C8E0', marginTop: 2 }}>{label}</div>
           </div>
-        </div>
-      )}
+        );
+        return (
+          <div onClick={() => setShowPasswordsManager(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#151225', borderRadius: 16, padding: 24, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', border: '1px solid #2E2850' }} className="scrollbar">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🛡️ Security</h3>
+                <button onClick={() => setShowPasswordsManager(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
+              </div>
+              <p style={{ fontSize: 12, color: '#8A86A8', margin: '0 0 14px', lineHeight: 1.5 }}>Parolele elevilor sunt ascunse implicit. Apasă 👁 ca să vezi una; se ascund singure după 30 de secunde.</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {chip(missingN, 'fără parolă')}{chip(weakN, 'parole slabe')}{chip(dupN, 'parole identice')}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#C7C8E0' }}>🔑 Parole elevi</div>
+                <button onClick={() => setPinReveal(anyRevealed ? {} : Object.fromEntries(students.map(st => [st.id, true])))} style={{ background: '#221D3A', border: 'none', borderRadius: 8, padding: '5px 10px', color: '#C7C8E0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{anyRevealed ? '🙈 Ascunde tot' : '👁 Arată tot (30 s)'}</button>
+              </div>
+              {classes.map(c => {
+                const list = students.filter(st => st.classId === c.id);
+                if (!list.length) return null;
+                return (
+                  <div key={c.id} style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: 12, color: '#8A86A8', fontWeight: 600, marginBottom: 8 }}>{c.name}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {list.map(st => {
+                        const shown = !!pinReveal[st.id];
+                        const weak = st.pin && isWeak(st.pin);
+                        const dup = st.pin && counts[pinKey(st.pin)] > 1;
+                        return (
+                          <div key={st.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#0F0C1C', borderRadius: 10 }}>
+                            <span style={{ fontSize: 13, color: '#C7C8E0', flex: 1, minWidth: 0 }}>{st.name}</span>
+                            {!st.pin && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F87171', background: 'rgba(248,113,113,0.14)', padding: '2px 8px', borderRadius: 8 }}>lipsă</span>}
+                            {weak && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#F5C542', background: 'rgba(245,197,66,0.14)', padding: '2px 8px', borderRadius: 8 }}>slabă</span>}
+                            {dup && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#38BDF8', background: 'rgba(56,189,248,0.14)', padding: '2px 8px', borderRadius: 8 }}>identică</span>}
+                            <span style={{ fontSize: 13, fontFamily: 'monospace', color: st.pin ? '#F5C542' : '#4A4666', minWidth: 72, textAlign: 'right' }}>{st.pin ? (shown ? st.pin : '••••••') : '—'}</span>
+                            {st.pin && <button onClick={() => setPinReveal(r => { const n = { ...r }; if (n[st.id]) delete n[st.id]; else n[st.id] = true; return n; })} aria-label={shown ? 'Ascunde' : 'Arată'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 2 }}>{shown ? '🙈' : '👁'}</button>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {showTestManager && (
         <div onClick={() => setShowTestManager(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
@@ -8569,7 +8976,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.071';
+const APP_VERSION = 'v2.074';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

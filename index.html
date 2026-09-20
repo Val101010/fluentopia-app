@@ -438,6 +438,35 @@ function RuleDebtIcon({ d, size = 40 }) {
     </span>
   );
 }
+/* ---------- Abțibilduri care plătesc un cartonaș: I Object! (orice cartonaș) și Yellow Wildcard (doar cartonaș galben) ---------- */
+const STICKER_DESC = {
+  iobject: 'Anulează un cartonaș primit (din tab-ul Disciplină).',
+  wildcard: 'Anulează un cartonaș galben, fără puncte (din tab-ul Disciplină).',
+};
+function canPayDebtWithSticker(stickerId, debt) {
+  if (!debt) return false;
+  if (stickerId === 'iobject') return true;
+  if (stickerId === 'wildcard') return debt.catalogId !== 'redcard' && Number(debt.amount) <= 50;   // galben sau regulă încălcată (50 pct); nu și roșu
+  return false;
+}
+function PayWithStickerButtons({ student, debt, onPay, long }) {
+  const owned = id => (student.stickers || []).some(x => x.stickerId === id);
+  const opts = [
+    { id: 'iobject', emoji: '🎫', label: long ? 'Plătește cu I Object!' : 'I Object!', border: 'rgba(253,164,175,0.5)', bg: 'rgba(253,164,175,0.12)', color: '#FDA4AF' },
+    { id: 'wildcard', emoji: '🟨', label: long ? 'Plătește cu Yellow Wildcard' : 'Yellow Wildcard', border: 'rgba(251,191,36,0.55)', bg: 'rgba(251,191,36,0.12)', color: '#FBBF24' },
+  ].filter(o => owned(o.id) && canPayDebtWithSticker(o.id, debt));
+  if (!opts.length) return null;
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignSelf: 'flex-end' }}>
+      {opts.map(o => (
+        <button key={o.id} onClick={() => onPay(debt.id, o.id)} style={{
+          padding: long ? '6px 12px' : '10px 14px', borderRadius: long ? 8 : 10, border: `1px solid ${o.border}`, cursor: 'pointer',
+          background: o.bg, color: o.color, fontWeight: 700, fontSize: long ? 11 : 12,
+        }}>{o.emoji} {o.label}</button>
+      ))}
+    </div>
+  );
+}
 /* ---------- Iconițe ICQ / CCQ / ghid (stil sticlă Fluentopia) ---------- */
 const UI_IMG = {
   look: "data:image/png;base64,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",
@@ -614,73 +643,145 @@ function PresentationBox({ baseW = 520, baseH = 460, style, children }) {
         @keyframes rpSpark { 0% { transform: translate(0,0) scale(.3) rotate(0deg); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) scale(1.15) rotate(200deg); opacity: 0; } }
         @keyframes rpCardIn { 0% { transform: translateY(30px) scale(.8); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
         @keyframes rpBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        @keyframes rpRays { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes rpRaysFade { 0% { opacity: 0; } 12% { opacity: 1; } 70% { opacity: 0.85; } 100% { opacity: 0; } }
+        @keyframes rpFlash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+        @keyframes rpClover { from { transform: rotate(0deg) scale(1.08); } to { transform: rotate(360deg) scale(1.08); } }
+        @keyframes rpBreathe { 0%, 100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.1) rotate(3deg); } }
       `}</style>
       {children}
     </div>
   );
 }
-/* ---------- Roata de final de lecție: extragi un norocos dintre cei prezenți, apoi norocosul învârte roata ---------- */
-const END_WHEEL_POINTS = [
-  { v: 10, w: 9 }, { v: 500, w: 2 }, { v: 25, w: 8 }, { v: 100, w: 5 }, { v: 1, w: 10 },
-  { v: 250, w: 3 }, { v: 50, w: 6 }, { v: 1000, w: 1 }, { v: 5, w: 10 },
-];
+/* ---------- Roata de final de lecție: extragi un norocos dintre cei prezenți, apoi norocosul învârte roata ----------
+   Roata: jumătate abțibilduri (felii egale), jumătate un cadran cu TOATE numerele de la 1 la 1000. */
 const END_WHEEL_EXCLUDE = ['ticket', 'ticket2', 'ticket3'];   // fără lecțiile gratuite
+const END_WHEEL_BANDS = [                                      // [de la, până la, % din toate învârtirile, culori]
+  [1, 10, 9, ['#FFEBB0', '#FFE08A']], [11, 50, 12, ['#FFD86B', '#FFCB47']], [51, 100, 7, ['#F5C542', '#E8B22E']], [101, 250, 4, ['#FF8A3D', '#F77524']],
+  [251, 500, 2, ['#FF5A5F', '#F0424A']], [501, 999, 1, ['#FF4D9D', '#EC3A8C']], [1000, 1000, 0.3, ['#EC1E8F', '#EC1E8F']],
+];
+const END_WHEEL_NUM_SHARE = END_WHEEL_BANDS.reduce((s, b) => s + b[2], 0);
+const END_WHEEL_STICKER_TIERS = [                              // culori reci pentru abțibilduri
+  [4, 'Abțibilduri mici (≤300 pct)', ['#5EEAD4', '#2DD4BF']], [3, 'Abțibilduri medii (≤700 pct)', ['#38BDF8', '#0EA5E9']],
+  [2, 'Abțibilduri mari (≤1200 pct)', ['#8B5CF6', '#7C3AED']], [1, 'Abțibilduri rare (peste 1200 pct)', ['#C084FC', '#A855F7']],
+];
 function stickerWheelWeight(id) {
   const price = STICKER_PRICE[id] || 500;
   return price <= 300 ? 4 : price <= 700 ? 3 : price <= 1200 ? 2 : 1;
 }
-function buildEndWheelPrizes() {
-  const st = STICKERS.filter(s => !s.miningTier && !s.miningBonus && !s.earnOnly && !s.parentOnly && !END_WHEEL_EXCLUDE.includes(s.id))
-    .map(s => ({ type: 'sticker', stickerId: s.id, label: s.label, weight: stickerWheelWeight(s.id), color: s.color, mono: s.mono }));
-  const pts = END_WHEEL_POINTS.map(p => ({ type: 'points', amount: p.v, label: `${p.v} pct`, weight: p.w }));
-  // puncte intercalate printre abțibilduri, ca roata să arate vie
-  const out = []; const step = Math.max(1, Math.floor(st.length / pts.length));
-  let pi = 0;
-  st.forEach((s, i) => { out.push(s); if ((i + 1) % step === 0 && pi < pts.length) out.push(pts[pi++]); });
-  while (pi < pts.length) out.push(pts[pi++]);
-  return out;
+/* Roata e simplă: doar felii colorate, fără numere și fără poze. Culoarea arată tipul premiului (reci = abțibilduri, calde = puncte),
+   iar suprafața fiecărei culori e proporțională cu șansa ei. Premiul exact apare abia după oprire. */
+function buildEndWheelSpec() {
+  const stickers = STICKERS.filter(s => !s.miningTier && !s.miningBonus && !s.earnOnly && !s.parentOnly && !END_WHEEL_EXCLUDE.includes(s.id))
+    .map(s => ({ stickerId: s.id, label: s.label, weight: stickerWheelWeight(s.id), color: s.color, mono: s.mono }));
+  const totalW = stickers.reduce((s, x) => s + x.weight, 0);
+  const stickerShare = 100 - END_WHEEL_NUM_SHARE;
+  const cats = [];
+  END_WHEEL_STICKER_TIERS.forEach(([w, label, colors]) => {
+    const n = stickers.filter(x => x.weight === w).length;
+    if (n) cats.push({ id: 'st' + w, type: 'sticker', w, label, colors, count: n, share: n * w / totalW * stickerShare });
+  });
+  END_WHEEL_BANDS.forEach(([a, b, sh, colors], i) => cats.push({ id: 'nb' + i, type: 'points', a, b, label: a === b ? `${a} puncte` : `${a}–${b} puncte`, colors, share: sh }));
+  // așezare: categoriile se alternează în jurul roții, în bucăți de ~6%, ca roata să arate variat
+  const order = ['st4', 'nb0', 'st3', 'nb1', 'st2', 'nb2', 'st1', 'nb3', 'nb4', 'nb5', 'nb6'].map(id => cats.find(c => c.id === id)).filter(Boolean);
+  const rem = new Map(order.map(c => [c.id, c.share]));
+  const chunks = []; let ang = 0, guard = 0;
+  while ([...rem.values()].some(v => v > 1e-6) && guard++ < 200) {
+    for (const c of order) {
+      const left = rem.get(c.id); if (left <= 1e-6) continue;
+      const take = left <= 8 ? left : 6;
+      rem.set(c.id, left - take);
+      const arc = take / 100 * 360;
+      chunks.push({ cat: c.id, start: ang, arc, colors: c.colors });
+      ang += arc;
+    }
+  }
+  return { stickers, cats, chunks };
 }
-function pickWeighted(prizes) {
-  const total = prizes.reduce((s, p) => s + p.weight, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < prizes.length; i++) { if (r < prizes[i].weight) return i; r -= prizes[i].weight; }
-  return 0;
+function pickEndWheelPrize(spec) {
+  let prize, catId;
+  const r = Math.random() * 100;
+  if (r < END_WHEEL_NUM_SHARE) {
+    let acc = 0;
+    for (let i = 0; i < END_WHEEL_BANDS.length; i++) {
+      const [a, b, sh] = END_WHEEL_BANDS[i]; acc += sh;
+      if (r < acc || i === END_WHEEL_BANDS.length - 1) {
+        const n = a + Math.floor(Math.random() * (b - a + 1));
+        prize = { type: 'points', amount: n, label: `${n} pct` }; catId = 'nb' + i; break;
+      }
+    }
+  } else {
+    const total = spec.stickers.reduce((s, x) => s + x.weight, 0);
+    let t = Math.random() * total, idx = 0;
+    for (let i = 0; i < spec.stickers.length; i++) { if (t < spec.stickers[i].weight) { idx = i; break; } t -= spec.stickers[i].weight; }
+    const st = spec.stickers[idx];
+    prize = { type: 'sticker', stickerId: st.stickerId, label: st.label }; catId = 'st' + st.weight;
+  }
+  const mine = spec.chunks.filter(c => c.cat === catId);
+  let t = Math.random() * mine.reduce((s, c) => s + c.arc, 0), ch = mine[0];
+  for (const c of mine) { if (t < c.arc) { ch = c; break; } t -= c.arc; }
+  return { prize, catId, angle: ch.start + ch.arc * (0.1 + Math.random() * 0.8) };
 }
-function PrizeWheel({ prizes, rotation, spinning, size = 460, width = 460 }) {
-  const N = prizes.length, sa = 360 / N, c = size / 2, R = size / 2 - 6, rc = R * 0.76;
+function catAtAngle(spec, ang) {                               // culoarea/categoria de sub săgeată (folosit și la teste)
+  const a = ((ang % 360) + 360) % 360;
+  const c = spec.chunks.find(x => a >= x.start && a < x.start + x.arc) || spec.chunks[spec.chunks.length - 1];
+  return c.cat;
+}
+function PrizeWheel({ spec, rotation, spinning, popKey = 0, width = 460 }) {
+  const size = 460, c = size / 2, R = size / 2 - 6;
   const pt = (deg, r) => [c + r * Math.sin(deg * Math.PI / 180), c - r * Math.cos(deg * Math.PI / 180)];
-  const ptsColor = v => v >= 1000 ? '#EC1E8F' : v >= 250 ? '#FF8A3D' : v >= 50 ? '#F5C542' : '#FFD86B';
+  const wedge = (a0, a1, r) => { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return `M ${c} ${c} L ${x0} ${y0} A ${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1} Z`; };
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: width, aspectRatio: '1', margin: '0 auto', pointerEvents: 'none' }}>
       <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 3, width: 0, height: 0, borderLeft: '15px solid transparent', borderRight: '15px solid transparent', borderTop: '30px solid #fff', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.6))' }}></div>
       <div data-wheel="1" style={{ width: '100%', height: '100%', pointerEvents: 'none', transform: `rotate(${rotation}deg)`, transition: spinning ? 'transform 5.8s cubic-bezier(0.12, 0.72, 0.13, 1)' : 'none', borderRadius: '50%', boxShadow: '0 0 0 6px #241B45, 0 0 40px rgba(155,60,224,.45)' }}>
         <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-          {prizes.map((p, i) => {
-            const a0 = i * sa, a1 = (i + 1) * sa, mid = (i + 0.5) * sa;
-            const [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R);
-            const isPts = p.type === 'points';
-            const fill = isPts ? ptsColor(p.amount) : (i % 2 ? '#2D2358' : '#3F2F7A');
-            const src = !isPts ? STICKER_IMG[p.stickerId] : null;
-            return (
-              <g key={i}>
-                <path d={`M ${c} ${c} L ${x0} ${y0} A ${R} ${R} 0 0 1 ${x1} ${y1} Z`} fill={fill} stroke="#0B0A14" strokeWidth="1.2" />
-                {isPts
-                  ? <text transform={`rotate(${mid} ${c} ${c})`} x={c} y={c - rc + 5} textAnchor="middle" fontSize={p.amount >= 100 ? 13 : 15} fontWeight="900" fill={p.amount >= 1000 ? '#fff' : '#3a2600'}>{p.amount}</text>
-                  : src
-                    ? <image href={src} transform={`rotate(${mid} ${c} ${c})`} x={c - 15} y={c - rc - 15} width="30" height="30" />
-                    : <text transform={`rotate(${mid} ${c} ${c})`} x={c} y={c - rc + 5} textAnchor="middle" fontSize="12" fontWeight="800" fill={p.color || '#fff'}>{p.mono}</text>}
-              </g>
-            );
+          <defs>
+            <radialGradient id="pwShade" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#000" stopOpacity="0.35" /><stop offset="45%" stopColor="#000" stopOpacity="0" /><stop offset="100%" stopColor="#fff" stopOpacity="0.10" />
+            </radialGradient>
+          </defs>
+          {spec.chunks.map((ch, i) => {
+            const k = Math.max(1, Math.round(ch.arc / 3.5)), w = ch.arc / k;
+            return Array.from({ length: k }, (_, j) => (
+              <path key={`${i}-${j}`} d={wedge(ch.start + j * w, ch.start + (j + 1) * w, R)} fill={ch.colors[j % 2]} stroke="rgba(11,10,20,.55)" strokeWidth="0.6" />
+            ));
           })}
-          <circle cx={c} cy={c} r={size * 0.075} fill="#151225" stroke="#F5C542" strokeWidth="4" />
-          <text x={c} y={c + 9} textAnchor="middle" fontSize="26">🍀</text>
+          <circle cx={c} cy={c} r={R} fill="url(#pwShade)" />
+          {Array.from({ length: 48 }, (_, i) => { const [x, y] = pt(i * 7.5, R - 5); return <circle key={i} cx={x} cy={y} r="2" fill="#fff" opacity="0.75" />; })}
+          <circle cx={c} cy={c} r={size * 0.105} fill="#151225" stroke="#F5C542" strokeWidth="4" />
         </svg>
+      </div>
+      {/* trifoiul glassy din mijloc: singurul element animat al roții */}
+      <div style={{ position: 'absolute', left: '50%', top: '50%', width: '19.5%', aspectRatio: '1', transform: 'translate(-50%, -50%)', zIndex: 2, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {STICKER_IMG.spin
+          ? <img key={popKey} src={STICKER_IMG.spin} alt="" style={{
+              width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 0 7px rgba(94,234,212,.75))',
+              animation: spinning ? 'rpClover 1.15s linear infinite' : (popKey ? 'rpPop .6s cubic-bezier(.34,1.56,.64,1), rpBreathe 2.8s .6s ease-in-out infinite' : 'rpBreathe 2.8s ease-in-out infinite'),
+            }} />
+          : <span style={{ fontSize: 30 }}>🍀</span>}
+      </div>
+    </div>
+  );
+}
+function isBigPrize(p) { return p.type === 'points' ? p.amount >= 250 : (STICKER_PRICE[p.stickerId] || 0) > 1200; }
+function WinnerReveal({ name, fx }) {
+  const [conf, setConf] = useState(!!fx);
+  useEffect(() => { soundWinner(); }, []);
+  return (
+    <div style={{ position: 'relative', textAlign: 'center', marginBottom: 12, padding: '14px 0' }}>
+      {fx && <SunRays color="rgba(245,197,66,0.30)" size={480} />}
+      {fx && conf && <ConfettiBurst onDone={() => setConf(false)} />}
+      {fx && <Sparks n={22} radius={180} />}
+      <div style={{ position: 'relative', zIndex: 1, animation: fx ? 'rpPop .7s cubic-bezier(.34,1.56,.64,1)' : 'none' }}>
+        <div style={{ fontSize: 11, color: '#8A86A8', letterSpacing: 1.5, textTransform: 'uppercase' }}>Norocosul</div>
+        <div className="heading-font" style={{ fontSize: 34, fontWeight: 800, color: '#F5C542', lineHeight: 1.15, textShadow: fx ? '0 0 22px rgba(245,197,66,.6)' : 'none' }}>🍀 {name}</div>
       </div>
     </div>
   );
 }
 function EndLessonWheel({ students, onAward, onRevert, onClose }) {
-  const prizes = React.useMemo(() => buildEndWheelPrizes(), []);
+  const spec = React.useMemo(() => buildEndWheelSpec(), []);
   const [phase, setPhase] = useState('draw');           // draw -> spin -> done
   const [winner, setWinner] = useState(null);
   const [rotation, setRotation] = useState(0);
@@ -689,8 +790,13 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
   const [reverted, setReverted] = useState(false);
   const [past, setPast] = useState([]);                 // câștigători din sesiune
   const [showOdds, setShowOdds] = useState(false);
+  const [fx, setFx] = useState(true);                   // efecte (confetti, raze, scântei, fulger) la extragerea norocosului și a premiului
   const [burst, setBurst] = useState(0);
-  const [conf, setConf] = useState(false);
+  const [popKey, setPopKey] = useState(0);
+  const [drawNo, setDrawNo] = useState(0);
+  const [showConf, setShowConf] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [big, setBig] = useState(false);
   const timer = useRef(null);
   const timers = useRef([]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); timers.current.forEach(clearTimeout); }, []);
@@ -699,14 +805,13 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
 
   function onPickName(name) {
     const st = pool.find(s => s.name === name) || pool[0];
-    if (st) { setWinner(st); setPhase('spin'); }
+    if (st) { setWinner(st); setDrawNo(n => n + 1); setPhase('spin'); }
   }
   function spin() {
     if (spinning || !winner) return;
-    const idx = pickWeighted(prizes);
-    const sa = 360 / prizes.length, center = (idx + 0.5) * sa, jitter = (Math.random() - 0.5) * sa * 0.7;
+    const pick = pickEndWheelPrize(spec);
     const cur = ((rotation % 360) + 360) % 360;
-    const delta = (((360 - center - jitter - cur) % 360) + 360) % 360;
+    const delta = (((360 - pick.angle - cur) % 360) + 360) % 360;
     const next = rotation + 360 * 6 + delta;
     setSpinning(true); setReverted(false);
     setRotation(next);
@@ -717,19 +822,17 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
       if (tt - lastT >= 55) { lastT = tt; timers.current.push(setTimeout(() => pickerTick(k, 260), tt)); }
     }
     timer.current = setTimeout(() => {
-      const prize = prizes[idx];
-      const token = onAward(winner, prize);
-      setResult({ prize, token, idx });
-      setPast(p => [...p, { studentId: winner.id, name: winner.name, prize }]);
-      setSpinning(false); setPhase('done'); setBurst(b => b + 1); setConf(true); pickerFanfare();
+      const token = onAward(winner, pick.prize);
+      setResult({ prize: pick.prize, token });
+      setPast(p => [...p, { studentId: winner.id, name: winner.name, prize: pick.prize }]);
+      const isBig = isBigPrize(pick.prize);
+      setSpinning(false); setPhase('done'); setPopKey(k => k + 1); setBig(isBig); soundPrize(isBig);
+      if (fx) { setBurst(b => b + 1); setShowConf(true); setFlash(true); }
     }, 5900);
   }
   function nextWinner() { setWinner(null); setResult(null); setPhase('draw'); }
   function undo() { if (result && !reverted) { onRevert(result.token); setReverted(true); setPast(p => p.slice(0, -1)); } }
-  const totalW = prizes.reduce((s, p) => s + p.weight, 0);
-  const pct = w => (w / totalW * 100).toFixed(1).replace('.0', '') + '%';
-  const stickerTiers = [[4, 'Abțibilduri mici (≤300 pct)'], [3, 'Abțibilduri medii (≤700 pct)'], [2, 'Abțibilduri mari (≤1200 pct)'], [1, 'Abțibilduri rare (peste 1200 pct)']]
-    .map(([w, label]) => { const n = prizes.filter(p => p.type === 'sticker' && p.weight === w); return { label, n: n.length, chance: n.length * w }; }).filter(t => t.n > 0);
+  const pct = x => (x < 1 ? x.toFixed(2) : x.toFixed(1)).replace(/\.?0+$/, '') + '%';
   const prize = result && result.prize;
   const wide = useMediaQuery('(min-width: 900px)');
   const controls = (
@@ -742,15 +845,10 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
           ? <div style={{ textAlign: 'center', color: '#F5C542', fontSize: 14, padding: 12 }}>Toți elevii prezenți au câștigat deja azi 🎉</div>
           : <div>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>🍀 Cine e norocosul?</div>
-              <RandomPicker big names={pool.map(s => s.name)} color="#F5C542" buttonLabel="🎲 Extrage norocosul" onPick={onPickName} />
+              <RandomPicker big fx={fx} celebrate={false} names={pool.map(s => s.name)} color="#F5C542" buttonLabel="🎲 Extrage norocosul" onPick={onPickName} />
             </div>
       )}
-      {(phase === 'spin' || phase === 'done') && winner && (
-        <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: '#8A86A8', letterSpacing: 1.5, textTransform: 'uppercase' }}>Norocosul</div>
-          <div className="heading-font" style={{ fontSize: 30, fontWeight: 800, color: '#F5C542', lineHeight: 1.15 }}>🍀 {winner.name}</div>
-        </div>
-      )}
+      {(phase === 'spin' || phase === 'done') && winner && <WinnerReveal key={drawNo} name={winner.name} fx={fx} />}
       {phase === 'spin' && (
         <button onClick={spin} disabled={spinning} style={{
           width: '100%', marginTop: 8, padding: '15px 0', borderRadius: 14, border: 'none', cursor: spinning ? 'default' : 'pointer', fontWeight: 800, fontSize: 17,
@@ -759,22 +857,27 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
       )}
       {phase === 'spin' && spinning && <div style={{ textAlign: 'center', marginTop: 10, fontSize: 13, color: '#8A86A8' }}>Ține pumnii pentru {winner && winner.name}… 🤞</div>}
       {phase === 'done' && prize && (
-        <div style={{ position: 'relative', marginTop: 6, textAlign: 'center', background: 'linear-gradient(135deg, rgba(245,197,66,.16), rgba(236,30,143,.12))', border: '1px solid rgba(245,197,66,.5)', borderRadius: 18, padding: '16px 14px', animation: 'rpCardIn .55s cubic-bezier(.34,1.56,.64,1) both, rpGlow 2.2s 0.6s ease-in-out infinite', '--glow': 'rgba(245,197,66,.45)' }}>
-          {!reverted && <Sparks key={burst} n={18} radius={130} />}
+        <div style={{
+          position: 'relative', marginTop: 6, textAlign: 'center', background: 'linear-gradient(135deg, rgba(245,197,66,.16), rgba(236,30,143,.12))', border: '1px solid rgba(245,197,66,.5)', borderRadius: 18, padding: '16px 14px',
+          animation: fx ? 'rpCardIn .55s cubic-bezier(.34,1.56,.64,1) both, rpGlow 2.2s 0.6s ease-in-out infinite' : 'none', '--glow': 'rgba(245,197,66,.45)',
+        }}>
+          {fx && !reverted && <SunRays key={'r' + burst} color={big ? 'rgba(236,30,143,0.32)' : 'rgba(245,197,66,0.30)'} size={440} />}
+          {fx && !reverted && <Sparks key={burst} n={big ? 30 : 18} radius={big ? 190 : 130} />}
           {reverted ? (
             <div style={{ color: '#F87171', fontSize: 15, fontWeight: 700 }}>Premiul a fost anulat.</div>
           ) : (
-            <>
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {big && <div className="heading-font" style={{ fontSize: 15, fontWeight: 900, color: '#FF7BC0', letterSpacing: 2, marginBottom: 4 }}>🎉 MEGA PREMIU! 🎉</div>}
               <div style={{ fontSize: 13, color: '#C7C8E0', marginBottom: 8 }}>{winner.name} a câștigat:</div>
               {prize.type === 'sticker'
                 ? <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14 }}>
-                    <span style={{ display: 'inline-block', animation: 'rpBounce 1.4s ease-in-out infinite' }}><IconBadge sticker={STICKERS.find(s => s.id === prize.stickerId)} size={96} /></span>
+                    <span style={{ display: 'inline-block', animation: fx ? 'rpBounce 1.4s ease-in-out infinite' : 'none' }}><IconBadge sticker={STICKERS.find(s => s.id === prize.stickerId)} size={132} /></span>
                     <div style={{ textAlign: 'left' }}><div className="heading-font" style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>{prize.label}</div><div style={{ fontSize: 12, color: '#8A86A8' }}>abțibild adăugat în Sticker Chart</div></div>
                   </div>
-                : <div className="heading-font" style={{ fontSize: 40, fontWeight: 900, color: '#F5C542' }}>⭐ +{prize.amount} puncte</div>}
-            </>
+                : <div><div className="heading-font" style={{ fontSize: 72, fontWeight: 900, color: '#F5C542', lineHeight: 1.05 }}>+{prize.amount}</div><div style={{ fontSize: 18, fontWeight: 700, color: '#C7C8E0' }}>⭐ puncte Fluentopia</div></div>}
+            </div>
           )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
             {!reverted && <button onClick={undo} style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid #2E2850', background: 'transparent', color: '#8A86A8', fontSize: 12, cursor: 'pointer' }}>↩ Anulează premiul</button>}
             <button onClick={nextWinner} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: '#221D3A', color: '#C7C8E0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🍀 Extrage alt norocos</button>
             <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #4ADE80, #38BDF8)', color: '#0B0A14', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Gata</button>
@@ -793,18 +896,23 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
       <button onClick={() => setShowOdds(v => !v)} style={{ background: 'none', border: 'none', color: '#6E6A8C', fontSize: 11.5, cursor: 'pointer', padding: 0 }}>{showOdds ? '▲' : '▼'} Șansele premiilor</button>
       {showOdds && (
         <div style={{ marginTop: 8, background: '#0F0C1C', borderRadius: 12, padding: 12, fontSize: 11.5, color: '#C7C8E0', lineHeight: 1.7 }}>
-          <div style={{ color: '#8A86A8', marginBottom: 4 }}>Roata are {prizes.length} felii egale, dar premiile mari ies mai rar (șansele de mai jos):</div>
-          {END_WHEEL_POINTS.slice().sort((a, b) => a.v - b.v).map(p => <div key={p.v} style={{ display: 'flex', justifyContent: 'space-between' }}><span>⭐ {p.v} puncte</span><b>{pct(p.w)}</b></div>)}
-          {stickerTiers.map(t => <div key={t.label} style={{ display: 'flex', justifyContent: 'space-between' }}><span>🎫 {t.label} ({t.n})</span><b>{pct(t.chance)}</b></div>)}
+          <div style={{ color: '#8A86A8', marginBottom: 6 }}>Roata nu are numere sau poze — doar culori. Culorile reci sunt abțibilduri, cele calde sunt puncte (de la 1 la 1000). Suprafața fiecărei culori e proporțională cu șansa ei; premiul exact se vede abia după oprire:</div>
+          {spec.cats.map(c => (
+            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: c.colors[0], flexShrink: 0 }}></span>{c.type === 'points' ? `⭐ ${c.label}` : `🎫 ${c.label}${c.count ? ` (${c.count})` : ''}`}</span>
+              <b>{pct(c.share)}</b>
+            </div>
+          ))}
           <div style={{ color: '#6E6A8C', marginTop: 4 }}>Fără lecțiile gratuite. Abțibildurile de mining și cel de recomandare nu sunt pe roată.</div>
         </div>
       )}
     </div>
   );
-  const wheel = <PrizeWheel prizes={prizes} rotation={rotation} spinning={spinning} width={wide ? 470 : 380} />;
+  const wheel = <PrizeWheel spec={spec} rotation={rotation} spinning={spinning} popKey={popKey} width={wide ? 470 : 380} />;
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {conf && <Confetti onDone={() => setConf(false)} />}
+      {fx && showConf && <ConfettiBurst key={'c' + burst} big={big} onDone={() => setShowConf(false)} />}
+      {fx && flash && <FlashOverlay key={'f' + burst} onDone={() => setFlash(false)} />}
       <PresentationBox baseW={wide ? 1020 : 480} baseH={wide ? 600 : 900} style={{
         background: 'linear-gradient(#151225, #151225) padding-box, linear-gradient(135deg, #F5C542, #EC1E8F, #38BDF8) border-box', border: '2px solid transparent',
         borderRadius: 24, padding: '20px 24px 18px', boxShadow: '0 20px 60px rgba(0,0,0,.6)',
@@ -812,6 +920,7 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h3 className="heading-font" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🎡 Roata de final de lecție</h3>
           <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => setFx(v => !v)} aria-label="Efecte" title={fx ? 'Efecte pornite' : 'Efecte oprite'} style={{ background: fx ? '#3a2a66' : '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: fx ? '#F5C542' : '#6E6A8C', fontSize: 14, width: 30, height: 30 }}>✨</button>
             <SoundToggle />
             <button onClick={toggleFullscreen} aria-label="Ecran complet" title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button>
             <button onClick={onClose} aria-label="Închide" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', fontSize: 20 }}>✕</button>
@@ -3404,6 +3513,122 @@ function Sparks({ n = 16, radius = 150, emojis = ['✨', '⭐', '🎉', '💫'] 
     </div>
   );
 }
+
+/* ---- sunete mai bogate: tobă, cinel, aplauze, fanfară (sintetizate, fără fișiere audio) ---- */
+function pickerNoise(ctx, dur) {
+  const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+function pickerCrash(t0, vol = 0.16) {
+  const ctx = pickCtx(); if (!ctx) return;
+  try {
+    const src = ctx.createBufferSource(); src.buffer = pickerNoise(ctx, 1.6);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500;
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.5);
+    src.connect(hp); hp.connect(g); g.connect(ctx.destination); src.start(t0); src.stop(t0 + 1.6);
+  } catch (e) {}
+}
+function pickerApplause(t0, dur = 1.6, vol = 0.1) {
+  const ctx = pickCtx(); if (!ctx) return;
+  try {
+    const clap = pickerNoise(ctx, 0.03);
+    const n = Math.floor(dur * 46);
+    for (let i = 0; i < n; i++) {
+      const x = Math.random(), at = t0 + x * dur;
+      const env = Math.pow(Math.sin(Math.PI * Math.min(0.999, x * 0.9 + 0.05)), 0.7);
+      const src = ctx.createBufferSource(); src.buffer = clap;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400 + Math.random() * 2200; bp.Q.value = 0.9;
+      const g = ctx.createGain(); g.gain.setValueAtTime(vol * env * (0.5 + Math.random() * 0.7), at); g.gain.exponentialRampToValueAtTime(0.0008, at + 0.05);
+      src.connect(bp); bp.connect(g); g.connect(ctx.destination); src.start(at); src.stop(at + 0.06);
+    }
+  } catch (e) {}
+}
+function pickerDrumroll(t0, dur = 0.55) {
+  const ctx = pickCtx(); if (!ctx) return;
+  try {
+    const hit = pickerNoise(ctx, 0.05);
+    const n = 22;
+    for (let i = 0; i < n; i++) {
+      const x = i / (n - 1), at = t0 + dur * (1 - Math.pow(1 - x, 1.6));
+      const src = ctx.createBufferSource(); src.buffer = hit;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.05 + x * 0.11, at); g.gain.exponentialRampToValueAtTime(0.001, at + 0.05);
+      src.connect(lp); lp.connect(g); g.connect(ctx.destination); src.start(at); src.stop(at + 0.06);
+    }
+  } catch (e) {}
+}
+function pickerArpeggio(t0, freqs, step = 0.09, vol = 0.13) {
+  const ctx = pickCtx(); if (!ctx) return;
+  try {
+    freqs.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+      const at = t0 + i * step;
+      g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(0.001, at + 0.6);
+      o.start(at); o.stop(at + 0.65);
+    });
+  } catch (e) {}
+}
+function soundWinner() {                                        // norocosul a fost extras: tobă → cinel + fanfară + aplauze
+  if (!PICK_SOUND) return; const ctx = pickCtx(); if (!ctx) return;
+  const t = ctx.currentTime + 0.02;
+  pickerDrumroll(t, 0.55);
+  pickerCrash(t + 0.55); pickerArpeggio(t + 0.55, [523, 659, 784, 1047, 1319]); pickerApplause(t + 0.7, 1.9);
+}
+function soundPrize(big) {                                      // premiul a fost extras
+  if (!PICK_SOUND) return; const ctx = pickCtx(); if (!ctx) return;
+  const t = ctx.currentTime + 0.02;
+  pickerCrash(t, big ? 0.2 : 0.15);
+  pickerArpeggio(t, big ? [523, 659, 784, 1047, 1319, 1568, 2093] : [523, 659, 784, 1047], big ? 0.075 : 0.09);
+  pickerApplause(t + 0.1, big ? 3 : 1.9, big ? 0.13 : 0.1);
+  if (big) { pickerCrash(t + 0.5, 0.15); pickerArpeggio(t + 0.6, [784, 988, 1175, 1568], 0.08, 0.1); }
+}
+/* ---- efecte vizuale: confetti din tunuri, raze de soare, fulger de lumină ---- */
+function ConfettiBurst({ n = 110, big, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, big ? 4600 : 3800); return () => clearTimeout(t); }, []);
+  const pieces = React.useMemo(() => Array.from({ length: big ? Math.round(n * 1.5) : n }, (_, i) => {
+    const kind = i % 3;                                          // 0 tun stânga, 1 tun dreapta, 2 ploaie de sus
+    const colors = ['#EC1E8F', '#9B3CE0', '#38BDF8', '#F5C542', '#4ADE80', '#FF8A3D', '#fff'];
+    return {
+      kind, color: colors[i % colors.length], w: 7 + Math.random() * 8, h: 10 + Math.random() * 10, round: Math.random() < 0.3,
+      emoji: Math.random() < 0.08 ? ['🎉', '⭐', '✨', '🎊'][i % 4] : null,
+      left: kind === 2 ? Math.random() * 100 : (kind === 0 ? 1 : 99),
+      dx: (kind === 0 ? 1 : -1) * (12 + Math.random() * 42), up: 38 + Math.random() * 46, fall: 55 + Math.random() * 55,
+      delay: kind === 2 ? Math.random() * 1.2 : Math.random() * 0.25, dur: kind === 2 ? 1.8 + Math.random() * 1.4 : 2.1 + Math.random() * 1.1,
+    };
+  }), []);
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 220, overflow: 'hidden' }}>
+      <style>{`
+        @keyframes rpCannon { 0% { transform: translate(0,0) rotate(0deg); opacity: 1; } 38% { transform: translate(calc(var(--dx) * 0.55vw), calc(var(--up) * -1vh)) rotate(240deg); opacity: 1; } 100% { transform: translate(calc(var(--dx) * 1vw), calc(var(--fall) * 1vh)) rotate(760deg); opacity: 0.15; } }
+        @keyframes rpRain { from { transform: translateY(-8vh) rotate(0deg); opacity: 1; } to { transform: translateY(112vh) rotate(600deg); opacity: 0.25; } }
+      `}</style>
+      {pieces.map((p, i) => (
+        <div key={i} style={{
+          position: 'absolute', left: `${p.left}%`, top: p.kind === 2 ? 0 : '100%', width: p.emoji ? 'auto' : p.w, height: p.emoji ? 'auto' : p.h, fontSize: 18,
+          background: p.emoji ? 'none' : p.color, borderRadius: p.round ? '50%' : 2, '--dx': p.dx, '--up': p.up, '--fall': p.fall,
+          animation: p.kind === 2 ? `rpRain ${p.dur}s ${p.delay}s ease-in forwards` : `rpCannon ${p.dur}s ${p.delay}s cubic-bezier(.2,.7,.3,1) forwards`, opacity: 0,
+        }}>{p.emoji}</div>
+      ))}
+    </div>
+  );
+}
+function SunRays({ color = 'rgba(245,197,66,0.55)', size = 560 }) {
+  return (
+    <div style={{
+      position: 'absolute', left: '50%', top: '50%', width: size, height: size, margin: `${-size / 2}px 0 0 ${-size / 2}px`, pointerEvents: 'none', zIndex: 0,
+      background: `repeating-conic-gradient(from 0deg, ${color} 0deg 7deg, transparent 7deg 15deg)`,
+      WebkitMaskImage: 'radial-gradient(circle, #000 0%, transparent 62%)', maskImage: 'radial-gradient(circle, #000 0%, transparent 62%)',
+      animation: 'rpRays 9s linear infinite, rpRaysFade 3.6s ease-out forwards',
+    }}></div>
+  );
+}
+function FlashOverlay({ onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 650); return () => clearTimeout(t); }, []);
+  return <div style={{ position: 'fixed', inset: 0, zIndex: 210, pointerEvents: 'none', background: 'radial-gradient(circle at center, rgba(255,255,255,0.9), rgba(255,236,170,0.35) 55%, transparent 80%)', animation: 'rpFlash .6s ease-out forwards' }}></div>;
+}
 function RoleCard({ emoji, label, name, color, delay = 0 }) {
   return (
     <div style={{
@@ -3419,7 +3644,8 @@ function RoleCard({ emoji, label, name, color, delay = 0 }) {
     </div>
   );
 }
-function RandomPicker({ names, onPick, color, buttonLabel, big }) {
+function RandomPicker({ names, onPick, color, buttonLabel, big, fx, celebrate }) {
+  const fxOn = fx !== false;
   const [spinning, setSpinning] = useState(false);
   const [cur, setCur] = useState({ name: null, prev: null, next: null, tick: 0, delay: 200 });
   const [picked, setPicked] = useState(null);
@@ -3427,7 +3653,7 @@ function RandomPicker({ names, onPick, color, buttonLabel, big }) {
   const [conf, setConf] = useState(false);
   const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
-  const total = big ? 32 : 20;
+  const total = fxOn ? (big ? 32 : 20) : 16;
   function spin() {
     if (spinning || names.length === 0) return;
     timers.current.forEach(clearTimeout); timers.current = [];
@@ -3449,7 +3675,7 @@ function RandomPicker({ names, onPick, color, buttonLabel, big }) {
         pickerTick(i, total);
         if (i === total - 1) {
           timers.current.push(setTimeout(() => {
-            setPicked(winner); setSpinning(false); setBurst(b => b + 1); setConf(true); pickerFanfare(); onPick(winner);
+            setPicked(winner); setSpinning(false); if (fxOn) { setBurst(b => b + 1); if (celebrate !== false) setConf(true); } if (celebrate !== false) pickerFanfare(); onPick(winner);
           }, 380));
         }
       }, t));
@@ -3459,29 +3685,29 @@ function RandomPicker({ names, onPick, color, buttonLabel, big }) {
   const progress = spinning ? Math.min(100, ((cur.tick + 1) / total) * 100) : (picked ? 100 : 0);
   return (
     <div style={{ textAlign: 'center' }}>
-      {conf && <Confetti onDone={() => setConf(false)} />}
+      {conf && fxOn && <Confetti onDone={() => setConf(false)} />}
       <div style={{
-        position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at center, #1a1433, #0F0C1C 70%)', border: `2px solid ${picked ? color : '#2E2850'}`, borderRadius: 16,
+        position: 'relative', overflow: 'hidden', background: fxOn ? 'radial-gradient(ellipse at center, #1a1433, #0F0C1C 70%)' : '#0F0C1C', border: `2px solid ${picked ? color : '#2E2850'}`, borderRadius: 16,
         padding: big ? '14px 14px 18px' : '12px 12px 14px', marginBottom: 12, minHeight: big ? 150 : 96, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        '--glow': `${color}88`, animation: picked ? 'rpGlow 1.8s ease-in-out infinite' : 'none', transition: 'border-color .3s ease',
+        '--glow': `${color}88`, animation: (picked && fxOn) ? 'rpGlow 1.8s ease-in-out infinite' : 'none', transition: 'border-color .3s ease',
       }}>
-        <div style={{ fontSize: big ? 15 : 12, height: big ? 22 : 16, opacity: 0.28, filter: 'blur(1.2px)', color: '#C7C8E0', overflow: 'hidden', whiteSpace: 'nowrap' }}>{spinning ? cur.prev : ''}</div>
+        <div style={{ fontSize: big ? 15 : 12, height: big ? 22 : 16, opacity: 0.28, filter: 'blur(1.2px)', color: '#C7C8E0', overflow: 'hidden', whiteSpace: 'nowrap' }}>{(spinning && fxOn) ? cur.prev : ''}</div>
         <div key={`${cur.tick}-${picked ? 'p' : 'n'}`} style={{
           fontSize: big ? 40 : 22, fontWeight: 800, lineHeight: 1.15, color: picked ? color : '#E4E2F5', minHeight: big ? 50 : 28,
-          animation: picked ? 'rpPop .65s cubic-bezier(.34,1.56,.64,1)' : (spinning ? `rpRoll ${Math.max(60, Math.min(cur.delay * 0.9, 300))}ms ease-out` : 'none'),
-          filter: spinning ? `blur(${Math.max(0, 2.4 - (cur.tick / Math.max(1, total - 1)) * 2.4).toFixed(1)}px)` : 'none',
-          textShadow: picked ? `0 0 26px ${color}99` : 'none',
+          animation: !fxOn ? 'none' : (picked ? 'rpPop .65s cubic-bezier(.34,1.56,.64,1)' : (spinning ? `rpRoll ${Math.max(60, Math.min(cur.delay * 0.9, 300))}ms ease-out` : 'none')),
+          filter: (spinning && fxOn) ? `blur(${Math.max(0, 2.4 - (cur.tick / Math.max(1, total - 1)) * 2.4).toFixed(1)}px)` : 'none',
+          textShadow: (picked && fxOn) ? `0 0 26px ${color}99` : 'none',
         }}>{cur.name || '—'}</div>
-        <div style={{ fontSize: big ? 15 : 12, height: big ? 22 : 16, opacity: 0.28, filter: 'blur(1.2px)', color: '#C7C8E0', overflow: 'hidden', whiteSpace: 'nowrap' }}>{spinning ? cur.next : ''}</div>
+        <div style={{ fontSize: big ? 15 : 12, height: big ? 22 : 16, opacity: 0.28, filter: 'blur(1.2px)', color: '#C7C8E0', overflow: 'hidden', whiteSpace: 'nowrap' }}>{(spinning && fxOn) ? cur.next : ''}</div>
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, background: 'rgba(255,255,255,0.05)' }}>
           <div style={{ width: `${progress}%`, height: '100%', background: `linear-gradient(90deg, ${color}, #EC1E8F)`, transition: 'width .25s ease' }}></div>
         </div>
-        {picked && <Sparks key={burst} n={20} radius={big ? 190 : 120} />}
+        {picked && fxOn && <Sparks key={burst} n={20} radius={big ? 190 : 120} />}
       </div>
       <button onClick={spin} disabled={dis} style={{
         padding: big ? '14px 30px' : '11px 22px', borderRadius: 12, border: 'none', cursor: dis ? 'default' : 'pointer',
         background: dis ? '#221D3A' : `linear-gradient(135deg, ${color}, #9B3CE0)`, color: dis ? '#5A5570' : '#fff', fontWeight: 700, fontSize: big ? 16 : 13,
-        boxShadow: dis ? 'none' : `0 6px 20px ${color}55`,
+        boxShadow: (dis || !fxOn) ? 'none' : `0 6px 20px ${color}55`,
       }}>{spinning ? '🎲 Se extrage…' : buttonLabel}</button>
     </div>
   );
@@ -5220,7 +5446,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                   if (!sticker) return null;
                   return (
                     <div key={entry.id} style={{ background: '#151225', borderRadius: 16, padding: 14, textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><IconBadge sticker={sticker} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: entry.date ? `Primit pe ${new Date(entry.date).toLocaleDateString('ro-RO')}` : '', mono: sticker.mono, color: sticker.color })} /></div>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><IconBadge sticker={sticker} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: (entry.date ? `Primit pe ${new Date(entry.date).toLocaleDateString('ro-RO')}` : '') + (STICKER_DESC[sticker.id] ? `${entry.date ? ' — ' : ''}${STICKER_DESC[sticker.id]}` : ''), mono: sticker.mono, color: sticker.color })} /></div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#C7C8E0', lineHeight: 1.3 }}>{sticker.label}</div>
                     </div>
                   );
@@ -5236,7 +5462,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                 const isListing = listingEntryId === entry.id;
                 return (
                   <div key={entry.id} style={{ background: '#151225', borderRadius: 16, padding: 14, textAlign: 'center' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><IconBadge sticker={sticker} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: entry.date ? `Primit pe ${new Date(entry.date).toLocaleDateString('ro-RO')}` : '', mono: sticker.mono, color: sticker.color })} /></div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><IconBadge sticker={sticker} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: (entry.date ? `Primit pe ${new Date(entry.date).toLocaleDateString('ro-RO')}` : '') + (STICKER_DESC[sticker.id] ? `${entry.date ? ' — ' : ''}${STICKER_DESC[sticker.id]}` : ''), mono: sticker.mono, color: sticker.color })} /></div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#C7C8E0', lineHeight: 1.3, marginBottom: 6 }}>{sticker.label}</div>
                     {isListing ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -5451,12 +5677,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                         background: student.points >= d.amount ? 'linear-gradient(135deg, #F87171, #C94040)' : '#221D3A', color: student.points >= d.amount ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 12,
                       }}>Plătește ({d.amount})</button>
                     </div>
-                    {hasIObject && (
-                      <button onClick={() => onPayCardDebtWithSticker(d.id)} style={{
-                        padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(253,164,175,0.5)', cursor: 'pointer',
-                        background: 'rgba(253,164,175,0.12)', color: '#FDA4AF', fontWeight: 700, fontSize: 11, alignSelf: 'flex-end',
-                      }}>🎫 Plătește cu I Object!</button>
-                    )}
+                    <PayWithStickerButtons student={student} debt={d} onPay={onPayCardDebtWithSticker} long />
                   </div>
                   );
                 })}
@@ -5701,12 +5922,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                         background: student.points >= d.amount ? 'linear-gradient(135deg, #F87171, #C94040)' : '#221D3A', color: student.points >= d.amount ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 12,
                       }}>Plătește ({d.amount})</button>
                     </div>
-                    {hasIObject && (
-                      <button onClick={() => onPayCardDebtWithSticker(d.id)} style={{
-                        padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(253,164,175,0.5)', cursor: 'pointer',
-                        background: 'rgba(253,164,175,0.12)', color: '#FDA4AF', fontWeight: 700, fontSize: 11, alignSelf: 'flex-end',
-                      }}>🎫 Plătește cu I Object!</button>
-                    )}
+                    <PayWithStickerButtons student={student} debt={d} onPay={onPayCardDebtWithSticker} long />
                   </div>
                   );
                 })}
@@ -5920,8 +6136,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
               const canBuy = student.points >= price;
               return (
                 <div key={s.id} style={{ background: '#151225', border: '1px solid #221D3A', borderRadius: 14, padding: 12, textAlign: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconBadge sticker={s} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[s.id], label: s.label, sub: `${STICKER_PRICE[s.id] || 0} puncte`, mono: s.mono, color: s.color })} /></div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconBadge sticker={s} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[s.id], label: s.label, sub: `${STICKER_PRICE[s.id] || 0} puncte${STICKER_DESC[s.id] ? ' — ' + STICKER_DESC[s.id] : ''}`, mono: s.mono, color: s.color })} /></div>
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: '#C7C8E0', lineHeight: 1.3, marginBottom: 6 }}>{s.label}</div>
+                  {STICKER_DESC[s.id] && <div style={{ fontSize: 10.5, color: '#8A86A8', lineHeight: 1.35, margin: '-2px 0 8px' }}>{STICKER_DESC[s.id]}</div>}
                   <div style={{ fontSize: 12, color: '#F5C542', fontWeight: 700, marginBottom: 8 }}>{price} pts</div>
                   <button disabled={!canBuy} onClick={() => onBuySticker(s.id, price)} style={{
                     width: '100%', padding: '7px 0', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 600,
@@ -6120,7 +6337,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           { icon: '🚦', img: 'cards', title: 'Cartonașele de disciplină', steps: [
             'Dacă încalci o regulă, poți primi un cartonaș galben sau roșu.',
             'Cartonașul se plătește cu puncte, la Bancă.',
-            'Sau poți folosi abțibildul „I Object!" ca să anulezi un cartonaș.',
+            'Sau folosește abțibildul „I Object!" (anulează orice cartonaș) ori „Yellow Wildcard" (anulează un cartonaș galben). Le găsești în Catalog, iar butonul apare aici, în tab-ul Disciplină.',
           ] },
           { icon: '🗣️', img: 'speak', title: 'Comenzile din lecții (ICQ)', steps: [], legend: ICQ_LEGEND,
             note: 'La fiecare activitate, profesorul îți arată pe ecran 2–3 simboluri. Ele îți spun exact ce ai de făcut, în ordine. Iată-le pe cele mai des folosite:' },
@@ -6316,12 +6533,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                         flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: student.points >= d.amount ? 'pointer' : 'not-allowed',
                         background: student.points >= d.amount ? 'linear-gradient(135deg, #F87171, #C94040)' : '#221D3A', color: student.points >= d.amount ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 13,
                       }}>Plătește ({d.amount} pct)</button>
-                      {hasIObject && (
-                        <button onClick={() => onPayCardDebtWithSticker(d.id)} style={{
-                          padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(253,164,175,0.5)', cursor: 'pointer',
-                          background: 'rgba(253,164,175,0.12)', color: '#FDA4AF', fontWeight: 700, fontSize: 12,
-                        }}>🎫 I Object!</button>
-                      )}
+                      <PayWithStickerButtons student={student} debt={d} onPay={onPayCardDebtWithSticker} />
                     </div>
                   </div>
                 ))}
@@ -8976,7 +9188,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.074';
+const APP_VERSION = 'v2.081';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -9204,7 +9416,7 @@ function FastLeadForm({ species, onDone }) {
       <button onClick={sendOnWhatsApp} style={{
         width: '100%', padding: '12px 0', borderRadius: 14, border: '1px solid rgba(37,211,102,0.4)', cursor: 'pointer',
         background: 'rgba(37,211,102,0.1)', color: '#25D366', fontWeight: 700, fontSize: 14,
-      }}>💬 Sau scrie-mi direct pe WhatsApp</button>
+      }}>💬 Sau scrie-ne direct pe WhatsApp</button>
     </div>
   );
 }
@@ -10625,17 +10837,19 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
-  function handlePayCardDebtWithSticker(debtId) {
+  function handlePayCardDebtWithSticker(debtId, stickerId = 'iobject') {
     const next = students.map(s => {
       if (s.id !== loggedInStudentId) return s;
-      const entry = (s.stickers || []).find(x => x.stickerId === 'iobject');
+      const entry = (s.stickers || []).find(x => x.stickerId === stickerId);
       if (!entry) return s;
       const debt = (s.cardDebts || []).find(d => d.id === debtId);
+      if (!debt || !canPayDebtWithSticker(stickerId, debt)) return s;
+      const name = stickerId === 'wildcard' ? 'Yellow Wildcard' : 'I Object!';
       return {
         ...s,
         stickers: s.stickers.filter(x => x.id !== entry.id),
         cardDebts: (s.cardDebts || []).filter(d => d.id !== debtId),
-        pointsLog: [{ id: uid(), delta: 0, reason: `Plată cu I Object!: ${debt ? debt.label : 'cartonaș'}`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
+        pointsLog: [{ id: uid(), delta: 0, reason: `Plată cu ${name}: ${debt.label}`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
       };
     });
     persistStudentsLocal(next, students);

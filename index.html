@@ -780,8 +780,11 @@ function WinnerReveal({ name, fx }) {
     </div>
   );
 }
-function EndLessonWheel({ students, onAward, onRevert, onClose }) {
+function EndLessonWheel({ students, roster, onAward, onRevert, onClose }) {
   const spec = React.useMemo(() => buildEndWheelSpec(), []);
+  const people = (roster && roster.length) ? roster : students.map(s => ({ ...s, present: true }));   // toți elevii clasei (pentru alegere manuală)
+  const [mode, setMode] = useState(students.length > 0 ? 'random' : 'manual');                       // random = la sorți, manual = aleg eu
+  const [q, setQ] = useState('');
   const [phase, setPhase] = useState('draw');           // draw -> spin -> done
   const [winner, setWinner] = useState(null);
   const [rotation, setRotation] = useState(0);
@@ -806,6 +809,9 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
   function onPickName(name) {
     const st = pool.find(s => s.name === name) || pool[0];
     if (st) { setWinner(st); setDrawNo(n => n + 1); setPhase('spin'); }
+  }
+  function chooseManual(p) {
+    setWinner({ id: p.id, name: p.name }); setDrawNo(n => n + 1); setPhase('spin');
   }
   function spin() {
     if (spinning || !winner) return;
@@ -838,15 +844,46 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
   const controls = (
     <div>
       <p style={{ fontSize: 13, color: '#8A86A8', margin: '0 0 12px' }}>
-        {students.length} {students.length === 1 ? 'elev prezent participă' : 'elevi prezenți participă'}. Întâi extragi norocosul, apoi el învârte roata.
+        {mode === 'manual'
+          ? 'Alegi tu cine învârte roata (util la ore individuale sau la recuperări).'
+          : `${students.length} ${students.length === 1 ? 'elev prezent participă' : 'elevi prezenți participă'}. Întâi extragi norocosul, apoi el învârte roata.`}
       </p>
       {phase === 'draw' && (
-        pool.length === 0
-          ? <div style={{ textAlign: 'center', color: '#F5C542', fontSize: 14, padding: 12 }}>Toți elevii prezenți au câștigat deja azi 🎉</div>
-          : <div>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>🍀 Cine e norocosul?</div>
-              <RandomPicker big fx={fx} celebrate={false} names={pool.map(s => s.name)} color="#F5C542" buttonLabel="🎲 Extrage norocosul" onPick={onPickName} />
+        <div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {[['random', '🎲 La sorți'], ['manual', '✋ Aleg eu']].map(([m, label]) => (
+              <button key={m} onClick={() => setMode(m)} style={{
+                flex: 1, padding: '9px 0', borderRadius: 10, border: mode === m ? '1px solid #F5C542' : '1px solid #2E2850', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: mode === m ? 'rgba(245,197,66,.14)' : 'transparent', color: mode === m ? '#F5C542' : '#8A86A8',
+              }}>{label}</button>
+            ))}
+          </div>
+          {mode === 'random' ? (
+            pool.length === 0
+              ? <div style={{ textAlign: 'center', color: '#F5C542', fontSize: 14, padding: 12 }}>{students.length === 0 ? 'Niciun elev marcat „Prezent" azi — alege manual sau marchează Prezența.' : 'Toți elevii prezenți au câștigat deja azi 🎉'}</div>
+              : <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>🍀 Cine e norocosul?</div>
+                  <RandomPicker big fx={fx} celebrate={false} names={pool.map(s => s.name)} color="#F5C542" buttonLabel="🎲 Extrage norocosul" onPick={onPickName} />
+                </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>✋ Cine învârte roata?</div>
+              {people.length > 10 && <input value={q} onChange={e => setQ(e.target.value)} placeholder="Caută elev..." style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, marginBottom: 8 }} />}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 250, overflowY: 'auto' }}>
+                {people.filter(p => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase())).slice().sort((a, b) => a.name.localeCompare(b.name)).map(p => (
+                  <button key={p.id} onClick={() => chooseManual(p)} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '11px 12px', borderRadius: 12, border: '1px solid #2E2850', cursor: 'pointer',
+                    background: '#151225', color: '#fff', fontSize: 14, fontWeight: 700, textAlign: 'left',
+                  }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <span style={{ fontSize: 11, color: '#4ADE80', flexShrink: 0 }}>{wonIds.includes(p.id) ? '🍀' : (p.present ? '✓' : '')}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: '#6E6A8C', marginTop: 8 }}>✓ = marcat prezent azi · 🍀 = a câștigat deja azi</div>
             </div>
+          )}
+        </div>
       )}
       {(phase === 'spin' || phase === 'done') && winner && <WinnerReveal key={drawNo} name={winner.name} fx={fx} />}
       {phase === 'spin' && (
@@ -926,8 +963,8 @@ function EndLessonWheel({ students, onAward, onRevert, onClose }) {
             <button onClick={onClose} aria-label="Închide" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', fontSize: 20 }}>✕</button>
           </div>
         </div>
-        {students.length === 0 ? (
-          <div style={{ color: '#F87171', fontSize: 13, textAlign: 'center', padding: 16 }}>Niciun elev marcat „Prezent" azi. Mergi la 📋 Prezență întâi.</div>
+        {people.length === 0 ? (
+          <div style={{ color: '#F87171', fontSize: 13, textAlign: 'center', padding: 16 }}>Nu ai niciun elev în clasa aleasă.</div>
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: wide ? '470px 1fr' : '1fr', gap: wide ? 30 : 14, alignItems: 'center', paddingTop: 14 }}>
@@ -1913,6 +1950,10 @@ async function saveDailyRoles(classId, date, monitorId, monitorName, judgeId, ju
       classId, date, monitorId, monitorName, judgeId, judgeName, createdAt: new Date().toISOString(),
     });
   } catch (e) { console.error('saveDailyRoles error', e); }
+}
+async function skipDailyRoles(classId, date) {      // ore individuale: Șeful și Judecătorul nu se aplică azi
+  const db = getDb(); if (!db) return;
+  try { await db.collection('fluentopia_daily_roles').doc(`${classId}_${date}`).set({ classId, date, skipped: true, createdAt: new Date().toISOString() }); } catch (e) { console.error('skipDailyRoles error', e); }
 }
 async function stopDailyRoles(classId, date) {
   const db = getDb(); if (!db) return;
@@ -6388,6 +6429,14 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             </div>
           );
         }
+        if (todayRolesStudent.skipped) {
+          return (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>⏭️</div>
+              <div style={{ fontSize: 14, color: '#8A86A8' }}>Azi nu folosim Șeful și Judecătorul (lecție individuală).</div>
+            </div>
+          );
+        }
 
         return (
           <div>
@@ -8519,9 +8568,19 @@ function TeacherApp({ onExit, teacherName }) {
                 <h3 className="heading-font" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🎲 Șef & Judecător — {classes.find(c => c.id === activeClassId)?.name}</h3>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SoundToggle /><button onClick={toggleFullscreen} aria-label="Ecran complet" title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button><button onClick={() => { setShowRolesWheel(false); setPickedMonitor(null); setPickedJudge(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button></div>
               </div>
-              <p style={{ fontSize: 13, color: '#8A86A8', marginBottom: 20 }}>Extrage din elevii marcați „Prezent" azi. Fă mai întâi Prezența, dacă n-ai făcut-o încă.</p>
-              {presentNames.length === 0 ? (
-                <div style={{ color: '#F87171', fontSize: 13, textAlign: 'center', padding: 12 }}>Niciun elev marcat „Prezent" azi. Mergi la 📋 Prezență întâi.</div>
+              {!(todayRoles && todayRoles.skipped) && <p style={{ fontSize: 13, color: '#8A86A8', marginBottom: 20 }}>Extrage din elevii marcați „Prezent" azi. Fă mai întâi Prezența, dacă n-ai făcut-o încă.</p>}
+              {todayRoles && todayRoles.skipped ? (
+                <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+                  <div style={{ fontSize: 44, marginBottom: 8 }}>⏭️</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#F5C542', marginBottom: 6 }}>Șef & Judecător e sărit azi (lecție individuală)</div>
+                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Elevii văd în tab că azi nu se folosește.</div>
+                  <button onClick={() => stopDailyRoles(activeClassId, today)} style={{ background: 'none', border: '1px solid #2E2850', borderRadius: 10, padding: '9px 18px', color: '#C7C8E0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>↩ Reia Șef & Judecător</button>
+                </div>
+              ) : presentNames.length === 0 ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#F87171', fontSize: 13, padding: 12 }}>Niciun elev marcat „Prezent" azi. Mergi la 📋 Prezență întâi.</div>
+                  <button onClick={() => skipDailyRoles(activeClassId, today)} style={{ marginTop: 6, background: 'rgba(245,197,66,0.12)', border: '1px solid rgba(245,197,66,0.5)', borderRadius: 10, padding: '10px 18px', color: '#F5C542', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>⏭️ Nu se aplică azi (lecție individuală)</button>
+                </div>
               ) : todayRoles && !pickedMonitor ? (
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 12 }}>Rolurile de azi au fost deja extrase:</div>
@@ -8569,6 +8628,9 @@ function TeacherApp({ onExit, teacherName }) {
                       setPickedMonitor(null); setPickedJudge(null);
                     }} style={{ width: '100%', marginTop: 20, padding: '12px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #4ADE80, #38BDF8)', color: '#0B0A14', fontWeight: 700, fontSize: 13 }}>✓ Salvează rolurile de azi</button>
                   )}
+                  <div style={{ textAlign: 'center', marginTop: 20 }}>
+                    <button onClick={() => skipDailyRoles(activeClassId, today)} style={{ background: 'none', border: 'none', color: '#6E6A8C', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>⏭️ Nu se aplică azi (lecție individuală)</button>
+                  </div>
                 </div>
               )}
             </PresentationBox>
@@ -8578,7 +8640,8 @@ function TeacherApp({ onExit, teacherName }) {
       {showEndWheel && (() => {
         const today = new Date().toISOString().slice(0, 10);
         const present = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).map(s => ({ id: s.id, name: s.name }));
-        return <EndLessonWheel students={present} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
+        const roster = classStudents.map(s => ({ id: s.id, name: s.name, present: (s.attendance || []).some(a => a.date === today && a.status === 'present') }));
+        return <EndLessonWheel students={present} roster={roster} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
       })()}
       {showAcademicAdmin && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -9188,7 +9251,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.081';
+const APP_VERSION = 'v2.082';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

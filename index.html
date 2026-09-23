@@ -5023,6 +5023,16 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     const unsub3 = listenRuleWarnings(student.classId, today, setRuleWarningsToday);
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [student.classId, isParentView]);
+  const seenWarningsRef = useRef(null);
+  useEffect(() => {
+    if (isParentView) return;
+    if (seenWarningsRef.current === null) { seenWarningsRef.current = ruleWarningsToday.length; return; }   // nu suna la prima încărcare
+    if (ruleWarningsToday.length > seenWarningsRef.current) {
+      const justAdded = ruleWarningsToday.slice(seenWarningsRef.current);
+      if (justAdded.some(w => w.studentId === student.id)) playWarningWhistle();
+    }
+    seenWarningsRef.current = ruleWarningsToday.length;
+  }, [ruleWarningsToday, isParentView, student.id]);
   const heroSvgRef = useRef(null);
   const [downloadingHeroCard, setDownloadingHeroCard] = useState(false);
   const [activeCustomSection, setActiveCustomSection] = useState('body');
@@ -6694,6 +6704,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           { icon: '💬', img: 'describe', title: 'Wall și Mesaje', steps: [
             '„Wall" e peretele clasei — scrii acolo pentru toți colegii.',
             '„Mesaje" e doar între tine și un coleg, ca o discuție privată.',
+            'Poți adăuga emoji cu butonul 😊 și poți reacționa cu ❤️👍😂 la mesajele altora.',
             'Fii mereu drăguț cu colegii tăi.',
           ] },
           { icon: '🏆', img: 'trophy', title: 'Clasamente', steps: [
@@ -6705,10 +6716,23 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             'Aura Battle: Aura ta Buddy luptă cu Aura altui elev.',
             'Cine e mai bine pregătit, câștigă!',
           ] },
+          { icon: '⚖️', img: 'take_turns', title: 'Șef & Judecător', steps: [
+            'În fiecare zi, profesorul extrage la sorți un Șef al clasei și un Judecător, dintre elevii prezenți.',
+            'Șeful vede când un coleg încalcă o regulă. Prima abatere la o regulă, într-o zi, primește doar un ⚠️ avertisment.',
+            'Abia a doua oară, la aceeași regulă, Șeful poate da cartonaș galben sau roșu — acesta pleacă la Judecător.',
+            'Judecătorul aprobă sau respinge cartonașul. Dacă e respins, Șeful poate să-l dea din nou, dacă se mai întâmplă.',
+          ] },
           { icon: '🚦', img: 'cards', title: 'Cartonașele de disciplină', steps: [
-            'Dacă încalci o regulă, poți primi un cartonaș galben sau roșu.',
-            'Cartonașul se plătește cu puncte, la Bancă.',
-            'Sau folosește abțibildul „I Object!" (anulează orice cartonaș) ori „Yellow Wildcard" (anulează un cartonaș galben). Le găsești în Catalog, iar butonul apare aici, în tab-ul Disciplină.',
+            'Cartonașul galben sau roșu se plătește cu puncte, la Bancă.',
+            'Abțibildul „I Object!" anulează orice cartonaș. „Yellow Wildcard" anulează unul galben — și poți plăti mai multe cartonașe galbene deodată, dacă ai mai multe Wildcard-uri.',
+            'Dacă profesorul te laudă de 3 ori pentru aceeași regulă, primești automat un abțibild 🛡️ Shield pentru acea regulă — el anulează un viitor cartonaș, doar pentru regula aceea.',
+            'Le găsești pe toate în tab-ul Disciplină, lângă fiecare cartonaș pe care îl poți plăti cu ele.',
+          ] },
+          { icon: '🎨', img: 'take_turns', title: 'Tablă', steps: [
+            'Un tab unde poți desena, în timp real, cu toată clasa sau doar cu un coleg ales de tine.',
+            'Alegi culoarea, grosimea și, dacă greșești, radiera.',
+            'Apasă „💾 Salvează desenul" oricând vrei să păstrezi ce ai desenat — se descarcă pe dispozitivul tău.',
+            'Tabla se golește automat de la o zi la alta, ca să rămână mereu rapidă.',
           ] },
           { icon: '🗣️', img: 'speak', title: 'Comenzile din lecții (ICQ)', steps: [], legend: ICQ_LEGEND,
             note: 'La fiecare activitate, profesorul îți arată pe ecran 2–3 simboluri. Ele îți spun exact ce ai de făcut, în ordine. Iată-le pe cele mai des folosite:' },
@@ -7525,6 +7549,13 @@ function TeacherApp({ onExit, teacherName }) {
     const unsub3 = listenRuleWarnings(activeClassId, today, setTodayClassWarnings);
     return () => { unsub(); unsub2(); unsub3(); };
   }, [showRolesWheel, activeClassId]);
+  const seenTeacherWarningsRef = useRef(null);
+  useEffect(() => {
+    if (!showRolesWheel) { seenTeacherWarningsRef.current = null; return; }
+    if (seenTeacherWarningsRef.current === null) { seenTeacherWarningsRef.current = todayClassWarnings.length; return; }
+    if (todayClassWarnings.length > seenTeacherWarningsRef.current) playWarningWhistle();
+    seenTeacherWarningsRef.current = todayClassWarnings.length;
+  }, [todayClassWarnings, showRolesWheel]);
   const [showTeacherTools, setShowTeacherTools] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0,10));
   const [editingSchedule, setEditingSchedule] = useState(null);
@@ -7751,8 +7782,20 @@ function TeacherApp({ onExit, teacherName }) {
   }
   function awardStickerToStudent(studentId, stickerId) {
     if (!studentId) return;
-    const next = students.map(s => s.id !== studentId ? s : {
-      ...s, stickers: [...(s.stickers || []), { id: uid(), stickerId, date: new Date().toISOString() }],
+    const goodMatch = /^good([1-7])$/.exec(stickerId);
+    const next = students.map(s => {
+      if (s.id !== studentId) return s;
+      let stickers = [...(s.stickers || []), { id: uid(), stickerId, date: new Date().toISOString() }];
+      if (goodMatch) {
+        const n = goodMatch[1];
+        const owned = stickers.filter(x => x.stickerId === stickerId);
+        if (owned.length >= 3) {                                    // 3 laude pentru aceeași regulă -> se transformă într-un Shield
+          const toRemove = new Set(owned.slice(0, 3).map(x => x.id));
+          stickers = stickers.filter(x => !toRemove.has(x.id));
+          stickers = [...stickers, { id: uid(), stickerId: 'shield' + n, date: new Date().toISOString(), earnedFromPraise: true }];
+        }
+      }
+      return { ...s, stickers };
     });
     playDing();
     persistStudentsLocal(next, students);
@@ -9825,7 +9868,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.085';
+const APP_VERSION = 'v2.086';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

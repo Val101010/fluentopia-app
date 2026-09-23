@@ -429,6 +429,12 @@ const RULE_INFO = {
   rule6: { en: 'Communicate in English', ro: 'Folosește engleza cât mai mult posibil.' },
   rule7: { en: 'Believe in Yourself', ro: 'Încearcă, greșește, învață — ești în stare!' },
 };
+function isTestVisibleNow(t) {
+  if (!t.visibility || t.visibility === 'now') return true;
+  if (t.visibility === 'scheduled') return !!t.visibleAt && new Date(t.visibleAt) <= new Date();
+  if (t.visibility === 'manual') return !!t.activated;
+  return true;
+}
 function ruleIdOfCard(x) {
   if (!x) return null;
   if (x.catalogId && String(x.catalogId).startsWith('rule')) return x.catalogId;
@@ -1162,7 +1168,7 @@ function BottomNav({ groups, tabs, tab, setTab, groupLabels, colors, alertOf }) 
                             <span key={on ? 'a' : 'b'} className={on ? 'fnav-pop' : ''}>{t.icon}</span>
                             {alertOf(t) && <span style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: '50%', background: '#F87171', border: '2px solid #130F26' }}></span>}
                           </div>
-                          <div style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: on ? '#fff' : '#C7C8E0', marginTop: 5, lineHeight: 1.2 }}>{t.label}</div>
+                          <div style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: on ? '#fff' : '#C7C8E0', marginTop: 5, lineHeight: 1.2 }}>{groupLabels[t.id] || t.id}</div>
                         </button>
                       );
                     })}
@@ -1245,7 +1251,7 @@ function RailNav({ groups, tabs, tab, setTab, groupLabels, colors, alertOf }) {
                       fontSize: 12.5, fontWeight: on ? 800 : 600, boxShadow: on ? `0 4px 14px ${c.glow}` : 'none', transition: 'background .15s ease, transform .1s ease',
                     }}>
                       <span key={on ? 'a' : 'b'} className={on ? 'fnav-pop' : ''} style={{ fontSize: 16, lineHeight: 1, width: 20, textAlign: 'center' }}>{t.icon}</span>
-                      <span style={{ flex: 1, textShadow: on ? '0 1px 2px rgba(0,0,0,.3)' : 'none' }}>{t.label}</span>
+                      <span style={{ flex: 1, textShadow: on ? '0 1px 2px rgba(0,0,0,.3)' : 'none' }}>{groupLabels[t.id] || t.id}</span>
                       {alertOf(t) && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#F87171', border: '2px solid #100C1F' }}></span>}
                     </button>
                   );
@@ -2532,12 +2538,17 @@ async function deleteStudentTest(testId) {
   const db = getDb(); if (!db) return;
   await db.collection('fluentopia_student_tests').doc(testId).delete();
 }
-async function markStudentTestTaken(testId, studentId, studentName, score) {
+async function markStudentTestTaken(testId, studentId, studentName, answers) {
   const db = getDb(); if (!db) return;
   await db.collection('fluentopia_student_tests').doc(testId).update({
     takenBy: firebase.firestore.FieldValue.arrayUnion(studentId),
-    results: firebase.firestore.FieldValue.arrayUnion({ studentId, studentName, score, date: new Date().toISOString() }),
+    results: firebase.firestore.FieldValue.arrayUnion({ studentId, studentName, answers: answers || [], date: new Date().toISOString() }),
   }).catch(() => {});
+}
+async function overrideStudentTestAnswer(testId, currentResults, studentId, qIndex, isCorrect) {
+  const db = getDb(); if (!db) return;
+  const next = (currentResults || []).map(r => r.studentId !== studentId ? r : { ...r, overrides: { ...(r.overrides || {}), [qIndex]: isCorrect } });
+  await db.collection('fluentopia_student_tests').doc(testId).update({ results: next }).catch(() => {});
 }
 async function uploadDiploma(studentId, file) {
   const storage = getStorage();
@@ -2552,6 +2563,14 @@ async function uploadClassIcon(classId, file) {
   const storage = getStorage();
   if (!storage) throw new Error('Storage unavailable');
   const path = `class-icons/${classId}/${uid()}-${file.name}`;
+  const ref = storage.ref().child(path);
+  await ref.put(file);
+  return await ref.getDownloadURL();
+}
+async function uploadTestQuestionImage(file) {
+  const storage = getStorage();
+  if (!storage) throw new Error('Storage unavailable');
+  const path = `test-question-images/${uid()}-${file.name}`;
   const ref = storage.ref().child(path);
   await ref.put(file);
   return await ref.getDownloadURL();
@@ -4406,6 +4425,7 @@ function StudentTestTaker({ test, onFinish, onExit }) {
   const [qIndex, setQIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [score, setScore] = useState(0);
+  const [answers, setAnswers] = useState([]);
   const [finished, setFinished] = useState(false);
   const q = test.questions[qIndex];
 
@@ -4414,9 +4434,11 @@ function StudentTestTaker({ test, onFinish, onExit }) {
     setSelected(oi);
     const correct = oi === q.correctIdx;
     const newScore = score + (correct ? 1 : 0);
+    const newAnswers = [...answers, oi];
     if (correct) setScore(newScore);
+    setAnswers(newAnswers);
     setTimeout(() => {
-      if (qIndex + 1 >= test.questions.length) { setFinished(true); onFinish(newScore); }
+      if (qIndex + 1 >= test.questions.length) { setFinished(true); onFinish(newScore, newAnswers); }
       else { setQIndex(i => i + 1); setSelected(null); }
     }, 700);
   }
@@ -4461,10 +4483,10 @@ function StudentTestsView({ student, classId, onEarnReward }) {
     return <StudentTestCreator student={student} onDone={() => setMode('list')} onCancel={() => setMode('list')} />;
   }
   if (playingTest) {
-    return <StudentTestTaker test={playingTest} onExit={() => setPlayingTest(null)} onFinish={(score) => {
+    return <StudentTestTaker test={playingTest} onExit={() => setPlayingTest(null)} onFinish={(score, answers) => {
       const alreadyTaken = (playingTest.takenBy || []).includes(student.id);
       if (!alreadyTaken && playingTest.authorId !== student.id) {
-        markStudentTestTaken(playingTest.id, student.id, student.name, score);
+        markStudentTestTaken(playingTest.id, student.id, student.name, answers);
         onEarnReward(STUDENT_TEST_REWARD, `Test de la ${playingTest.authorName}: ${playingTest.title}`);
       }
       setPlayingTest(null);
@@ -5305,7 +5327,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
   }
 
   const takenTestIds = new Set((student.takenTests || []));
-  const availableTests = tests.filter(t => (t.assignedClassIds || []).includes(student.classId) && !takenTestIds.has(t.id));
+    const availableTests = tests.filter(t => (t.assignedClassIds || []).includes(student.classId) && !takenTestIds.has(t.id) && isTestVisibleNow(t));
 
   const menuLang = (typeof lang !== 'undefined' && lang) || 'ro';
   const mt = MENU_STRINGS[menuLang] || MENU_STRINGS.ro;
@@ -7314,6 +7336,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {takingTest.questions.map((q, qi) => (
               <div key={q.id} style={{ background: '#151225', borderRadius: 12, padding: 14 }}>
+                {q.imageUrl && <img src={q.imageUrl} alt="" style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 12, background: '#0F0C1C', marginBottom: 10 }} />}
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{qi + 1}. {q.text}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {q.options.map((opt, oi) => (
@@ -7550,6 +7573,8 @@ function TeacherApp({ onExit, teacherName }) {
   }, [showClassWall, activeClassId]);
   const [showStudentTests, setShowStudentTests] = useState(false);
   const [expandedStudentTestId, setExpandedStudentTestId] = useState(null);
+  const [previewStudentTest, setPreviewStudentTest] = useState(null);
+  const [expandedStudentResultKey, setExpandedStudentResultKey] = useState(null);
   const [studentTestsList, setStudentTestsList] = useState([]);
   useEffect(() => {
     if (!showStudentTests || !activeClassId) return;
@@ -7626,12 +7651,23 @@ function TeacherApp({ onExit, teacherName }) {
   const [newTestModule, setNewTestModule] = useState(MODULES[0]);
   const [newTestQuestions, setNewTestQuestions] = useState([]);
   const [newTestAssignClass, setNewTestAssignClass] = useState('');
+  const [newTestVisibility, setNewTestVisibility] = useState('now');
+  const [newTestVisibleAt, setNewTestVisibleAt] = useState('');
   const [newTestType, setNewTestType] = useState('quiz'); // 'quiz' or 'external'
   const [newTestUrl, setNewTestUrl] = useState('');
   const [qText, setQText] = useState('');
   const [qOptions, setQOptions] = useState(['', '', '', '']);
   const [qCorrect, setQCorrect] = useState(0);
   const [qSkill, setQSkill] = useState('');
+  const [qImage, setQImage] = useState('');
+  const [qImageUploading, setQImageUploading] = useState(false);
+  async function handleQImageUpload(file) {
+    if (!file) return;
+    setQImageUploading(true);
+    try { const url = await uploadTestQuestionImage(file); setQImage(url); }
+    catch (e) { alert('Nu s-a putut încărca imaginea — verifică conexiunea și încearcă din nou.'); }
+    setQImageUploading(false);
+  }
   const [skillPoints, setSkillPoints] = useState({});
   const [skillLabels, setSkillLabels] = useState({});
   const [editingSkillId, setEditingSkillId] = useState(null);
@@ -7756,8 +7792,8 @@ function TeacherApp({ onExit, teacherName }) {
 
   function addQuestionToNewTest() {
     if (!qText.trim() || qOptions.some(o => !o.trim())) return;
-    setNewTestQuestions(prev => [...prev, { id: uid(), text: qText.trim(), options: qOptions.map(o => o.trim()), correctIndex: qCorrect, skill: qSkill.trim() }]);
-    setQText(''); setQOptions(['', '', '', '']); setQCorrect(0); setQSkill('');
+    setNewTestQuestions(prev => [...prev, { id: uid(), text: qText.trim(), options: qOptions.map(o => o.trim()), correctIndex: qCorrect, skill: qSkill.trim(), imageUrl: qImage || '' }]);
+    setQText(''); setQOptions(['', '', '', '']); setQCorrect(0); setQSkill(''); setQImage('');
   }
   function removeQuestionFromNewTest(id) {
     setNewTestQuestions(prev => prev.filter(q => q.id !== id));
@@ -7772,13 +7808,20 @@ function TeacherApp({ onExit, teacherName }) {
       type: newTestType,
       questions: newTestType === 'quiz' ? newTestQuestions : [],
       url: newTestType === 'external' ? newTestUrl.trim() : '',
+      visibility: newTestVisibility,
+      visibleAt: newTestVisibility === 'scheduled' ? newTestVisibleAt : '',
+      activated: newTestVisibility === 'manual' ? false : true,
     };
     persistTests([...tests, test]);
     setNewTestTitle(''); setNewTestQuestions([]); setNewTestAssignClass(''); setNewTestUrl('');
+    setNewTestVisibility('now'); setNewTestVisibleAt('');
   }
   function deleteTest(id) {
     if (!window.confirm('Ștergi definitiv acest test?')) return;
     persistTests(tests.filter(t => t.id !== id));
+  }
+  function activateTestNow(id) {
+    persistTests(tests.map(t => t.id !== id ? t : { ...t, activated: true, visibility: t.visibility === 'scheduled' ? 'now' : t.visibility }));
   }
 
   const classStudents = students.filter(s => s.classId === activeClassId);
@@ -8289,9 +8332,9 @@ function TeacherApp({ onExit, teacherName }) {
                     return (
                     <div key={t.id} style={{ background: '#0F0C1C', borderRadius: 10, padding: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{t.title}</div>
-                        <div style={{ fontSize: 10, color: '#6E6A8C' }}>de {t.authorName} · {t.questions.length} întrebări · făcut de {(t.takenBy||[]).length} elevi</div>
+                      <div onClick={() => setPreviewStudentTest(t)} style={{ minWidth: 0, cursor: 'pointer' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textDecoration: 'underline', textDecorationColor: 'transparent' }}>👁️ {t.title}</div>
+                        <div style={{ fontSize: 10, color: '#6E6A8C' }}>de {t.authorName} · {t.questions.length} întrebări · făcut de {(t.takenBy||[]).length} elevi · apasă titlul ca să vezi testul</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                         {results.length > 0 && (
@@ -8303,13 +8346,49 @@ function TeacherApp({ onExit, teacherName }) {
                     </div>
                       </div>
                       {opened && results.length > 0 && (
-                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #221D3A', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {results.slice().sort((a, b) => b.score - a.score).map((r, ri) => (
-                            <div key={ri} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                              <span style={{ color: '#C7C8E0' }}>{r.studentName}</span>
-                              <span style={{ fontWeight: 700, color: r.score >= 70 ? '#4ADE80' : r.score >= 40 ? '#F5C542' : '#F87171' }}>{r.score}/100</span>
-                            </div>
-                          ))}
+                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #221D3A', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {results.map((r, ri) => {
+                            const total = t.questions.length;
+                            const isCorrectQ = qi => (r.overrides && r.overrides[qi] !== undefined) ? r.overrides[qi] : (r.answers && r.answers[qi] === t.questions[qi].correctIdx);
+                            const correctCount = t.questions.reduce((sum, q, qi) => sum + (isCorrectQ(qi) ? 1 : 0), 0);
+                            const rOpen = expandedStudentResultKey === (t.id + '_' + r.studentId);
+                            return (
+                              <div key={ri} style={{ background: '#151225', borderRadius: 10, padding: 10 }}>
+                                <div onClick={() => setExpandedStudentResultKey(rOpen ? null : (t.id + '_' + r.studentId))} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#C7C8E0' }}>{r.studentName}</span>
+                                  <span style={{ fontSize: 12, fontWeight: 800, color: correctCount === total ? '#4ADE80' : correctCount === 0 ? '#F87171' : '#F5C542' }}>{correctCount}/{total} {rOpen ? '▲' : '▼'}</span>
+                                </div>
+                                {rOpen && (
+                                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {t.questions.map((q, qi) => {
+                                      const chosen = r.answers ? r.answers[qi] : undefined;
+                                      const ok = isCorrectQ(qi);
+                                      const overridden = r.overrides && r.overrides[qi] !== undefined;
+                                      return (
+                                        <div key={qi} style={{ background: '#0F0C1C', borderRadius: 8, padding: '7px 9px' }}>
+                                          <div style={{ fontSize: 11, color: '#C7C8E0', marginBottom: 3 }}>{qi + 1}. {q.q}</div>
+                                          <div style={{ fontSize: 10.5, color: ok ? '#4ADE80' : '#F87171', marginBottom: 5 }}>
+                                            a răspuns: {chosen !== undefined ? q.options[chosen] : '—'}{!ok && <span style={{ color: '#6E6A8C' }}> (corect: {q.options[q.correctIdx]})</span>}
+                                          </div>
+                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                            <button onClick={() => overrideStudentTestAnswer(t.id, results, r.studentId, qi, true)} style={{
+                                              padding: '3px 9px', borderRadius: 7, border: ok ? '1px solid #4ADE80' : '1px solid #2E2850', cursor: 'pointer',
+                                              background: ok ? 'rgba(74,222,128,0.16)' : 'transparent', color: ok ? '#4ADE80' : '#6E6A8C', fontSize: 10.5, fontWeight: 700,
+                                            }}>✓ Corect</button>
+                                            <button onClick={() => overrideStudentTestAnswer(t.id, results, r.studentId, qi, false)} style={{
+                                              padding: '3px 9px', borderRadius: 7, border: !ok ? '1px solid #F87171' : '1px solid #2E2850', cursor: 'pointer',
+                                              background: !ok ? 'rgba(248,113,113,0.16)' : 'transparent', color: !ok ? '#F87171' : '#6E6A8C', fontSize: 10.5, fontWeight: 700,
+                                            }}>✗ Greșit</button>
+                                            {overridden && <span style={{ fontSize: 9.5, color: '#6E6A8C' }}>corectat de profesor</span>}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -9078,6 +9157,34 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
+      {previewStudentTest && (
+        <div onClick={() => setPreviewStudentTest(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#151225', borderRadius: 16, padding: 24, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', border: '1px solid #2E2850' }} className="scrollbar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>📝 {previewStudentTest.title}</h3>
+              <button onClick={() => setPreviewStudentTest(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#6E6A8C', margin: '0 0 16px' }}>Creat de {previewStudentTest.authorName} · {previewStudentTest.questions.length} întrebări · răspunsul corect e marcat cu ✓</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {previewStudentTest.questions.map((q, qi) => (
+                <div key={qi} style={{ background: '#0F0C1C', borderRadius: 12, padding: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{qi + 1}. {q.q}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {q.options.map((o, oi) => (
+                      <div key={oi} style={{
+                        fontSize: 12.5, padding: '7px 10px', borderRadius: 8,
+                        background: oi === q.correctIdx ? 'rgba(74,222,128,0.14)' : '#151225',
+                        border: oi === q.correctIdx ? '1px solid rgba(74,222,128,0.5)' : '1px solid transparent',
+                        color: oi === q.correctIdx ? '#4ADE80' : '#C7C8E0', fontWeight: oi === q.correctIdx ? 700 : 500,
+                      }}>{oi === q.correctIdx ? '✓ ' : ''}{o}</div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {showAppStats && (() => {
         const totalStudents = students.length;
         const totalClasses = classes.length;
@@ -9742,8 +9849,22 @@ function TeacherApp({ onExit, teacherName }) {
                           <div style={{ color: '#6E6A8C', fontSize: 11, marginTop: 3 }}>
                             Clasă: {classes.find(c => c.id === classId)?.name || '—'}
                           </div>
+                          {(() => {
+                            const visible = isTestVisibleNow(t);
+                            if (!t.visibility || t.visibility === 'now') return null;
+                            if (t.visibility === 'scheduled') {
+                              const when = t.visibleAt ? new Date(t.visibleAt).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+                              return <div style={{ fontSize: 10.5, fontWeight: 700, color: visible ? '#4ADE80' : '#F5C542', marginTop: 4 }}>{visible ? `✅ Vizibil de la ${when}` : `⏰ Se activează la ${when}`}</div>;
+                            }
+                            return <div style={{ fontSize: 10.5, fontWeight: 700, color: visible ? '#4ADE80' : '#F87171', marginTop: 4 }}>{visible ? '✅ Activat' : '🔒 Ascuns elevilor'}</div>;
+                          })()}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {t.visibility && t.visibility !== 'now' && !isTestVisibleNow(t) && (
+                            <button onClick={() => activateTestNow(t.id)} style={{ background: 'rgba(74,222,128,0.14)', border: '1px solid rgba(74,222,128,0.5)', borderRadius: 8, padding: '5px 10px', color: '#4ADE80', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                              ▶️ Activează acum
+                            </button>
+                          )}
                           {t.type === 'quiz' && (
                             <button onClick={() => setExpandedTestResultsId(opened ? null : t.id)} style={{ background: 'none', border: '1px solid #2E2850', borderRadius: 8, padding: '5px 10px', color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                               👁 {results.length} {results.length === 1 ? 'rezultat' : 'rezultate'} {opened ? '▲' : '▼'}
@@ -9822,7 +9943,10 @@ function TeacherApp({ onExit, teacherName }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
                       {newTestQuestions.map((q, i) => (
                         <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0F0C1C', borderRadius: 8, padding: 8, fontSize: 12 }}>
-                          <span>{i+1}. {q.text} <span style={{ color: '#4ADE80' }}>({q.options[q.correctIndex]})</span>{q.skill && <span style={{ color: '#6E6A8C' }}> · {q.skill}</span>}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {q.imageUrl && <img src={q.imageUrl} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />}
+                            <span>{i+1}. {q.text} <span style={{ color: '#4ADE80' }}>({q.options[q.correctIndex]})</span>{q.skill && <span style={{ color: '#6E6A8C' }}> · {q.skill}</span>}</span>
+                          </span>
                           <button onClick={() => removeQuestionFromNewTest(q.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6E6A8C', display: 'flex' }}><IX size={12}/></button>
                         </div>
                       ))}
@@ -9833,6 +9957,25 @@ function TeacherApp({ onExit, teacherName }) {
                       style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13, marginBottom: 8 }} />
                     <input value={qSkill} onChange={e => setQSkill(e.target.value)} placeholder="Aptitudine (opțional, ex: Verb Tenses)"
                       style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12.5, marginBottom: 8 }} />
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, border: '1px dashed #2E2850', cursor: 'pointer', background: '#151225',
+                      }}>
+                        {qImage ? (
+                          <img src={qImage} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6 }} />
+                        ) : (
+                          <span style={{ fontSize: 20 }}>🖼️</span>
+                        )}
+                        <span style={{ fontSize: 11.5, color: '#8A86A8', flex: 1 }}>
+                          {qImageUploading ? 'Se încarcă...' : qImage ? 'Imagine adăugată — apasă ca s-o schimbi' : 'Adaugă o imagine (opțional) — elevul vede poza și alege cuvântul corect'}
+                        </span>
+                        {qImage && !qImageUploading && (
+                          <span onClick={e => { e.preventDefault(); setQImage(''); }} style={{ color: '#F87171', fontSize: 11, fontWeight: 700 }}>Șterge</span>
+                        )}
+                        <input type="file" accept="image/*" onChange={e => handleQImageUpload(e.target.files[0])} style={{ display: 'none' }} disabled={qImageUploading} />
+                      </label>
+                      <p style={{ fontSize: 10, color: '#6E6A8C', margin: '4px 2px 0' }}>Poza trebuie să fie a ta sau liberă de drepturi (ex: Unsplash, Pexels) — nu descărca imagini protejate.</p>
+                    </div>
                     {qOptions.map((opt, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <input type="radio" checked={qCorrect === i} onChange={() => setQCorrect(i)} />
@@ -9867,11 +10010,37 @@ function TeacherApp({ onExit, teacherName }) {
                 </select>
               </div>
 
-              <button onClick={saveNewTest} disabled={!newTestTitle.trim() || !newTestAssignClass || (newTestType === 'quiz' ? newTestQuestions.length === 0 : !newTestUrl.trim())} style={{
-                padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
-                background: (!newTestTitle.trim() || !newTestAssignClass || (newTestType === 'quiz' ? newTestQuestions.length === 0 : !newTestUrl.trim())) ? '#221D3A' : 'linear-gradient(135deg, #EC1E8F, #9B3CE0)',
-                color: (!newTestTitle.trim() || !newTestAssignClass || (newTestType === 'quiz' ? newTestQuestions.length === 0 : !newTestUrl.trim())) ? '#5A5570' : '#fff',
-              }}>Salvează testul</button>
+              <div style={{ background: '#0F0C1C', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 8 }}>Când îl văd elevii?</div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: newTestVisibility === 'scheduled' ? 10 : 0 }}>
+                  {[['now', '🔓 Acum'], ['scheduled', '⏰ La o oră'], ['manual', '🔒 Când activez']].map(([v, label]) => (
+                    <button key={v} onClick={() => setNewTestVisibility(v)} style={{
+                      flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
+                      background: newTestVisibility === v ? 'linear-gradient(135deg, #466FEE, #9B3CE0)' : '#151225',
+                      color: newTestVisibility === v ? '#fff' : '#8A86A8',
+                    }}>{label}</button>
+                  ))}
+                </div>
+                {newTestVisibility === 'scheduled' && (
+                  <input type="datetime-local" value={newTestVisibleAt} onChange={e => setNewTestVisibleAt(e.target.value)} style={{
+                    width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13,
+                  }} />
+                )}
+                {newTestVisibility === 'manual' && (
+                  <p style={{ fontSize: 11, color: '#6E6A8C', marginTop: 8, lineHeight: 1.5 }}>Testul rămâne ascuns elevilor până apeși „▶️ Activează acum" din lista de mai jos.</p>
+                )}
+              </div>
+
+              {(() => {
+                const disabled = !newTestTitle.trim() || !newTestAssignClass || (newTestType === 'quiz' ? newTestQuestions.length === 0 : !newTestUrl.trim()) || (newTestVisibility === 'scheduled' && !newTestVisibleAt);
+                return (
+                  <button onClick={saveNewTest} disabled={disabled} style={{
+                    padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                    background: disabled ? '#221D3A' : 'linear-gradient(135deg, #EC1E8F, #9B3CE0)',
+                    color: disabled ? '#5A5570' : '#fff',
+                  }}>Salvează testul</button>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -9978,7 +10147,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.091';
+const APP_VERSION = 'v2.096';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

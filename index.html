@@ -3547,6 +3547,28 @@ function Confetti({ onDone }) {
     </div>
   );
 }
+function playShieldSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = ctx.currentTime;
+    // "clang" metalic: două tonuri suprapuse, cu un ecou scurt care se stinge, ca o lovitură de scut
+    [[880, 0.16], [1320, 0.1], [660, 0.07]].forEach(([freq, vol], i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(freq, t0);
+      o.frequency.exponentialRampToValueAtTime(freq * 0.985, t0 + 0.5);
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
+      o.start(t0); o.stop(t0 + 0.6);
+    });
+    // un mic "thud" de impact la început
+    const n = ctx.createBufferSource();
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.05), ctx.sampleRate);
+    const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    n.buffer = buf; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.22, t0);
+    n.connect(lp); lp.connect(ng); ng.connect(ctx.destination); n.start(t0);
+  } catch (e) {}
+}
 function playWarningWhistle() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -5023,16 +5045,41 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     const unsub3 = listenRuleWarnings(student.classId, today, setRuleWarningsToday);
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [student.classId, isParentView]);
+  // Firestore trimite mai întâi date din cache (posibil incomplete), apoi datele reale de pe server —
+  // așteptăm puțin după conectare înainte să stabilim ce e "deja acolo", ca să nu sune la avertismente vechi.
   const seenWarningsRef = useRef(null);
+  const latestWarningsRef = useRef(ruleWarningsToday);
+  latestWarningsRef.current = ruleWarningsToday;
   useEffect(() => {
     if (isParentView) return;
-    if (seenWarningsRef.current === null) { seenWarningsRef.current = ruleWarningsToday.length; return; }   // nu suna la prima încărcare
+    seenWarningsRef.current = null;
+    const t = setTimeout(() => { seenWarningsRef.current = latestWarningsRef.current.length; }, 1200);
+    return () => clearTimeout(t);
+  }, [isParentView, student.id]);
+  useEffect(() => {
+    if (isParentView || seenWarningsRef.current === null) return;
     if (ruleWarningsToday.length > seenWarningsRef.current) {
       const justAdded = ruleWarningsToday.slice(seenWarningsRef.current);
       if (justAdded.some(w => w.studentId === student.id)) playWarningWhistle();
     }
     seenWarningsRef.current = ruleWarningsToday.length;
   }, [ruleWarningsToday, isParentView, student.id]);
+  // sunet distinct de "scut" când primești un Shield nou (aceeași logică anti-fals-pozitiv)
+  const seenShieldsRef = useRef(null);
+  const latestShieldsCountRef = useRef(0);
+  const myShieldCount = (student.stickers || []).filter(x => /^shield[1-7]$/.test(x.stickerId)).length;
+  latestShieldsCountRef.current = myShieldCount;
+  useEffect(() => {
+    if (isParentView) return;
+    seenShieldsRef.current = null;
+    const t = setTimeout(() => { seenShieldsRef.current = latestShieldsCountRef.current; }, 1200);
+    return () => clearTimeout(t);
+  }, [isParentView, student.id]);
+  useEffect(() => {
+    if (isParentView || seenShieldsRef.current === null) return;
+    if (myShieldCount > seenShieldsRef.current) playShieldSound();
+    seenShieldsRef.current = myShieldCount;
+  }, [myShieldCount, isParentView, student.id]);
   const heroSvgRef = useRef(null);
   const [downloadingHeroCard, setDownloadingHeroCard] = useState(false);
   const [activeCustomSection, setActiveCustomSection] = useState('body');
@@ -5216,9 +5263,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     badgeCountRef.current = autoBadges.length;
   }, [autoBadges.length]);
 
-  if (student.consentVersion !== CONSENT_VERSION) {
-    return <ConsentModal onAccept={onAcceptConsent} />;
-  }
+  const needsConsent = student.consentVersion !== CONSENT_VERSION;
 
   function fmtDate(iso) { return new Date(iso).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }); }
 
@@ -5270,6 +5315,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     { id: 'shop', icon: '🛒', group: 'acasa' },
     { id: 'wall', icon: '🧱', group: 'social' },
     { id: 'messages', icon: '✉️', group: 'social' },
+    ...(!isParentView ? [{ id: 'board', icon: '🎨', group: 'social' }] : []),
     { id: 'duel', icon: '⚔️', group: 'social' },
     { id: 'aurabattle', icon: '🃏', group: 'aurabuddy' },
     { id: 'games', icon: '🎮', group: 'distractie' },
@@ -5303,16 +5349,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     'finante': { from: '#22C55E', to: '#F5C542', glow: 'rgba(245,197,66,0.35)' },
     'progres': { from: '#6366F1', to: '#818CF8', glow: 'rgba(99,102,241,0.35)' },
   };
-  const activeTabGroup = (TABS.find(t => t.id === tab) || {}).group;
-  const [expandedGroups, setExpandedGroups] = useState(() => ({ 'acasa': true, ...(activeTabGroup ? { [activeTabGroup]: true } : {}) }));
-  useEffect(() => {
-    if (activeTabGroup && !expandedGroups[activeTabGroup]) {
-      setExpandedGroups(prev => ({ ...prev, [activeTabGroup]: true }));
-    }
-  }, [activeTabGroup]);
-  function toggleGroup(group) {
-    setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
-  }
+  if (needsConsent) return <ConsentModal onAccept={onAcceptConsent} />;
 
   return (
     <div style={{
@@ -5528,6 +5565,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         );
       })()}
       {tab === 'messages' && <MessagesView student={student} classmates={classmates} isParentView={isParentView} />}
+      {tab === 'board' && !isParentView && <BoardView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
@@ -7525,6 +7563,13 @@ function TeacherApp({ onExit, teacherName }) {
   const [showEndWheel, setShowEndWheel] = useState(false);
   const [showRosterOverview, setShowRosterOverview] = useState(false);
   const [praiseTargetId, setPraiseTargetId] = useState('');
+  const [praiseFeedback, setPraiseFeedback] = useState(null);
+  function grantPraiseOrShield(studentId, stickerId, kind, ruleLabel, studentName) {
+    if (!studentId) { setPraiseFeedback('⚠️ Alege întâi un elev din listă.'); setTimeout(() => setPraiseFeedback(null), 3000); return; }
+    awardStickerToStudent(studentId, stickerId);
+    setPraiseFeedback(`${kind === 'good' ? '🌟 Laudă' : '🛡️ Shield'} dat lui ${studentName} — ${ruleLabel}`);
+    setTimeout(() => setPraiseFeedback(null), 3500);
+  }
   const [pinReveal, setPinReveal] = useState({});
   useEffect(() => { if (!showPasswordsManager) setPinReveal({}); }, [showPasswordsManager]);
   useEffect(() => {
@@ -7550,9 +7595,16 @@ function TeacherApp({ onExit, teacherName }) {
     return () => { unsub(); unsub2(); unsub3(); };
   }, [showRolesWheel, activeClassId]);
   const seenTeacherWarningsRef = useRef(null);
+  const latestTeacherWarningsRef = useRef(todayClassWarnings);
+  latestTeacherWarningsRef.current = todayClassWarnings;
   useEffect(() => {
-    if (!showRolesWheel) { seenTeacherWarningsRef.current = null; return; }
-    if (seenTeacherWarningsRef.current === null) { seenTeacherWarningsRef.current = todayClassWarnings.length; return; }
+    seenTeacherWarningsRef.current = null;
+    if (!showRolesWheel) return;
+    const t = setTimeout(() => { seenTeacherWarningsRef.current = latestTeacherWarningsRef.current.length; }, 1200);
+    return () => clearTimeout(t);
+  }, [showRolesWheel]);
+  useEffect(() => {
+    if (!showRolesWheel || seenTeacherWarningsRef.current === null) return;
     if (todayClassWarnings.length > seenTeacherWarningsRef.current) playWarningWhistle();
     seenTeacherWarningsRef.current = todayClassWarnings.length;
   }, [todayClassWarnings, showRolesWheel]);
@@ -7783,6 +7835,7 @@ function TeacherApp({ onExit, teacherName }) {
   function awardStickerToStudent(studentId, stickerId) {
     if (!studentId) return;
     const goodMatch = /^good([1-7])$/.exec(stickerId);
+    let becameShield = /^shield[1-7]$/.test(stickerId);
     const next = students.map(s => {
       if (s.id !== studentId) return s;
       let stickers = [...(s.stickers || []), { id: uid(), stickerId, date: new Date().toISOString() }];
@@ -7793,11 +7846,12 @@ function TeacherApp({ onExit, teacherName }) {
           const toRemove = new Set(owned.slice(0, 3).map(x => x.id));
           stickers = stickers.filter(x => !toRemove.has(x.id));
           stickers = [...stickers, { id: uid(), stickerId: 'shield' + n, date: new Date().toISOString(), earnedFromPraise: true }];
+          becameShield = true;
         }
       }
       return { ...s, stickers };
     });
-    playDing();
+    if (becameShield) playShieldSound(); else playDing();
     persistStudentsLocal(next, students);
   }
   function removeSticker(entryId) {
@@ -8927,21 +8981,22 @@ function TeacherApp({ onExit, teacherName }) {
       {showRosterOverview && (() => {
         const today3 = new Date().toISOString().slice(0, 10);
         const cls = classes.find(c => c.id === activeClassId);
-        const roster = classStudents.filter(s => (s.attendance || []).some(a => a.date === today3 && a.status === 'present'));
+        const roster = classStudents.slice().sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 10);
+        const presentIds = new Set(classStudents.filter(s => (s.attendance || []).some(a => a.date === today3 && a.status === 'present')).map(s => s.id));
         const wide = true;
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
             <PresentationBox baseW={860} baseH={680} style={{ background: '#151225', borderRadius: 22, padding: 26, border: '1px solid #2E2850', boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <h3 className="heading-font" style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>👥 Elevi prezenți azi — {cls ? cls.name : ''}</h3>
+                <h3 className="heading-font" style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>👥 Elevii clasei — {cls ? cls.name : ''}</h3>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={toggleFullscreen} aria-label="Ecran complet" title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button>
                   <button onClick={() => setShowRosterOverview(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
                 </div>
               </div>
-              <p style={{ fontSize: 14, color: '#8A86A8', margin: '0 0 18px' }}>{roster.length} {roster.length === 1 ? 'elev prezent' : 'elevi prezenți'} azi, cu punctele și abțibildurile fiecăruia.</p>
+              <p style={{ fontSize: 14, color: '#8A86A8', margin: '0 0 18px' }}>{roster.length} {roster.length === 1 ? 'elev' : 'elevi'} în clasă (până la 10, ordonați după puncte) — cu punctele, abțibildurile și cine e prezent azi.</p>
               {roster.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 15, padding: 30 }}>Niciun elev marcat „Prezent" azi.</div>
+                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 15, padding: 30 }}>Clasa nu are încă niciun elev.</div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: wide ? '1fr 1fr' : '1fr', gap: 14 }}>
                   {roster.map(s => {
@@ -8950,7 +9005,10 @@ function TeacherApp({ onExit, teacherName }) {
                       <div key={s.id} style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 18, padding: 18 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: stickers.length ? 14 : 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={54} />
+                            <div style={{ position: 'relative' }}>
+                              <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={54} />
+                              {presentIds.has(s.id) && <span title="Prezent azi" style={{ position: 'absolute', bottom: 1, right: 1, width: 14, height: 14, borderRadius: '50%', background: '#4ADE80', border: '2px solid #0F0C1C' }}></span>}
+                            </div>
                             <span style={{ fontSize: 20, fontWeight: 800 }}>{s.name}</span>
                           </div>
                           <span style={{ fontSize: 19, fontWeight: 800, color: '#F5C542' }}>⭐ {s.points || 0} pct</span>
@@ -8959,7 +9017,19 @@ function TeacherApp({ onExit, teacherName }) {
                           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                             {stickers.map(entry => {
                               const def = STICKERS.find(x => x.id === entry.stickerId);
-                              return def ? <IconBadge key={entry.id} sticker={def} size={54} /> : null;
+                              if (!def) return null;
+                              const isGood = /^good[1-7]$/.test(entry.stickerId), isShield = /^shield[1-7]$/.test(entry.stickerId);
+                              return (
+                                <div key={entry.id} style={{ position: 'relative' }}>
+                                  <IconBadge sticker={def} size={54} />
+                                  {(isGood || isShield) && (
+                                    <span style={{
+                                      position: 'absolute', top: -6, right: -6, fontSize: 15, background: '#151225', borderRadius: '50%',
+                                      width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${isGood ? '#F5C542' : '#60A5FA'}`,
+                                    }}>{isGood ? '🌟' : '🛡️'}</span>
+                                  )}
+                                </div>
+                              );
                             })}
                           </div>
                         )}
@@ -9143,16 +9213,21 @@ function TeacherApp({ onExit, teacherName }) {
                   </div>
                   {(() => {
                     const today2 = new Date().toISOString().slice(0, 10);
-                    const presentToday = classStudents.filter(s => (s.attendance || []).some(a => a.date === today2 && a.status === 'present'));
+                    const presentTodaySet = new Set(classStudents.filter(s => (s.attendance || []).some(a => a.date === today2 && a.status === 'present')).map(s => s.id));
+                    const pickList = classStudents.slice().sort((a, b) => a.name.localeCompare(b.name));
+                    const selectedStudentForPraise = classStudents.find(s => s.id === praiseTargetId);
                     return (
                       <div style={{ textAlign: 'left', borderTop: '1px solid #2E2850', paddingTop: 16, marginTop: 16 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#C7C8E0', marginBottom: 10 }}>🌟 Laudă &amp; 🛡️ Shield</div>
-                        <select value={praiseTargetId} onChange={e => setPraiseTargetId(e.target.value)} style={{
+                        <select value={praiseTargetId} onChange={e => { setPraiseTargetId(e.target.value); setPraiseFeedback(null); }} style={{
                           width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12.5, marginBottom: 10,
                         }}>
                           <option value="">Alege elevul…</option>
-                          {presentToday.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          {pickList.map(s => <option key={s.id} value={s.id}>{s.name}{presentTodaySet.has(s.id) ? '' : ' (absent azi)'}</option>)}
                         </select>
+                        {praiseFeedback && (
+                          <div style={{ fontSize: 12, fontWeight: 700, color: praiseFeedback.startsWith('⚠️') ? '#F5C542' : '#4ADE80', background: praiseFeedback.startsWith('⚠️') ? 'rgba(245,197,66,0.1)' : 'rgba(74,222,128,0.1)', border: `1px solid ${praiseFeedback.startsWith('⚠️') ? 'rgba(245,197,66,0.4)' : 'rgba(74,222,128,0.4)'}`, borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>{praiseFeedback}</div>
+                        )}
                         {praiseTargetId && (
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
                             {CARDS_CATALOG.filter(c => c.id.startsWith('rule')).map(rule => {
@@ -9162,10 +9237,10 @@ function TeacherApp({ onExit, teacherName }) {
                                   <RuleIcon ruleId={rule.id} emoji={rule.emoji} size={30} />
                                   <div style={{ fontSize: 10, color: '#8A86A8', margin: '4px 0 6px', lineHeight: 1.2 }}>{rule.label}</div>
                                   <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                                    <button title={`Laudă: ${rule.label}`} onClick={() => awardStickerToStudent(praiseTargetId, 'good' + n)} style={{
+                                    <button title={`Laudă: ${rule.label}`} onClick={() => grantPraiseOrShield(praiseTargetId, 'good' + n, 'good', rule.label, selectedStudentForPraise && selectedStudentForPraise.name)} style={{
                                       flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(245,197,66,0.18)', color: '#F5C542', fontSize: 13,
                                     }}>🌟</button>
-                                    <button title={`Shield: ${rule.label}`} onClick={() => awardStickerToStudent(praiseTargetId, 'shield' + n)} style={{
+                                    <button title={`Shield: ${rule.label}`} onClick={() => grantPraiseOrShield(praiseTargetId, 'shield' + n, 'shield', rule.label, selectedStudentForPraise && selectedStudentForPraise.name)} style={{
                                       flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(96,165,250,0.18)', color: '#60A5FA', fontSize: 13,
                                     }}>🛡️</button>
                                   </div>
@@ -9868,7 +9943,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.086';
+const APP_VERSION = 'v2.090';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

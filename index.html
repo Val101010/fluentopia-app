@@ -120,6 +120,20 @@ const STICKERS = [
   { id: 'ticket3', label: '3 Free Lessons', mono: '3L', color: '#FBBF24' },
   { id: 'exercise', label: 'Exercise Pass', mono: 'EX', color: '#FCA5A5' },
   { id: 'iobject', label: 'I Object! Card', mono: 'IO', color: '#FDA4AF' },
+  { id: 'good1', label: 'Regula 1 respectată — Sit Properly', mono: 'R1', color: '#F5C542', earnOnly: true },
+  { id: 'good2', label: 'Regula 2 respectată — Listen', mono: 'R2', color: '#38BDF8', earnOnly: true },
+  { id: 'good3', label: 'Regula 3 respectată — Observe!', mono: 'R3', color: '#4ADE80', earnOnly: true },
+  { id: 'good4', label: 'Regula 4 respectată — Be Quiet!', mono: 'R4', color: '#A78BFA', earnOnly: true },
+  { id: 'good5', label: 'Regula 5 respectată — Be Respectful!', mono: 'R5', color: '#F472B6', earnOnly: true },
+  { id: 'good6', label: 'Regula 6 respectată — Communicate in English', mono: 'R6', color: '#FB923C', earnOnly: true },
+  { id: 'good7', label: 'Regula 7 respectată — Believe in Yourself', mono: 'R7', color: '#FCA5A5', earnOnly: true },
+  { id: 'shield1', label: 'Shield — Sit Properly', mono: '🛡️', color: '#F5C542', earnOnly: true },
+  { id: 'shield2', label: 'Shield — Listen', mono: '🛡️', color: '#38BDF8', earnOnly: true },
+  { id: 'shield3', label: 'Shield — Observe!', mono: '🛡️', color: '#4ADE80', earnOnly: true },
+  { id: 'shield4', label: 'Shield — Be Quiet!', mono: '🛡️', color: '#A78BFA', earnOnly: true },
+  { id: 'shield5', label: 'Shield — Be Respectful!', mono: '🛡️', color: '#F472B6', earnOnly: true },
+  { id: 'shield6', label: 'Shield — Communicate in English', mono: '🛡️', color: '#FB923C', earnOnly: true },
+  { id: 'shield7', label: 'Shield — Believe in Yourself', mono: '🛡️', color: '#FCA5A5', earnOnly: true },
   { id: 'bingotime', label: 'Bingo Time', mono: 'BG', color: '#C084FC' },
   { id: 'spellingbee', label: 'Spelling Bee', mono: 'SB', color: '#FBBF24' },
   { id: 'hiddenblocks', label: 'Hidden Blocks', mono: 'HB', color: '#93C5FD' },
@@ -405,6 +419,7 @@ const RULE_IMG = {
   rule6: "data:image/png;base64,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",
   rule7: "data:image/png;base64,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",
 };
+Object.assign(STICKER_IMG, { good1: RULE_IMG.rule1, good2: RULE_IMG.rule2, good3: RULE_IMG.rule3, good4: RULE_IMG.rule4, good5: RULE_IMG.rule5, good6: RULE_IMG.rule6, good7: RULE_IMG.rule7 });
 const RULE_INFO = {
   rule1: { en: 'Sit Properly', ro: 'Stai drept și frumos pe scaun, cu picioarele jos.' },
   rule2: { en: 'Listen', ro: 'Ascultă atent când vorbește profesorul sau un coleg.' },
@@ -442,18 +457,37 @@ function RuleDebtIcon({ d, size = 40 }) {
 const STICKER_DESC = {
   iobject: 'Anulează un cartonaș primit (din tab-ul Disciplină).',
   wildcard: 'Anulează un cartonaș galben, fără puncte (din tab-ul Disciplină).',
+  good1: 'Acordat de profesor pentru respectarea regulii Sit Properly. Nu poate plăti cartonașe.',
+  good2: 'Acordat de profesor pentru respectarea regulii Listen. Nu poate plăti cartonașe.',
+  good3: 'Acordat de profesor pentru respectarea regulii Observe!. Nu poate plăti cartonașe.',
+  good4: 'Acordat de profesor pentru respectarea regulii Be Quiet!. Nu poate plăti cartonașe.',
+  good5: 'Acordat de profesor pentru respectarea regulii Be Respectful!. Nu poate plăti cartonașe.',
+  good6: 'Acordat de profesor pentru respectarea regulii Communicate in English. Nu poate plăti cartonașe.',
+  good7: 'Acordat de profesor pentru respectarea regulii Believe in Yourself. Nu poate plăti cartonașe.',
+  shield1: 'Anulează UN cartonaș pentru Sit Properly (doar acea regulă).',
+  shield2: 'Anulează UN cartonaș pentru Listen (doar acea regulă).',
+  shield3: 'Anulează UN cartonaș pentru Observe! (doar acea regulă).',
+  shield4: 'Anulează UN cartonaș pentru Be Quiet! (doar acea regulă).',
+  shield5: 'Anulează UN cartonaș pentru Be Respectful! (doar acea regulă).',
+  shield6: 'Anulează UN cartonaș pentru Communicate in English (doar acea regulă).',
+  shield7: 'Anulează UN cartonaș pentru Believe in Yourself (doar acea regulă).',
 };
 function canPayDebtWithSticker(stickerId, debt) {
   if (!debt) return false;
   if (stickerId === 'iobject') return true;
   if (stickerId === 'wildcard') return debt.catalogId !== 'redcard' && Number(debt.amount) <= 50;   // galben sau regulă încălcată (50 pct); nu și roșu
+  const shieldMatch = /^shield([1-7])$/.exec(stickerId);
+  if (shieldMatch) return ruleIdOfCard(debt) === 'rule' + shieldMatch[1];   // shield-ul unei reguli anulează DOAR cartonașul acelei reguli
   return false;
 }
 function PayWithStickerButtons({ student, debt, onPay, long }) {
   const owned = id => (student.stickers || []).some(x => x.stickerId === id);
+  const debtRuleId = debt ? ruleIdOfCard(debt) : null;
+  const shieldId = debtRuleId ? 'shield' + debtRuleId.slice(4) : null;
   const opts = [
     { id: 'iobject', emoji: '🎫', label: long ? 'Plătește cu I Object!' : 'I Object!', border: 'rgba(253,164,175,0.5)', bg: 'rgba(253,164,175,0.12)', color: '#FDA4AF' },
     { id: 'wildcard', emoji: '🟨', label: long ? 'Plătește cu Yellow Wildcard' : 'Yellow Wildcard', border: 'rgba(251,191,36,0.55)', bg: 'rgba(251,191,36,0.12)', color: '#FBBF24' },
+    ...(shieldId ? [{ id: shieldId, emoji: '🛡️', label: long ? 'Plătește cu Shield' : 'Shield', border: 'rgba(96,165,250,0.55)', bg: 'rgba(96,165,250,0.12)', color: '#60A5FA' }] : []),
   ].filter(o => owned(o.id) && canPayDebtWithSticker(o.id, debt));
   if (!opts.length) return null;
   return (
@@ -1958,6 +1992,18 @@ async function skipDailyRoles(classId, date) {      // ore individuale: Șeful �
 async function stopDailyRoles(classId, date) {
   const db = getDb(); if (!db) return;
   try { await db.collection('fluentopia_daily_roles').doc(`${classId}_${date}`).delete(); } catch (e) { console.error('stopDailyRoles error', e); }
+}
+function listenRuleWarnings(classId, date, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_rule_warnings').doc(`${classId}_${date}`)
+    .onSnapshot(doc => cb((doc.data() && doc.data().list) || []), err => console.error('warnings listen error', err));
+}
+async function addRuleWarning(classId, date, studentId, ruleId) {
+  const db = getDb(); if (!db) return;
+  try {
+    await db.collection('fluentopia_rule_warnings').doc(`${classId}_${date}`)
+      .set({ list: firebase.firestore.FieldValue.arrayUnion({ studentId, ruleId }) }, { merge: true });
+  } catch (e) { console.error('addRuleWarning error', e); }
 }
 function listenPendingCards(classId, date, cb) {
   const db = getDb(); if (!db) return () => {};
@@ -4689,7 +4735,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   const [newParentPin, setNewParentPin] = useState('');
   const [expandedArticle, setExpandedArticle] = useState(null);
@@ -4700,12 +4746,14 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
   const [pendingCardsStudent, setPendingCardsStudent] = useState([]);
   const [monitorTargetId, setMonitorTargetId] = useState(null);
   const [monitorPickingRule, setMonitorPickingRule] = useState(null);
+  const [ruleWarningsToday, setRuleWarningsToday] = useState([]);
   useEffect(() => {
     if (isParentView) return;
     const today = new Date().toISOString().slice(0, 10);
     const unsub1 = listenDailyRoles(student.classId, today, setTodayRolesStudent);
     const unsub2 = listenPendingCards(student.classId, today, setPendingCardsStudent);
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = listenRuleWarnings(student.classId, today, setRuleWarningsToday);
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, [student.classId, isParentView]);
   const heroSvgRef = useRef(null);
   const [downloadingHeroCard, setDownloadingHeroCard] = useState(false);
@@ -5992,8 +6040,22 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                   <style>{`
                     @keyframes pickaxeSwing { 0%,100% { transform: rotate(0deg); } 30% { transform: rotate(-35deg); } 55% { transform: rotate(15deg); } }
                     @keyframes floatUpFade { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+                    @keyframes mineLoopSwing { 0%,100% { transform: rotate(-8deg); } 22% { transform: rotate(-52deg); } 40% { transform: rotate(18deg); } 60% { transform: rotate(-8deg); } }
+                    @keyframes mineLoopSpark { 0% { transform: translate(0,0) scale(0.4); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--sx), var(--sy)) scale(1); opacity: 0; } }
+                    @keyframes mineLoopGlow { 0%,100% { opacity: 0.35; } 50% { opacity: 0.75; } }
                   `}</style>
-                  <div style={{ fontSize: 32, marginBottom: 8, display: 'inline-block', animation: mineAnimTick > 0 ? 'pickaxeSwing 0.5s ease' : 'none' }} key={mineAnimTick}>⛏️</div>
+                  {alreadyMined ? (
+                    <div style={{ position: 'relative', height: 46, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ position: 'absolute', width: 60, height: 60, borderRadius: '50%', background: 'radial-gradient(circle, rgba(245,197,66,0.35), transparent 70%)', animation: 'mineLoopGlow 1.8s ease-in-out infinite' }}></div>
+                      <div style={{ fontSize: 30, display: 'inline-block', transformOrigin: '70% 90%', animation: 'mineLoopSwing 1.1s ease-in-out infinite' }}>⛏️</div>
+                      {[0, 0.35, 0.7].map((d, i) => (
+                        <span key={i} style={{ position: 'absolute', left: '58%', top: '52%', fontSize: 12, '--sx': `${8 + i * 6}px`, '--sy': '-22px', animation: `mineLoopSpark 1.1s ${d}s ease-out infinite` }}>✨</span>
+                      ))}
+                      <span style={{ position: 'absolute', right: '18%', top: '58%', fontSize: 13, animation: 'mineLoopSpark 1.1s 0.2s ease-out infinite', '--sx': '14px', '--sy': '-16px' }}>💎</span>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 32, marginBottom: 8, display: 'inline-block', animation: mineAnimTick > 0 ? 'pickaxeSwing 0.5s ease' : 'none' }} key={mineAnimTick}>⛏️</div>
+                  )}
                   {mineAnimTick > 0 && !alreadyMined && (
                     <div key={'float' + mineAnimTick} style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontWeight: 800, color: '#F5C542', animation: 'floatUpFade 1.4s ease forwards' }}>
                       +{PARENT_MINING_DAILY_BONUS}
@@ -6470,23 +6532,37 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                       Ce regulă a încălcat <b style={{ color: '#fff' }}>{presentClassmates.find(c => c.id === monitorTargetId)?.name}</b>?
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      {CARDS_CATALOG.filter(c => c.id.startsWith('rule')).map(rule => (
-                        <button key={rule.id} onClick={() => {
-                          const target = presentClassmates.find(c => c.id === monitorTargetId);
-                          const baseCard = CARDS_CATALOG.find(x => x.id === monitorPickingRule);
-                          const colorLabel = monitorPickingRule === 'redcard' ? 'roșu' : 'galben';
-                          createPendingCard(student.classId, new Date().toISOString().slice(0, 10), target.id, target.name, monitorPickingRule, `Cartonaș ${colorLabel} — ${rule.label}`, baseCard.emoji, baseCard.price, student.id);
-                          setMonitorTargetId(null);
-                          setMonitorPickingRule(null);
-                        }} style={{
-                          padding: '14px 10px', borderRadius: 14, border: '1px solid #2E2850', cursor: 'pointer',
-                          background: '#151225', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center',
-                        }}>
-                          <RuleIcon ruleId={rule.id} emoji={rule.emoji} size={56} />
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#C7C8E0' }}>{rule.label}</span>
-                        </button>
-                      ))}
+                      {CARDS_CATALOG.filter(c => c.id.startsWith('rule')).map(rule => {
+                        const target = presentClassmates.find(c => c.id === monitorTargetId);
+                        const alreadyWarned = monitorPickingRule === 'redcard' ? true   // cartonașul roșu nu are avertisment înainte
+                          : ruleWarningsToday.some(w => w.studentId === (target && target.id) && w.ruleId === rule.id);
+                        return (
+                          <button key={rule.id} onClick={() => {
+                            const today = new Date().toISOString().slice(0, 10);
+                            if (!alreadyWarned) {
+                              addRuleWarning(student.classId, today, target.id, rule.id);
+                              playDing();
+                              setMonitorTargetId(null);
+                              setMonitorPickingRule(null);
+                              return;
+                            }
+                            const baseCard = CARDS_CATALOG.find(x => x.id === monitorPickingRule);
+                            const colorLabel = monitorPickingRule === 'redcard' ? 'roșu' : 'galben';
+                            createPendingCard(student.classId, today, target.id, target.name, monitorPickingRule, `Cartonaș ${colorLabel} — ${rule.label}`, baseCard.emoji, baseCard.price, student.id);
+                            setMonitorTargetId(null);
+                            setMonitorPickingRule(null);
+                          }} style={{
+                            padding: '14px 10px', borderRadius: 14, border: alreadyWarned ? '1px solid #2E2850' : '1px solid rgba(245,197,66,0.5)', cursor: 'pointer', position: 'relative',
+                            background: alreadyWarned ? '#151225' : 'rgba(245,197,66,0.08)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center',
+                          }}>
+                            {!alreadyWarned && <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 10, fontWeight: 800, color: '#F5C542', background: 'rgba(245,197,66,0.16)', padding: '2px 6px', borderRadius: 8 }}>⚠️ avertisment</span>}
+                            <RuleIcon ruleId={rule.id} emoji={rule.emoji} size={56} />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#C7C8E0' }}>{rule.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
+                    <p style={{ fontSize: 10.5, color: '#6E6A8C', marginTop: 8, textAlign: 'center' }}>Prima abatere la o regulă, într-o zi, primește doar avertisment. Abia a doua oară primește cartonaș.</p>
                     <button onClick={() => setMonitorPickingRule(null)} style={{ width: '100%', marginTop: 16, padding: '9px 0', borderRadius: 10, border: '1px solid #2E2850', background: 'transparent', color: '#8A86A8', fontSize: 12, cursor: 'pointer' }}>← Înapoi</button>
                   </>
                 ) : (
@@ -6557,10 +6633,27 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       {tab === 'discipline' && !isParentView && (() => {
         const debts = student.cardDebts || [];
         const hasIObject = (student.stickers || []).some(x => x.stickerId === 'iobject');
+        const myWarnings = (ruleWarningsToday || []).filter(w => w.studentId === student.id);
+        const eligibleForWildcard = debts.filter(d => canPayDebtWithSticker('wildcard', d));
+        const wildcardCount = (student.stickers || []).filter(x => x.stickerId === 'wildcard').length;
         return (
           <div>
             <h2 className="heading-font" style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>🚦 Disciplină</h2>
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Aici vezi și plătești cartonașele primite. Cât timp ai unul neplătit, Jocurile, Banca și Hero Battle sunt blocate.</p>
+            {myWarnings.length > 0 && (
+              <div style={{ background: 'rgba(245,197,66,0.08)', border: '1px solid rgba(245,197,66,0.4)', borderRadius: 14, padding: '12px 14px', marginBottom: 16 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5C542', marginBottom: 4 }}>⚠️ Avertismente azi</div>
+                {myWarnings.map((w, i) => (
+                  <div key={i} style={{ fontSize: 11.5, color: '#C7C8E0' }}>{(RULE_INFO[w.ruleId] || {}).en || w.ruleId} — la următoarea abatere la această regulă primești cartonaș.</div>
+                ))}
+              </div>
+            )}
+            {eligibleForWildcard.length >= 2 && wildcardCount > 0 && (
+              <button onClick={() => onPayAllDebtsWithWildcard()} style={{
+                width: '100%', marginBottom: 16, padding: '12px 0', borderRadius: 12, border: '1px solid rgba(251,191,36,0.55)', cursor: 'pointer',
+                background: 'rgba(251,191,36,0.12)', color: '#FBBF24', fontWeight: 800, fontSize: 13,
+              }}>🟨 Plătește {Math.min(wildcardCount, eligibleForWildcard.length)} cartonașe deodată cu Yellow Wildcard ({wildcardCount} disponibile)</button>
+            )}
             {debts.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>✅</div>
@@ -7092,6 +7185,8 @@ function TeacherApp({ onExit, teacherName }) {
   const [attendanceViewMode, setAttendanceViewMode] = useState('mark');
   const [showRolesWheel, setShowRolesWheel] = useState(false);
   const [showEndWheel, setShowEndWheel] = useState(false);
+  const [showRosterOverview, setShowRosterOverview] = useState(false);
+  const [praiseTargetId, setPraiseTargetId] = useState('');
   const [pinReveal, setPinReveal] = useState({});
   useEffect(() => { if (!showPasswordsManager) setPinReveal({}); }, [showPasswordsManager]);
   useEffect(() => {
@@ -7338,6 +7433,14 @@ function TeacherApp({ onExit, teacherName }) {
     }));
     setShowStickerPicker(false);
   }
+  function awardStickerToStudent(studentId, stickerId) {
+    if (!studentId) return;
+    const next = students.map(s => s.id !== studentId ? s : {
+      ...s, stickers: [...(s.stickers || []), { id: uid(), stickerId, date: new Date().toISOString() }],
+    });
+    playDing();
+    persistStudentsLocal(next, students);
+  }
   function removeSticker(entryId) {
     if (!selectedStudent) return;
     if (!window.confirm('Ștergi acest sticker acordat elevului?')) return;
@@ -7537,6 +7640,10 @@ function TeacherApp({ onExit, teacherName }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: 'linear-gradient(135deg, rgba(245,197,66,0.16), rgba(236,30,143,0.14))', color: '#F5C542', fontSize: 12.5, fontWeight: 700, textAlign: 'left',
               }}>🎡 Roata de final de lecție</button>
+              <button onClick={() => setShowRosterOverview(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
+              }}>👥 Elevi prezenți &amp; abțibilduri</button>
               <button onClick={() => setShowBulkPoints(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
@@ -7907,7 +8014,7 @@ function TeacherApp({ onExit, teacherName }) {
                         );
                       }
                       return (
-                        <button key={skId} onClick={() => adjustPoints(effectivePts, `${effLabel.en} | ${effLabel.ro}`)} style={{
+                        <button key={skId} onClick={() => { playDing(); adjustPoints(effectivePts, `${effLabel.en} | ${effLabel.ro}`); }} style={{
                           padding: '8px 10px', borderRadius: 10, border: '1px solid #2E2850', cursor: 'pointer', position: 'relative',
                           background: '#0F0C1C', color: '#C7C8E0', fontSize: 11.5, textAlign: 'left', lineHeight: 1.3,
                         }}>
@@ -8458,6 +8565,51 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
+      {showRosterOverview && (() => {
+        const today3 = new Date().toISOString().slice(0, 10);
+        const cls = classes.find(c => c.id === activeClassId);
+        const roster = classStudents.filter(s => (s.attendance || []).some(a => a.date === today3 && a.status === 'present'));
+        return (
+          <div onClick={() => setShowRosterOverview(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#151225', borderRadius: 16, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto', border: '1px solid #2E2850' }} className="scrollbar">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>👥 Elevi prezenți azi — {cls ? cls.name : ''}</h3>
+                <button onClick={() => setShowRosterOverview(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
+              </div>
+              <p style={{ fontSize: 12, color: '#8A86A8', margin: '0 0 16px' }}>{roster.length} {roster.length === 1 ? 'elev prezent' : 'elevi prezenți'} azi, cu punctele și abțibildurile fiecăruia.</p>
+              {roster.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: 20 }}>Niciun elev marcat „Prezent" azi.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {roster.map(s => {
+                    const stickers = s.stickers || [];
+                    return (
+                      <div key={s.id} style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 14, padding: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: stickers.length ? 10 : 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={36} />
+                            <span style={{ fontSize: 13.5, fontWeight: 700 }}>{s.name}</span>
+                          </div>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: '#F5C542' }}>⭐ {s.points || 0} pct</span>
+                        </div>
+                        {stickers.length > 0 && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {stickers.map(entry => {
+                              const def = STICKERS.find(x => x.id === entry.stickerId);
+                              return def ? <IconBadge key={entry.id} sticker={def} size={30} /> : null;
+                            })}
+                          </div>
+                        )}
+                        {stickers.length === 0 && <div style={{ fontSize: 11, color: '#4A4666' }}>Niciun abțibild încă.</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {showAppStats && (() => {
         const totalStudents = students.length;
         const totalClasses = classes.length;
@@ -8609,6 +8761,43 @@ function TeacherApp({ onExit, teacherName }) {
                       </div>
                     )}
                   </div>
+                  {(() => {
+                    const today2 = new Date().toISOString().slice(0, 10);
+                    const presentToday = classStudents.filter(s => (s.attendance || []).some(a => a.date === today2 && a.status === 'present'));
+                    return (
+                      <div style={{ textAlign: 'left', borderTop: '1px solid #2E2850', paddingTop: 16, marginTop: 16 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#C7C8E0', marginBottom: 10 }}>🌟 Laudă &amp; 🛡️ Shield</div>
+                        <select value={praiseTargetId} onChange={e => setPraiseTargetId(e.target.value)} style={{
+                          width: '100%', padding: '9px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12.5, marginBottom: 10,
+                        }}>
+                          <option value="">Alege elevul…</option>
+                          {presentToday.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                        {praiseTargetId && (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+                            {CARDS_CATALOG.filter(c => c.id.startsWith('rule')).map(rule => {
+                              const n = rule.id.slice(4);
+                              return (
+                                <div key={rule.id} style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 12, padding: 8, textAlign: 'center' }}>
+                                  <RuleIcon ruleId={rule.id} emoji={rule.emoji} size={30} />
+                                  <div style={{ fontSize: 10, color: '#8A86A8', margin: '4px 0 6px', lineHeight: 1.2 }}>{rule.label}</div>
+                                  <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                                    <button title={`Laudă: ${rule.label}`} onClick={() => awardStickerToStudent(praiseTargetId, 'good' + n)} style={{
+                                      flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(245,197,66,0.18)', color: '#F5C542', fontSize: 13,
+                                    }}>🌟</button>
+                                    <button title={`Shield: ${rule.label}`} onClick={() => awardStickerToStudent(praiseTargetId, 'shield' + n)} style={{
+                                      flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(96,165,250,0.18)', color: '#60A5FA', fontSize: 13,
+                                    }}>🛡️</button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <p style={{ fontSize: 10, color: '#6E6A8C', marginTop: 8 }}>🌟 Laudă = abțibild de merit, nu poate plăti cartonașe. 🛡️ Shield = anulează UN cartonaș viitor, doar pentru acea regulă.</p>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div>
@@ -9251,7 +9440,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.082';
+const APP_VERSION = 'v2.083';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -10917,6 +11106,25 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
+  function handlePayAllDebtsWithWildcard() {
+    const next = students.map(s => {
+      if (s.id !== loggedInStudentId) return s;
+      const wildcards = (s.stickers || []).filter(x => x.stickerId === 'wildcard');
+      const eligible = (s.cardDebts || []).filter(d => canPayDebtWithSticker('wildcard', d));
+      const n = Math.min(wildcards.length, eligible.length);
+      if (n <= 0) return s;
+      const spentIds = wildcards.slice(0, n).map(x => x.id);
+      const paidIds = eligible.slice(0, n).map(d => d.id);
+      return {
+        ...s,
+        stickers: s.stickers.filter(x => !spentIds.includes(x.id)),
+        cardDebts: (s.cardDebts || []).filter(d => !paidIds.includes(d.id)),
+        pointsLog: [{ id: uid(), delta: 0, reason: `Plată cu ${n} × Yellow Wildcard (${n} cartonașe anulate deodată)`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
+      };
+    });
+    playDing();
+    persistStudentsLocal(next, students);
+  }
   function handleAcceptConsent() {
     const next = students.map(s => s.id !== loggedInStudentId ? s : { ...s, consentVersion: CONSENT_VERSION, consentDate: new Date().toISOString() });
     persistStudentsLocal(next, students);
@@ -11258,7 +11466,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

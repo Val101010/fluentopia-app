@@ -2064,6 +2064,26 @@ async function addRuleWarning(classId, date, studentId, ruleId) {
       .set({ list: firebase.firestore.FieldValue.arrayUnion({ studentId, ruleId }) }, { merge: true });
   } catch (e) { console.error('addRuleWarning error', e); }
 }
+/* ---------- DJ for a Day: elevul cu abțibild "headphones" pune o melodie, profesorul o redă în pauză ---------- */
+function extractYoutubeId(url) {
+  const m = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/.exec(url || '');
+  return m ? m[1] : null;
+}
+function listenDjQueue(classId, date, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_dj_queue').doc(`${classId}_${date}`)
+    .onSnapshot(doc => cb((doc.data() && doc.data().queue) || []), err => console.error('dj queue listen error', err));
+}
+async function addDjRequest(classId, date, entry) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_dj_queue').doc(`${classId}_${date}`)
+    .set({ queue: firebase.firestore.FieldValue.arrayUnion(entry) }, { merge: true }).catch(() => {});
+}
+async function removeDjRequest(classId, date, currentQueue, entryId) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_dj_queue').doc(`${classId}_${date}`)
+    .set({ queue: (currentQueue || []).filter(q => q.id !== entryId) }).catch(() => {});
+}
 function listenPendingCards(classId, date, cb) {
   const db = getDb(); if (!db) return () => {};
   return db.collection('fluentopia_pending_cards').where('classId', '==', classId).where('date', '==', date)
@@ -2744,7 +2764,7 @@ const MENU_STRINGS = {
   ro: {
     groups: { acasa: 'Acasă', social: 'Social', distractie: 'Distracție', aurabuddy: 'Aura Buddy', clasamente: 'Clasamente', finante: 'Finanțe', progres: 'Progres' },
     tabs: {
-      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou',
+      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day',
       wall: 'Wall', messages: 'Mesaje', board: 'Tablă', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Jocuri', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Clasament clasă', globalrank: 'Clasamente Fluentopia',
@@ -2756,7 +2776,7 @@ const MENU_STRINGS = {
   en: {
     groups: { acasa: 'Home', social: 'Social', distractie: 'Fun', aurabuddy: 'Aura Buddy', clasamente: 'Leaderboards', finante: 'Money', progres: 'Progress' },
     tabs: {
-      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card',
+      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day',
       wall: 'Wall', messages: 'Messages', board: 'Board', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Games', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Class Leaderboard', globalrank: 'Fluentopia Leaderboards',
@@ -4271,6 +4291,58 @@ function AcademicJourneyView({ student }) {
     </div>
   );
 }
+/* ---------- DJ for a Day (elev): trimite o melodie pentru pauză, consumă un abțibild "headphones" ---------- */
+function DjRequestView({ student, onConsumeDjSticker }) {
+  const [queue, setQueue] = useState([]);
+  const [url, setUrl] = useState('');
+  const [sent, setSent] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+  useEffect(() => { const unsub = listenDjQueue(student.classId, today, setQueue); return unsub; }, [student.classId]);
+  const djTickets = (student.stickers || []).filter(x => x.stickerId === 'headphones');
+  const myPending = queue.filter(q => q.studentId === student.id);
+  function send() {
+    const videoId = extractYoutubeId(url);
+    if (!videoId) { alert('Nu recunosc acest link — copiază linkul unui videoclip YouTube (ex: youtube.com/watch?v=...).'); return; }
+    const ticket = djTickets[0];
+    if (!ticket) return;
+    addDjRequest(student.classId, today, { id: uid(), studentId: student.id, studentName: student.name, videoId, addedAt: new Date().toISOString() });
+    onConsumeDjSticker(ticket.id);
+    setUrl(''); setSent(true);
+    setTimeout(() => setSent(false), 3000);
+  }
+  return (
+    <div>
+      <SectionHeader icon="🎧" title="DJ for a Day" color="#8B5CF6" />
+      {djTickets.length === 0 && myPending.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: 30 }}>Nu ai niciun „DJ for a Day" disponibil. Îl găsești în Catalog.</div>
+      )}
+      {djTickets.length > 0 && (
+        <div style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: 16, padding: 18, marginBottom: 16 }}>
+          <p style={{ fontSize: 12.5, color: '#C7C8E0', marginBottom: 12 }}>Ai <b style={{ color: '#8B5CF6' }}>{djTickets.length}</b> {djTickets.length === 1 ? 'melodie disponibilă' : 'melodii disponibile'} pentru pauza de azi. Lipește link-ul unui videoclip de pe YouTube:</p>
+          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." style={{
+            width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, marginBottom: 10, boxSizing: 'border-box',
+          }} />
+          <button onClick={send} disabled={!url.trim()} style={{
+            width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', cursor: url.trim() ? 'pointer' : 'default',
+            background: url.trim() ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : '#221D3A', color: url.trim() ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 13,
+          }}>🎵 Trimite melodia la profesor</button>
+          {sent && <p style={{ fontSize: 12, color: '#4ADE80', marginTop: 8, textAlign: 'center' }}>✓ Trimisă! Profesorul o pune la pauză.</p>}
+        </div>
+      )}
+      {myPending.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C7C8E0', marginBottom: 8 }}>🎵 Melodiile tale din playlist-ul de azi</div>
+          {myPending.map((q, i) => (
+            <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#151225', borderRadius: 10, padding: '9px 12px', marginBottom: 6 }}>
+              <img src={`https://img.youtube.com/vi/${q.videoId}/default.jpg`} alt="" style={{ width: 46, height: 34, borderRadius: 6, objectFit: 'cover' }} />
+              <span style={{ fontSize: 12, color: '#8A86A8' }}>În așteptare în playlist</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function BoardView({ student, classmates, isParentView }) {
   const [mode, setMode] = useState('class');           // 'class' sau 'pair'
   const [pairWithId, setPairWithId] = useState('');
@@ -5330,7 +5402,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   const [newParentPin, setNewParentPin] = useState('');
   const [expandedArticle, setExpandedArticle] = useState(null);
@@ -5628,6 +5700,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     { id: 'radio', icon: '📻', group: 'distractie' },
     { id: 'hero', icon: '🦸', group: 'distractie' },
     { id: 'pet', icon: '🐣', group: 'aurabuddy' },
+    ...(!isParentView ? [{ id: 'dj', icon: '🎧', group: 'distractie' }] : []),
     ...(!isParentView ? [{ id: 'stickers', icon: '🎫', group: 'aurabuddy' }] : []),
     { id: 'leaderboard', icon: '🏆', group: 'clasamente' },
     { id: 'globalrank', icon: '🌍', group: 'clasamente' },
@@ -5873,6 +5946,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       })()}
       {tab === 'messages' && <MessagesView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'board' && !isParentView && <BoardView student={student} classmates={classmates} isParentView={isParentView} />}
+      {tab === 'dj' && !isParentView && <DjRequestView student={student} onConsumeDjSticker={onConsumeDjSticker} />}
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
@@ -7836,6 +7910,25 @@ function TeacherApp({ onExit, teacherName }) {
   }, [showChatModeration]);
   const [showLeads, setShowLeads] = useState(false);
   const [showAcademicAdmin, setShowAcademicAdmin] = useState(false);
+  const [showDjPanel, setShowDjPanel] = useState(false);
+  const [djQueue, setDjQueue] = useState([]);
+  const [djMinutes, setDjMinutes] = useState(10);
+  const [djSecondsLeft, setDjSecondsLeft] = useState(null);
+  const [djRunning, setDjRunning] = useState(false);
+  useEffect(() => {
+    if (!showDjPanel) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const unsub = listenDjQueue(activeClassId, today, setDjQueue);
+    return unsub;
+  }, [showDjPanel, activeClassId]);
+  useEffect(() => {
+    if (!djRunning) return;
+    const iv = setInterval(() => setDjSecondsLeft(s => {
+      if (s === null || s <= 1) { setDjRunning(false); return 0; }
+      return s - 1;
+    }), 1000);
+    return () => clearInterval(iv);
+  }, [djRunning]);
   const [academicArticlesAdmin, setAcademicArticlesAdmin] = useState(PARENT_ARTICLES);
   const [editingArticleDraft, setEditingArticleDraft] = useState(null);
   useEffect(() => {
@@ -8491,6 +8584,10 @@ function TeacherApp({ onExit, teacherName }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
               }}>📚 Articole Academic</button>
+              <button onClick={() => setShowDjPanel(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
+              }}>🎧 DJ for a Day</button>
             </div>
           )}
         </div>
@@ -9437,7 +9534,7 @@ function TeacherApp({ onExit, teacherName }) {
         const wide = true;
         return (
           <div onClick={() => setShowRosterOverview(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-            <PresentationBox onClick={e => e.stopPropagation()} baseW={860} baseH={680} style={{ background: '#151225', borderRadius: 22, padding: 26, border: '1px solid #2E2850', boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}>
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={1080} baseH={760} style={{ background: '#151225', borderRadius: 22, padding: 30, border: '1px solid #2E2850', boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h3 className="heading-font" style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>👥 Elevii clasei — {cls ? cls.name : ''}</h3>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -9457,35 +9554,35 @@ function TeacherApp({ onExit, teacherName }) {
                     const shown = stickers.slice(0, maxIcons);
                     const overflow = stickers.length - shown.length;
                     return (
-                      <div key={s.id} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 14, padding: '9px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 20, fontSize: 13, fontWeight: 800, color: i === 0 ? '#F5C542' : i === 1 ? '#C7C8E0' : i === 2 ? '#D08A5A' : '#6E6A8C', flexShrink: 0 }}>{i + 1}</div>
+                      <div key={s.id} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 16, padding: '14px 20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{ width: 26, fontSize: 16, fontWeight: 800, color: i === 0 ? '#F5C542' : i === 1 ? '#C7C8E0' : i === 2 ? '#D08A5A' : '#6E6A8C', flexShrink: 0 }}>{i + 1}</div>
                           <div style={{ position: 'relative', flexShrink: 0 }}>
-                            <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={34} />
-                            {online && <span title="Online acum" style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', background: online, border: '2px solid #151225' }}></span>}
-                            {!online && presentIds.has(s.id) && <span title="Prezent azi" style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', background: '#4ADE80', border: '2px solid #151225' }}></span>}
+                            <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={48} />
+                            {online && <span title="Online acum" style={{ position: 'absolute', bottom: -1, right: -1, width: 13, height: 13, borderRadius: '50%', background: online, border: '2.5px solid #151225' }}></span>}
+                            {!online && presentIds.has(s.id) && <span title="Prezent azi" style={{ position: 'absolute', bottom: -1, right: -1, width: 13, height: 13, borderRadius: '50%', background: '#4ADE80', border: '2.5px solid #151225' }}></span>}
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 700, flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name} <span style={{ fontSize: 12 }}>{rankOf(s.points).emoji}</span></div>
-                          <div style={{ flex: 1, display: 'flex', gap: 4, alignItems: 'center', overflow: 'hidden' }}>
+                          <div style={{ fontSize: 19, fontWeight: 800, flexShrink: 0, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name} <span style={{ fontSize: 16 }}>{rankOf(s.points).emoji}</span></div>
+                          <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center', overflow: 'hidden' }}>
                             {shown.map(entry => {
                               const def = STICKERS.find(x => x.id === entry.stickerId);
                               if (!def) return null;
                               const isGood = /^good[1-7]$/.test(entry.stickerId), isShield = /^shield[1-7]$/.test(entry.stickerId);
                               return (
                                 <div key={entry.id} style={{ position: 'relative', flexShrink: 0 }}>
-                                  <IconBadge sticker={def} size={24} />
+                                  <IconBadge sticker={def} size={38} />
                                   {(isGood || isShield) && (
                                     <span style={{
-                                      position: 'absolute', top: -3, right: -3, fontSize: 6.5, background: '#151225', borderRadius: '50%',
-                                      width: 11, height: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${isGood ? '#F5C542' : '#60A5FA'}`,
+                                      position: 'absolute', top: -4, right: -4, fontSize: 9, background: '#151225', borderRadius: '50%',
+                                      width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${isGood ? '#F5C542' : '#60A5FA'}`,
                                     }}>{isGood ? '🌟' : '🛡️'}</span>
                                   )}
                                 </div>
                               );
                             })}
-                            {overflow > 0 && <span style={{ fontSize: 10.5, color: '#6E6A8C', flexShrink: 0 }}>+{overflow}</span>}
+                            {overflow > 0 && <span style={{ fontSize: 13, color: '#6E6A8C', flexShrink: 0 }}>+{overflow}</span>}
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: '#F5C542', whiteSpace: 'nowrap', flexShrink: 0 }}>⭐ {s.points || 0} pct</div>
+                          <div style={{ fontSize: 19, fontWeight: 800, color: '#F5C542', whiteSpace: 'nowrap', flexShrink: 0 }}>⭐ {s.points || 0} pct</div>
                         </div>
                       </div>
                     );
@@ -9811,6 +9908,74 @@ function TeacherApp({ onExit, teacherName }) {
         const present = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).map(s => ({ id: s.id, name: s.name }));
         const roster = classStudents.map(s => ({ id: s.id, name: s.name, present: (s.attendance || []).some(a => a.date === today && a.status === 'present') }));
         return <EndLessonWheel students={present} roster={roster} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
+      })()}
+      {showDjPanel && (() => {
+        const current = djQueue[0];
+        const upcoming = djQueue.slice(1);
+        const mm = djSecondsLeft === null ? djMinutes : Math.floor(djSecondsLeft / 60);
+        const ss = djSecondsLeft === null ? 0 : djSecondsLeft % 60;
+        return (
+          <div onClick={() => setShowDjPanel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={760} baseH={720} style={{
+              background: 'radial-gradient(ellipse at top, rgba(139,92,246,0.16), transparent 60%), #151225', border: '1px solid rgba(139,92,246,0.4)',
+              borderRadius: 24, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="heading-font" style={{ fontSize: 20, fontWeight: 900, background: 'linear-gradient(90deg,#EC1E8F,#9B3CE0,#8B5CF6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FLUENTOPIA™</span>
+                  <span style={{ fontSize: 15, color: '#8A86A8' }}>🎧 DJ for a Day</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button>
+                  <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, background: '#0F0C1C', borderRadius: 16, padding: '14px 20px', marginBottom: 18 }}>
+                <span style={{ fontSize: 22 }}>⏱️</span>
+                <span className="heading-font" style={{ fontSize: 34, fontWeight: 800, color: djRunning ? '#4ADE80' : '#F5C542', fontVariantNumeric: 'tabular-nums' }}>
+                  {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+                </span>
+                {!djRunning ? (
+                  <button onClick={() => { setDjSecondsLeft(djSecondsLeft === null ? djMinutes * 60 : djSecondsLeft); setDjRunning(true); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Start pauză</button>
+                ) : (
+                  <button onClick={() => setDjRunning(false)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 12.5 }}>⏸ Pauză</button>
+                )}
+                <button onClick={() => { setDjRunning(false); setDjSecondsLeft(null); }} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12.5 }}>↺</button>
+                <input type="number" min="1" max="30" value={djMinutes} onChange={e => setDjMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={djRunning} style={{ width: 50, padding: '7px 8px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12.5 }} />
+                <span style={{ fontSize: 11.5, color: '#6E6A8C' }}>min</span>
+              </div>
+
+              {current ? (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #2E2850', aspectRatio: '16/9', background: '#000' }}>
+                    <iframe key={current.videoId} width="100%" height="100%" src={`https://www.youtube.com/embed/${current.videoId}?autoplay=1`} title="DJ for a Day" frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen></iframe>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                    <span style={{ fontSize: 13, color: '#C7C8E0' }}>🎧 DJ: <b style={{ color: '#8B5CF6' }}>{current.studentName}</b></span>
+                    <button onClick={() => removeDjRequest(activeClassId, new Date().toISOString().slice(0, 10), djQueue, current.id)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 12, fontWeight: 700 }}>⏭ Următoarea melodie</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: '30px 0' }}>Niciun elev n-a trimis încă o melodie azi.</div>
+              )}
+
+              {upcoming.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11.5, color: '#6E6A8C', marginBottom: 8 }}>Urmează:</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {upcoming.map(q => (
+                      <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0F0C1C', borderRadius: 10, padding: '7px 10px' }}>
+                        <img src={`https://img.youtube.com/vi/${q.videoId}/default.jpg`} alt="" style={{ width: 40, height: 30, borderRadius: 6, objectFit: 'cover' }} />
+                        <span style={{ fontSize: 12, color: '#C7C8E0' }}>{q.studentName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </PresentationBox>
+          </div>
+        );
       })()}
       {showAcademicAdmin && (
         <div onClick={() => setShowAcademicAdmin(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -10530,7 +10695,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.111';
+const APP_VERSION = 'v2.113';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -12220,6 +12385,14 @@ function Root() {
     playDing();
     persistStudentsLocal(next, students);
   }
+  function handleConsumeDjSticker(entryId) {
+    const next = students.map(s => s.id !== loggedInStudentId ? s : {
+      ...s,
+      stickers: (s.stickers || []).filter(x => x.id !== entryId),
+      pointsLog: [{ id: uid(), delta: 0, reason: 'DJ for a Day — melodie trimisă la profesor', date: new Date().toISOString() }, ...(s.pointsLog || [])],
+    });
+    persistStudentsLocal(next, students);
+  }
   function handleAcceptConsent() {
     const next = students.map(s => s.id !== loggedInStudentId ? s : { ...s, consentVersion: CONSENT_VERSION, consentDate: new Date().toISOString() });
     persistStudentsLocal(next, students);
@@ -12568,7 +12741,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

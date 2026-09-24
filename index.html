@@ -134,6 +134,7 @@ const STICKERS = [
   { id: 'shield5', label: 'Shield — Be Respectful!', mono: '🛡️', color: '#F472B6', earnOnly: true },
   { id: 'shield6', label: 'Shield — Communicate in English', mono: '🛡️', color: '#FB923C', earnOnly: true },
   { id: 'shield7', label: 'Shield — Believe in Yourself', mono: '🛡️', color: '#FCA5A5', earnOnly: true },
+  { id: 'absence', label: 'Absență', mono: '🪑', color: '#8A86A8', earnOnly: true },
   { id: 'bingotime', label: 'Bingo Time', mono: 'BG', color: '#C084FC' },
   { id: 'spellingbee', label: 'Spelling Bee', mono: 'SB', color: '#FBBF24' },
   { id: 'hiddenblocks', label: 'Hidden Blocks', mono: 'HB', color: '#93C5FD' },
@@ -477,6 +478,7 @@ const STICKER_DESC = {
   shield5: 'Anulează UN cartonaș pentru Be Respectful! (doar acea regulă).',
   shield6: 'Anulează UN cartonaș pentru Communicate in English (doar acea regulă).',
   shield7: 'Anulează UN cartonaș pentru Believe in Yourself (doar acea regulă).',
+  absence: 'Primit automat când lipsești de la lecție (-10 puncte).',
 };
 function canPayDebtWithSticker(stickerId, debt) {
   if (!debt) return false;
@@ -661,7 +663,7 @@ function ArticleVisual({ id, lang }) {
 function toggleFullscreen() {
   try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
 }
-function PresentationBox({ baseW = 520, baseH = 460, style, children }) {
+function PresentationBox({ baseW = 520, baseH = 460, style, children, onClick }) {
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
   useEffect(() => {
     const on = () => setVp({ w: window.innerWidth, h: window.innerHeight });
@@ -673,7 +675,7 @@ function PresentationBox({ baseW = 520, baseH = 460, style, children }) {
   const width = Math.min(baseW, (vp.w * 0.94) / scale);
   const maxHeight = (vp.h * 0.94) / scale;
   return (
-    <div className="scrollbar" style={{ ...style, zoom: scale, width, maxHeight, overflowY: 'auto', boxSizing: 'border-box' }}>
+    <div className="scrollbar" onClick={onClick} style={{ ...style, zoom: scale, width, maxHeight, overflowY: 'auto', boxSizing: 'border-box' }}>
       <style>{`
         @keyframes rpRoll { 0% { transform: translateY(70%); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
         @keyframes rpPop { 0% { transform: scale(.55); } 55% { transform: scale(1.22); } 80% { transform: scale(.96); } 100% { transform: scale(1); } }
@@ -4144,6 +4146,9 @@ function buildAcademicTimeline(student) {
   (student.cardDebts || []).forEach(d => {                    // cartonașe de dinainte de arhivă (fără intrare în cardHistory încă)
     if (!historyIds.has(d.id)) items.push({ date: d.date, kind: 'card_issued', label: d.label, isRed: d.catalogId === 'redcard', paid: false });
   });
+  (student.attendance || []).forEach(a => {
+    if (a.status === 'absent') items.push({ date: a.date, kind: 'absence' });
+  });
   (student.stickers || []).forEach(entry => {
     const g = /^good([1-7])$/.exec(entry.stickerId);
     const sh = /^shield([1-7])$/.exec(entry.stickerId);
@@ -4169,6 +4174,9 @@ function TimelineItem({ it }) {
   } else if (it.kind === 'card_issued') {
     icon = it.isRed ? '🟥' : '🟨'; color = '#8A86A8';   // discret — părinții sunt interesați mai ales de calificative
     text = it.label;
+  } else if (it.kind === 'absence') {
+    icon = '🪑'; color = '#8A86A8';
+    text = 'Absență (-10 puncte)';
   } else if (it.kind === 'praise') {
     icon = '🌟'; color = '#F5C542';
     text = <>Laudă de la profesor — <b>{(RULE_INFO[it.ruleId] || {}).en || it.ruleId}</b></>;
@@ -7263,6 +7271,15 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             <SectionHeader icon="🚦" title="Disciplină" color="#FF8A3D" />
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Aici vezi și plătești cartonașele primite. Cât timp ai unul neplătit, Jocurile, Banca și Hero Battle sunt blocate.</p>
             {(() => {
+              const absenceCount = (student.stickers || []).filter(x => x.stickerId === 'absence').length;
+              if (absenceCount === 0) return null;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 12, color: '#8A86A8' }}>
+                  🪑 {absenceCount} {absenceCount === 1 ? 'absență' : 'absențe'} <span style={{ color: '#6E6A8C' }}>(-10 puncte fiecare)</span>
+                </div>
+              );
+            })()}
+            {(() => {
               const goodEarned = (student.stickers || []).filter(x => /^good[1-7]$/.test(x.stickerId));
               const shieldsOwned = (student.stickers || []).filter(x => /^shield[1-7]$/.test(x.stickerId));
               if (goodEarned.length === 0 && shieldsOwned.length === 0) return null;
@@ -7311,7 +7328,10 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
               <div style={{ background: 'rgba(245,197,66,0.08)', border: '1px solid rgba(245,197,66,0.4)', borderRadius: 14, padding: '12px 14px', marginBottom: 16 }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F5C542', marginBottom: 4 }}>⚠️ Avertismente azi</div>
                 {myWarnings.map((w, i) => (
-                  <div key={i} style={{ fontSize: 11.5, color: '#C7C8E0' }}>{(RULE_INFO[w.ruleId] || {}).en || w.ruleId} — la următoarea abatere la această regulă primești cartonaș.</div>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: '#C7C8E0', marginTop: i > 0 ? 6 : 0 }}>
+                    <RuleIcon ruleId={w.ruleId} emoji="⚠️" size={26} />
+                    <span><b style={{ color: '#fff' }}>{(RULE_INFO[w.ruleId] || {}).en || w.ruleId}</b> — la următoarea abatere la această regulă primești cartonaș.</span>
+                  </div>
                 ))}
               </div>
             )}
@@ -8240,8 +8260,19 @@ function TeacherApp({ onExit, teacherName }) {
   function setAttendance(studentId, date, status) {
     updateStudents(prev => prev.map(s => {
       if (s.id !== studentId) return s;
+      const prevRec = (s.attendance || []).find(a => a.date === date);
+      const wasAlreadyAbsent = prevRec && prevRec.status === 'absent';
       const rest = (s.attendance || []).filter(a => a.date !== date);
-      return { ...s, attendance: [...rest, { date, status }] };
+      let next = { ...s, attendance: [...rest, { date, status }] };
+      if (status === 'absent' && !wasAlreadyAbsent) {                // -10 puncte + abțibild de absență, o singură dată per zi
+        next = {
+          ...next,
+          points: Math.max(0, next.points - 10),
+          stickers: [...(next.stickers || []), { id: uid(), stickerId: 'absence', date: new Date().toISOString() }],
+          pointsLog: [{ id: uid(), delta: -10, reason: `Absență — ${new Date(date).toLocaleDateString('ro-RO')}`, date: new Date().toISOString() }, ...(next.pointsLog || [])],
+        };
+      }
+      return next;
     }));
   }
   function issueCardDebt(catalogId) {
@@ -9343,8 +9374,8 @@ function TeacherApp({ onExit, teacherName }) {
         const today = new Date().toISOString().slice(0, 10);
         const presentCount = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).length;
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 18, padding: 22, maxWidth: 380, width: '100%' }}>
+          <div onClick={() => setShowBulkPoints(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 18, padding: 22, maxWidth: 380, width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🎁 Puncte pentru toată clasa</h3>
                 <button onClick={() => setShowBulkPoints(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
@@ -9385,8 +9416,8 @@ function TeacherApp({ onExit, teacherName }) {
         const presentIds = new Set(classStudents.filter(s => (s.attendance || []).some(a => a.date === today3 && a.status === 'present')).map(s => s.id));
         const wide = true;
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-            <PresentationBox baseW={860} baseH={680} style={{ background: '#151225', borderRadius: 22, padding: 26, border: '1px solid #2E2850', boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}>
+          <div onClick={() => setShowRosterOverview(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={860} baseH={680} style={{ background: '#151225', borderRadius: 22, padding: 26, border: '1px solid #2E2850', boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h3 className="heading-font" style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>👥 Elevii clasei — {cls ? cls.name : ''}</h3>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -9401,47 +9432,41 @@ function TeacherApp({ onExit, teacherName }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {roster.map((s, i) => {
                     const stickers = s.stickers || [];
-                    const shields = stickers.filter(x => /^shield[1-7]$/.test(x.stickerId));
-                    const praises = stickers.filter(x => /^good[1-7]$/.test(x.stickerId));
                     const online = onlineDotColor(sidebarPresence, s.id);
+                    const maxIcons = 6;
+                    const shown = stickers.slice(0, maxIcons);
+                    const overflow = stickers.length - shown.length;
                     return (
-                      <div key={s.id} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 14, padding: '10px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{ width: 22, fontSize: 13, fontWeight: 800, color: i === 0 ? '#F5C542' : i === 1 ? '#C7C8E0' : i === 2 ? '#D08A5A' : '#6E6A8C' }}>{i + 1}</div>
-                          <div style={{ position: 'relative' }}>
-                            <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={40} />
-                            {online && <span title="Online acum" style={{ position: 'absolute', bottom: -1, right: -1, width: 11, height: 11, borderRadius: '50%', background: online, border: '2px solid #151225' }}></span>}
-                            {!online && presentIds.has(s.id) && <span title="Prezent azi" style={{ position: 'absolute', bottom: -1, right: -1, width: 11, height: 11, borderRadius: '50%', background: '#4ADE80', border: '2px solid #151225' }}></span>}
+                      <div key={s.id} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 14, padding: '9px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 20, fontSize: 13, fontWeight: 800, color: i === 0 ? '#F5C542' : i === 1 ? '#C7C8E0' : i === 2 ? '#D08A5A' : '#6E6A8C', flexShrink: 0 }}>{i + 1}</div>
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={34} />
+                            {online && <span title="Online acum" style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', background: online, border: '2px solid #151225' }}></span>}
+                            {!online && presentIds.has(s.id) && <span title="Prezent azi" style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', background: '#4ADE80', border: '2px solid #151225' }}></span>}
                           </div>
-                          <div style={{ flex: 1, fontSize: 15, fontWeight: 700 }}>{s.name} <span style={{ fontSize: 13 }}>{rankOf(s.points).emoji}</span></div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: '#F5C542', whiteSpace: 'nowrap' }}>⭐ {s.points || 0} pct</div>
-                        </div>
-                        {(shields.length > 0 || praises.length > 0) && (
-                          <div style={{ display: 'flex', gap: 12, marginTop: 8, paddingLeft: 34, fontSize: 12, color: '#C7C8E0' }}>
-                            {praises.length > 0 && <span>🌟 {praises.length}</span>}
-                            {shields.length > 0 && <span>🛡️ {shields.length}</span>}
-                          </div>
-                        )}
-                        {stickers.length > 0 && (
-                          <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingLeft: 34, flexWrap: 'wrap' }}>
-                            {stickers.map(entry => {
+                          <div style={{ fontSize: 14, fontWeight: 700, flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name} <span style={{ fontSize: 12 }}>{rankOf(s.points).emoji}</span></div>
+                          <div style={{ flex: 1, display: 'flex', gap: 4, alignItems: 'center', overflow: 'hidden' }}>
+                            {shown.map(entry => {
                               const def = STICKERS.find(x => x.id === entry.stickerId);
                               if (!def) return null;
                               const isGood = /^good[1-7]$/.test(entry.stickerId), isShield = /^shield[1-7]$/.test(entry.stickerId);
                               return (
-                                <div key={entry.id} style={{ position: 'relative' }}>
-                                  <IconBadge sticker={def} size={34} />
+                                <div key={entry.id} style={{ position: 'relative', flexShrink: 0 }}>
+                                  <IconBadge sticker={def} size={24} />
                                   {(isGood || isShield) && (
                                     <span style={{
-                                      position: 'absolute', top: -4, right: -4, fontSize: 9, background: '#151225', borderRadius: '50%',
-                                      width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${isGood ? '#F5C542' : '#60A5FA'}`,
+                                      position: 'absolute', top: -3, right: -3, fontSize: 6.5, background: '#151225', borderRadius: '50%',
+                                      width: 11, height: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${isGood ? '#F5C542' : '#60A5FA'}`,
                                     }}>{isGood ? '🌟' : '🛡️'}</span>
                                   )}
                                 </div>
                               );
                             })}
+                            {overflow > 0 && <span style={{ fontSize: 10.5, color: '#6E6A8C', flexShrink: 0 }}>+{overflow}</span>}
                           </div>
-                        )}
+                          <div style={{ fontSize: 14, fontWeight: 800, color: '#F5C542', whiteSpace: 'nowrap', flexShrink: 0 }}>⭐ {s.points || 0} pct</div>
+                        </div>
                       </div>
                     );
                   })}
@@ -9529,8 +9554,8 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{
+          <div onClick={() => setShowAppStats(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{
               backgroundImage: 'linear-gradient(#151225, #151225), linear-gradient(135deg, #38BDF8, #4ADE80, #9B3CE0, #F5C542)',
               backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box', border: '1px solid transparent',
               borderRadius: 22, padding: 26, maxWidth: 560, width: '100%', maxHeight: '88vh', overflowY: 'auto',
@@ -9596,8 +9621,8 @@ function TeacherApp({ onExit, teacherName }) {
         const monitorCandidates = presentNames;
         const judgeCandidates = presentNames.filter(n => n !== (pickedMonitor || (todayRoles && todayRoles.monitorName)));
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <PresentationBox baseW={560} baseH={650} style={{
+          <div onClick={() => { setShowRolesWheel(false); setPickedMonitor(null); setPickedJudge(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={560} baseH={650} style={{
               background: 'linear-gradient(135deg, #1A1530, #151225)', border: '1px solid transparent',
               backgroundImage: 'linear-gradient(#151225, #151225), linear-gradient(135deg, #F5C542, #38BDF8, #EC1E8F)',
               backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box',
@@ -9634,15 +9659,23 @@ function TeacherApp({ onExit, teacherName }) {
                   </div>
                   {todayClassWarnings.length > 0 && (
                     <div style={{ textAlign: 'left', borderTop: '1px solid #2E2850', paddingTop: 16, marginTop: 4 }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#F5C542', marginBottom: 10 }}>⚠️ Avertismente azi ({todayClassWarnings.length})</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 10, background: 'linear-gradient(160deg, #F5C54233, #F5C5420D)', border: '1px solid #F5C54255', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>⚠️</div>
+                        <span className="heading-font" style={{ fontSize: 15, fontWeight: 800, color: '#F5C542' }}>Avertismente azi ({todayClassWarnings.length})</span>
+                      </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
                         {todayClassWarnings.map((w, i) => {
                           const stu = classStudents.find(x => x.id === w.studentId);
                           const info = RULE_INFO[w.ruleId] || {};
                           return (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(245,197,66,0.10)', border: '1px solid rgba(245,197,66,0.4)', borderRadius: 12 }}>
+                            <div key={i} style={{
+                              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12,
+                              background: 'linear-gradient(135deg, rgba(245,197,66,0.14), rgba(245,197,66,0.05))', border: '1px solid rgba(245,197,66,0.4)',
+                              animation: `rpCardIn .35s ${i * 0.06}s both`,
+                            }}>
                               <RuleIcon ruleId={w.ruleId} emoji="⚠️" size={34} />
                               <div style={{ fontSize: 15, fontWeight: 700 }}>{stu ? stu.name : '—'} <span style={{ color: '#8A86A8', fontWeight: 500 }}>— {info.en || w.ruleId}</span></div>
+                              <span style={{ marginLeft: 'auto', fontSize: 17 }}>⚠️</span>
                             </div>
                           );
                         })}
@@ -9650,19 +9683,36 @@ function TeacherApp({ onExit, teacherName }) {
                     </div>
                   )}
                   <div style={{ textAlign: 'left', borderTop: '1px solid #2E2850', paddingTop: 16, marginTop: 16 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#C7C8E0', marginBottom: 10 }}>📋 Cartonașe acordate azi {todayClassCards.length > 0 ? `(${todayClassCards.length})` : ''}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 10, background: 'linear-gradient(160deg, #EC1E8F33, #EC1E8F0D)', border: '1px solid #EC1E8F55', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>📋</div>
+                      <span className="heading-font" style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>Cartonașe acordate azi {todayClassCards.length > 0 ? `(${todayClassCards.length})` : ''}</span>
+                    </div>
                     {todayClassCards.length === 0 ? (
                       <div style={{ fontSize: 12, color: '#4A4666' }}>Niciun cartonaș acordat încă azi.</div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
-                        {todayClassCards.map(c => (
-                          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: '#0F0C1C', borderRadius: 10, fontSize: 12 }}>
-                            <span>{c.emoji} {c.targetStudentName} — {c.label}</span>
-                            <span style={{ fontWeight: 700, color: c.status === 'approved' ? '#4ADE80' : c.status === 'rejected' ? '#F87171' : '#F5C542' }}>
-                              {c.status === 'approved' ? '✓ Aprobat' : c.status === 'rejected' ? '✗ Respins' : '⏳ Așteaptă'}
-                            </span>
-                          </div>
-                        ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                        {todayClassCards.map((c, i) => {
+                          const rid = ruleIdOfCard(c);
+                          const statusColor = c.status === 'approved' ? '#4ADE80' : c.status === 'rejected' ? '#F87171' : '#F5C542';
+                          const isRed = /roșu/i.test(c.label) || c.emoji === '🟥';
+                          const typeColor = isRed ? '#F87171' : '#F5C542';
+                          return (
+                            <div key={c.id} style={{
+                              display: 'flex', alignItems: 'center', gap: 12, padding: '9px 13px', borderRadius: 12,
+                              background: `linear-gradient(135deg, ${typeColor}1A, ${typeColor}08)`, border: `1px solid ${typeColor}55`,
+                              animation: `rpCardIn .35s ${i * 0.05}s both`,
+                            }}>
+                              {rid ? <RuleIcon ruleId={rid} emoji={c.emoji} size={30} /> : <span style={{ fontSize: 20, flexShrink: 0 }}>{c.emoji}</span>}
+                              <span style={{ fontSize: 12.5, flex: 1 }}><b>{c.targetStudentName}</b> <span style={{ color: '#8A86A8' }}>— {c.label}</span></span>
+                              <span style={{
+                                fontWeight: 800, color: statusColor, fontSize: 11, flexShrink: 0, padding: '3px 9px', borderRadius: 20,
+                                background: `${statusColor}1A`, border: `1px solid ${statusColor}55`,
+                              }}>
+                                {c.status === 'approved' ? '✓ Aprobat' : c.status === 'rejected' ? '✗ Respins' : '⏳ Așteaptă'}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -9743,8 +9793,8 @@ function TeacherApp({ onExit, teacherName }) {
         return <EndLessonWheel students={present} roster={roster} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
       })()}
       {showAcademicAdmin && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 18, padding: 22, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
+        <div onClick={() => setShowAcademicAdmin(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 18, padding: 22, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>📚 Articole Academic (părinți)</h3>
               <button onClick={() => { setShowAcademicAdmin(false); setEditingArticleDraft(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
@@ -10460,7 +10510,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.107';
+const APP_VERSION = 'v2.108';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

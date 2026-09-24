@@ -8206,6 +8206,10 @@ function TeacherApp({ onExit, teacherName }) {
   }
   function awardStickerToStudent(studentId, stickerId) {
     if (!studentId) return;
+    if (!students.some(s => s.id === studentId)) {                 // diagnostic — dacă asta apare, elevul ales nu se regăsește în lista curentă de elevi
+      alert('Nu am găsit elevul ales (id: ' + studentId + ') în lista curentă. Reîncearcă, sau spune-i lui Claude exact acest mesaj.');
+      return;
+    }
     const goodMatch = /^good([1-7])$/.exec(stickerId);
     let becameShield = /^shield[1-7]$/.test(stickerId);
     const next = students.map(s => {
@@ -8224,7 +8228,9 @@ function TeacherApp({ onExit, teacherName }) {
       return { ...s, stickers };
     });
     if (becameShield) playShieldSound(); else playDing();
-    persistStudentsLocal(next, students);
+    persistStudentsLocal(next, students).then(ok => {
+      if (ok === false) alert('Acordarea NU s-a salvat — verifică conexiunea la internet și încearcă din nou.');
+    });
   }
   function removeSticker(entryId) {
     if (!selectedStudent) return;
@@ -10527,7 +10533,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.109';
+const APP_VERSION = 'v2.110';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

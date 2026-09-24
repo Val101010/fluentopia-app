@@ -8212,7 +8212,7 @@ function TeacherApp({ onExit, teacherName }) {
     }
     const goodMatch = /^good([1-7])$/.exec(stickerId);
     let becameShield = /^shield[1-7]$/.test(stickerId);
-    const next = students.map(s => {
+    updateStudents(prev => prev.map(s => {                          // consola profesorului folosește updateStudents, nu persistStudentsLocal (asta era bug-ul real)
       if (s.id !== studentId) return s;
       let stickers = [...(s.stickers || []), { id: uid(), stickerId, date: new Date().toISOString() }];
       if (goodMatch) {
@@ -8226,11 +8226,8 @@ function TeacherApp({ onExit, teacherName }) {
         }
       }
       return { ...s, stickers };
-    });
+    }));
     if (becameShield) playShieldSound(); else playDing();
-    persistStudentsLocal(next, students).then(ok => {
-      if (ok === false) alert('Acordarea NU s-a salvat — verifică conexiunea la internet și încearcă din nou.');
-    });
   }
   function removeSticker(entryId) {
     if (!selectedStudent) return;
@@ -10533,7 +10530,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.110';
+const APP_VERSION = 'v2.111';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

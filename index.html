@@ -1805,16 +1805,23 @@ function CircleStat({ pct, count, label, color, size = 76 }) {
   );
 }
 function IconBadge({ sticker, size = 36, onClick }) {
-  const src = STICKER_IMG[sticker.id];
+  const shieldMatch = /^shield([1-7])$/.exec(sticker.id);
+  const src = shieldMatch ? RULE_IMG['rule' + shieldMatch[1]] : STICKER_IMG[sticker.id];   // scutul arată iconița regulii pe care o apără, "blindată"
   return (
     <div title={sticker.label} onClick={onClick} style={{
-      width: size, height: size, borderRadius: size >= 60 ? 18 : 10,
+      width: size, height: size, borderRadius: size >= 60 ? 18 : 10, position: 'relative',
       background: `${sticker.color}18`, border: `1px solid ${sticker.color}40`,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: size*0.12,
       cursor: onClick ? 'zoom-in' : undefined,
     }}>
-      {src ? <img src={src} alt={sticker.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> :
+      {src ? <img src={src} alt={sticker.label} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: shieldMatch ? 'saturate(0.55) brightness(0.92)' : 'none' }} /> :
         <span style={{ color: sticker.color, fontWeight: 700, fontSize: size * 0.3 }}>{sticker.mono}</span>}
+      {shieldMatch && (
+        <span style={{
+          position: 'absolute', bottom: -size * 0.08, right: -size * 0.08, fontSize: Math.max(11, size * 0.42),
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.6))',
+        }}>🛡️</span>
+      )}
     </div>
   );
 }
@@ -5617,14 +5624,14 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     { id: 'duel', icon: '⚔️', group: 'social' },
     { id: 'aurabattle', icon: '🃏', group: 'aurabuddy' },
     { id: 'games', icon: '🎮', group: 'distractie' },
-    { id: 'wheel', icon: '🎡', group: 'distractie' },
+    { id: 'wheel', icon: '🎡', group: isParentView ? 'acasa' : 'distractie' },
     { id: 'radio', icon: '📻', group: 'distractie' },
     { id: 'hero', icon: '🦸', group: 'distractie' },
     { id: 'pet', icon: '🐣', group: 'aurabuddy' },
     ...(!isParentView ? [{ id: 'stickers', icon: '🎫', group: 'aurabuddy' }] : []),
     { id: 'leaderboard', icon: '🏆', group: 'clasamente' },
     { id: 'globalrank', icon: '🌍', group: 'clasamente' },
-    { id: 'bank', icon: '🏦', group: 'finante' },
+    { id: 'bank', icon: '🏦', group: isParentView ? 'acasa' : 'finante' },
     { id: 'market', icon: '🛍️', group: 'finante' },
     { id: 'tests', icon: '📊', group: 'progres' },
     { id: 'studenttests', icon: '📝', group: 'progres' },
@@ -6659,6 +6666,8 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                     @keyframes mineLoopSwing { 0%,100% { transform: rotate(-8deg); } 22% { transform: rotate(-52deg); } 40% { transform: rotate(18deg); } 60% { transform: rotate(-8deg); } }
                     @keyframes mineLoopSpark { 0% { transform: translate(0,0) scale(0.4); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--sx), var(--sy)) scale(1); opacity: 0; } }
                     @keyframes mineLoopGlow { 0%,100% { opacity: 0.35; } 50% { opacity: 0.75; } }
+                    @keyframes mineSleepBob { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-4px) rotate(4deg); } }
+                    @keyframes mineZzz { 0% { transform: translate(0,0) scale(0.6); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(14px,-22px) scale(1.15); opacity: 0; } }
                   `}</style>
                   {alreadyMined ? (
                     <div style={{ position: 'relative', height: 46, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -6669,8 +6678,15 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                       ))}
                       <span style={{ position: 'absolute', right: '18%', top: '58%', fontSize: 13, animation: 'mineLoopSpark 1.1s 0.2s ease-out infinite', '--sx': '14px', '--sy': '-16px' }}>💎</span>
                     </div>
+                  ) : mineAnimTick === 0 ? (
+                    <div style={{ position: 'relative', height: 46, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ fontSize: 30, display: 'inline-block', animation: 'mineSleepBob 2.6s ease-in-out infinite', filter: 'grayscale(0.4) opacity(0.75)' }}>⛏️</div>
+                      {[0, 0.9].map((d, i) => (
+                        <span key={i} style={{ position: 'absolute', left: '56%', top: '30%', fontSize: 13, color: '#8A86A8', fontWeight: 800, animation: `mineZzz 1.8s ${d}s ease-out infinite` }}>Zzz</span>
+                      ))}
+                    </div>
                   ) : (
-                    <div style={{ fontSize: 32, marginBottom: 8, display: 'inline-block', animation: mineAnimTick > 0 ? 'pickaxeSwing 0.5s ease' : 'none' }} key={mineAnimTick}>⛏️</div>
+                    <div style={{ fontSize: 32, marginBottom: 8, display: 'inline-block', animation: 'pickaxeSwing 0.5s ease' }} key={mineAnimTick}>⛏️</div>
                   )}
                   {mineAnimTick > 0 && !alreadyMined && (
                     <div key={'float' + mineAnimTick} style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', fontSize: 16, fontWeight: 800, color: '#F5C542', animation: 'floatUpFade 1.4s ease forwards' }}>
@@ -6681,8 +6697,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                   <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 14 }}>Un click pe zi ține mina activă — apasă și mâine ca să continue să mineze.</div>
                   <button onClick={() => { if (!alreadyMined) { onParentMine(); setMineAnimTick(t => t + 1); } }} disabled={alreadyMined} style={{
                     padding: '11px 24px', borderRadius: 10, border: 'none', cursor: alreadyMined ? 'default' : 'pointer',
-                    background: alreadyMined ? '#221D3A' : 'linear-gradient(135deg, #F5C542, #FF7A45)', color: alreadyMined ? '#5A5570' : '#0B0A14', fontWeight: 700, fontSize: 13,
-                  }}>{alreadyMined ? '✓ Minat azi — revino mâine' : `⛏️ Minează ${PARENT_MINING_DAILY_BONUS} puncte`}</button>
+                    background: alreadyMined ? 'linear-gradient(135deg, #4ADE80, #22C55E)' : 'linear-gradient(135deg, #F87171, #DC2626)',
+                    color: alreadyMined ? '#0B2A16' : '#2A0808', fontWeight: 800, fontSize: 13, boxShadow: alreadyMined ? '0 4px 14px rgba(74,222,128,.35)' : '0 4px 14px rgba(248,113,113,.35)',
+                  }}>{alreadyMined ? '⛏️ Se minează' : `⛏️ Minează ${PARENT_MINING_DAILY_BONUS} puncte`}</button>
                 </div>
               );
             })()}
@@ -10510,7 +10527,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.108';
+const APP_VERSION = 'v2.109';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

@@ -4015,6 +4015,7 @@ function ParentWallView({ student }) {
   }
   return (
     <div>
+      <SectionHeader icon="👪" title="Grup Părinți" color="#4ADE80" />
       <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 16 }}>Un spațiu doar pentru părinții din clasa lui/ei {student.name} — nu e vizibil elevilor.</p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Scrie ceva pentru ceilalți părinți..." maxLength={500}
@@ -4110,6 +4111,17 @@ function ReactionBar({ reactions, myId, onToggle }) {
   );
 }
 const BOARD_COLORS = ['#FFFFFF', '#EC1E8F', '#F5C542', '#38BDF8', '#4ADE80', '#9B3CE0', '#FF7A45', '#000000'];
+function SectionHeader({ icon, title, color = '#9B3CE0' }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+      <div style={{
+        width: 42, height: 42, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0,
+        background: `linear-gradient(160deg, ${color}33, ${color}0D)`, border: `1px solid ${color}55`, boxShadow: `0 6px 18px ${color}33`,
+      }}>{icon}</div>
+      <h2 className="heading-font" style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{title}</h2>
+    </div>
+  );
+}
 function BoardView({ student, classmates, isParentView }) {
   const [mode, setMode] = useState('class');           // 'class' sau 'pair'
   const [pairWithId, setPairWithId] = useState('');
@@ -4185,7 +4197,7 @@ function BoardView({ student, classmates, isParentView }) {
   const others = (classmates || []).filter(c => c.id !== student.id);
   return (
     <div>
-      <h2 className="heading-font" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>🎨 Tablă</h2>
+      <SectionHeader icon="🎨" title="Tablă" color="#38BDF8" />
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         {[['class', '👥 Toată clasa'], ['pair', '🤝 Cu un coleg']].map(([m, label]) => (
           <button key={m} onClick={() => setMode(m)} style={{
@@ -4276,7 +4288,7 @@ function WallView({ student, classmates, isParentView }) {
   }
   return (
     <div>
-      <h2 className="heading-font" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 18px' }}>🧱 Wall</h2>
+      <SectionHeader icon="🧱" title="Wall" color="#38BDF8" />
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, background: '#151225', border: '1px solid #221D3A', borderRadius: 14, padding: 10 }}>
         <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Scrie ceva pentru clasa ta..." maxLength={500}
           style={{ flex: 1, padding: '8px 10px', borderRadius: 10, border: 'none', background: 'transparent', color: '#fff', fontSize: 13, outline: 'none' }} />
@@ -5561,7 +5573,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
 
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         {(() => {
-          const navProps = { groups: TAB_GROUPS, tabs: TABS, tab, setTab, groupLabels: mt.groups, colors: GROUP_COLORS,
+          const navProps = { groups: TAB_GROUPS, tabs: TABS, tab, setTab, groupLabels: { ...mt.groups, ...mt.tabs }, colors: GROUP_COLORS,
             alertOf: t => (t.id === 'overview' || t.id === 'discipline') && !isParentView && (student.cardDebts || []).length > 0 };
           return isDesktop ? <RailNav {...navProps} /> : <BottomNav {...navProps} />;
         })()}
@@ -5573,8 +5585,8 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         const readArticles = student.readArticles || [];
         return (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>📚 Articole Fluentopia</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <SectionHeader icon="📚" title="Academic" color="#38BDF8" />
               <div style={{ display: 'flex', gap: 4, background: '#0F0C1C', borderRadius: 8, padding: 3 }}>
                 <button onClick={() => setArticleLang('ro')} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: articleLang === 'ro' ? '#9B3CE0' : 'transparent', color: articleLang === 'ro' ? '#fff' : '#8A86A8' }}>RO</button>
                 <button onClick={() => setArticleLang('en')} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: articleLang === 'en' ? '#9B3CE0' : 'transparent', color: articleLang === 'en' ? '#fff' : '#8A86A8' }}>EN</button>
@@ -5653,7 +5665,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         }
         return (
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>💌 Catalog Părinți</h2>
+            <SectionHeader icon="💌" title="Catalog Părinți" color="#EC1E8F" />
             <p style={{ fontSize: 13, color: '#8A86A8', marginBottom: 20 }}>Recomandă Fluentopia altor părinți — pentru fiecare distribuire, copilul tău primește garantat o reducere de 5 lei la modulul următor, chiar dacă părintele recomandat nu se înscrie.</p>
             <div style={{
               background: 'linear-gradient(160deg, #151032, #0B0A1C)', border: '1px solid #2E2850', borderRadius: 18,
@@ -5958,7 +5970,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         const hasEmptySlot = pets.length < slots;
         return (
           <div>
-            <h2 className="heading-font" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 18px' }}>🐣 Aura Buddy</h2>
+            <SectionHeader icon="🐣" title="Aura Buddy" color="#4ADE80" />
             {pets.map(pet => {
               const species = PET_SPECIES.find(sp => sp.id === pet.species);
               if (!species) return null;
@@ -6581,7 +6593,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
 
       {tab === 'shop' && (
         <div>
-          <h2 className="heading-font" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 18px' }}>🛒 Catalog</h2>
+          <SectionHeader icon="🛒" title="Catalog" color="#FFB443" />
           {isParentView && (
             <div style={{ background: 'rgba(245,197,66,0.1)', border: '1px solid rgba(245,197,66,0.35)', borderRadius: 12, padding: 12, marginBottom: 18, fontSize: 12.5, color: '#F5C542' }}>
               👀 Ești în mod părinte — poți vedea catalogul, dar cumpărăturile sunt dezactivate. Doar copilul poate cumpăra din contul lui.
@@ -7024,7 +7036,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         const wildcardCount = (student.stickers || []).filter(x => x.stickerId === 'wildcard').length;
         return (
           <div>
-            <h2 className="heading-font" style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>🚦 Disciplină</h2>
+            <SectionHeader icon="🚦" title="Disciplină" color="#FF8A3D" />
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Aici vezi și plătești cartonașele primite. Cât timp ai unul neplătit, Jocurile, Banca și Hero Battle sunt blocate.</p>
             {(() => {
               const goodEarned = (student.stickers || []).filter(x => /^good[1-7]$/.test(x.stickerId));
@@ -7168,7 +7180,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         const tier = rankOf(powerScore);
         return (
           <div>
-            <h2 className="heading-font" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>🦸 Cartonaș Erou</h2>
+            <SectionHeader icon="🦸" title="Cartonaș Erou" color="#EC1E8F" />
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Construiește-ți propriul erou! Adună puncte și abțibilduri ca să-i crești puterea pe cartonaș.</p>
             <div ref={heroSvgRef} style={{
               background: `radial-gradient(ellipse at top, ${tier.color}25, transparent 65%), #151225`,
@@ -8371,10 +8383,10 @@ function TeacherApp({ onExit, teacherName }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                       <div onClick={() => setPreviewStudentTest(t)} style={{ minWidth: 0, cursor: 'pointer' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textDecoration: 'underline', textDecorationColor: 'transparent' }}>👁️ {t.title}</div>
-                        <div style={{ fontSize: 10, color: '#6E6A8C' }}>de {t.authorName} · {t.questions.length} întrebări · făcut de {(t.takenBy||[]).length} elevi · apasă titlul ca să vezi testul</div>
+                        <div style={{ fontSize: 10, color: '#6E6A8C' }}>de {t.authorName} · {t.questions.length} întrebări · făcut de {(t.takenBy||[]).length} elevi{(t.takenBy||[]).length === 0 ? ' · corectarea apare după ce un elev îl face' : ''} · apasă titlul ca să vezi testul</div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        {results.length > 0 && (
+                        {results.length > 0 ? (
                           <button onClick={() => {
                             const next = opened ? null : t.id;
                             setExpandedStudentTestId(next);
@@ -8382,6 +8394,10 @@ function TeacherApp({ onExit, teacherName }) {
                           }} style={{ background: opened ? 'rgba(56,189,248,0.14)' : 'none', border: '1px solid #38BDF8', borderRadius: 8, padding: '4px 8px', color: '#38BDF8', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
                             ✏️ Corectează ({results.length}) {opened ? '▲' : '▼'}
                           </button>
+                        ) : (
+                          <span title="Corectarea apare aici după ce un elev face testul" style={{ border: '1px solid #2E2850', borderRadius: 8, padding: '4px 8px', color: '#4A4666', fontSize: 10.5, fontWeight: 700 }}>
+                            ✏️ Corectează
+                          </span>
                         )}
                       <QuickReact reactions={t.reactions} myKey="teacher" onSet={e => toggleStudentTestReaction(t.id, e)} onClear={() => removeStudentTestReaction(t.id)} />
                       <button onClick={() => { if (window.confirm('Ștergi acest test?')) deleteStudentTest(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F87171', display: 'flex', flexShrink: 0 }}><IX size={14}/></button>
@@ -10189,7 +10205,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.097';
+const APP_VERSION = 'v2.100';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

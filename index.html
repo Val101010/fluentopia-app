@@ -2534,6 +2534,17 @@ async function createStudentTest(classId, authorId, authorName, title, questions
     id, classId, authorId, authorName, title: title.slice(0, 80), questions, createdAt: new Date().toISOString(), takenBy: [],
   });
 }
+async function updateStudentTestContent(testId, title, questions, teacherNote, beforeSnapshot) {
+  const db = getDb(); if (!db) return;
+  const patch = { title: title.slice(0, 80), questions };
+  if (teacherNote !== undefined) {
+    patch.teacherNote = teacherNote; patch.correctedAt = new Date().toISOString();
+    if (beforeSnapshot) patch.lastCorrectionBefore = beforeSnapshot;   // ce arăta testul chiar înainte de corectura profesorului — pentru evidențierea diferențelor
+  } else {
+    patch.lastCorrectionBefore = firebase.firestore.FieldValue.delete();   // elevul și-a editat singur testul după ce a văzut corectura -> nu mai arătăm diferența veche
+  }
+  await db.collection('fluentopia_student_tests').doc(testId).update(patch).catch(() => {});
+}
 async function deleteStudentTest(testId) {
   const db = getDb(); if (!db) return;
   await db.collection('fluentopia_student_tests').doc(testId).delete();
@@ -2730,7 +2741,7 @@ const MENU_STRINGS = {
       leaderboard: 'Clasament clasă', globalrank: 'Clasamente Fluentopia',
       bank: 'Bancă', shop: 'Catalog', market: 'Pupils Market',
       tests: 'Teste', studenttests: 'Teste elevi', skills: 'Skills de exersat', history: 'Istoric',
-      parentcatalog: 'Catalog Părinți', parentwall: 'Grup Părinți', parentacademic: 'Academic',
+      parentcatalog: 'Catalog Părinți', parentwall: 'Grup Părinți', parentacademic: 'Academic', parentjourney: 'Parcurs Academic',
     },
   },
   en: {
@@ -2742,7 +2753,7 @@ const MENU_STRINGS = {
       leaderboard: 'Class Leaderboard', globalrank: 'Fluentopia Leaderboards',
       bank: 'Bank', shop: 'Shop', market: 'Pupils Market',
       tests: 'Tests', studenttests: 'Student Tests', skills: 'Skills to Practice', history: 'History',
-      parentcatalog: 'Parent Catalog', parentwall: 'Parent Group', parentacademic: 'Academic',
+      parentcatalog: 'Parent Catalog', parentwall: 'Parent Group', parentacademic: 'Academic', parentjourney: 'Academic Journey',
     },
   },
 };
@@ -4122,6 +4133,129 @@ function SectionHeader({ icon, title, color = '#9B3CE0' }) {
     </div>
   );
 }
+/* ---------- Parcurs academic (mod părinte): cronologie cu calificative, cartonașe, laude ---------- */
+function buildAcademicTimeline(student) {
+  const items = [];
+  (student.testResults || []).forEach(t => items.push({ date: t.date, kind: 'grade', score: t.score, title: t.notes || t.module, module: t.module }));
+  const historyIds = new Set((student.cardHistory || []).map(h => h.id));
+  (student.cardHistory || []).forEach(h => {
+    items.push({ date: h.date, kind: 'card_issued', label: h.label, isRed: h.catalogId === 'redcard', paid: !!h.paidDate });
+  });
+  (student.cardDebts || []).forEach(d => {                    // cartonașe de dinainte de arhivă (fără intrare în cardHistory încă)
+    if (!historyIds.has(d.id)) items.push({ date: d.date, kind: 'card_issued', label: d.label, isRed: d.catalogId === 'redcard', paid: false });
+  });
+  (student.stickers || []).forEach(entry => {
+    const g = /^good([1-7])$/.exec(entry.stickerId);
+    const sh = /^shield([1-7])$/.exec(entry.stickerId);
+    if (g) items.push({ date: entry.date, kind: 'praise', ruleId: 'rule' + g[1] });
+    if (sh) items.push({ date: entry.date, kind: 'shield', ruleId: 'rule' + sh[1] });
+  });
+  items.sort((a, b) => new Date(b.date) - new Date(a.date));
+  const groups = [];
+  items.forEach(it => {
+    const day = (it.date || '').slice(0, 10);
+    let g = groups.find(x => x.day === day);
+    if (!g) { g = { day, items: [] }; groups.push(g); }
+    g.items.push(it);
+  });
+  return groups;
+}
+function TimelineItem({ it }) {
+  const time = it.date ? new Date(it.date).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }) : '';
+  let icon = '•', color = '#8A86A8', text = '';
+  if (it.kind === 'grade') {
+    icon = '📝'; color = it.score >= 70 ? '#4ADE80' : it.score >= 40 ? '#F5C542' : '#F87171';
+    text = <>Notă <b style={{ color }}>{it.score}/100</b> la <b>{it.module}</b>{it.title && it.title !== it.module ? ` — ${it.title}` : ''}</>;
+  } else if (it.kind === 'card_issued') {
+    icon = it.isRed ? '🟥' : '🟨'; color = '#8A86A8';   // discret — părinții sunt interesați mai ales de calificative
+    text = it.label;
+  } else if (it.kind === 'praise') {
+    icon = '🌟'; color = '#F5C542';
+    text = <>Laudă de la profesor — <b>{(RULE_INFO[it.ruleId] || {}).en || it.ruleId}</b></>;
+  } else if (it.kind === 'shield') {
+    icon = '🛡️'; color = '#60A5FA';
+    text = <>Shield primit — <b>{(RULE_INFO[it.ruleId] || {}).en || it.ruleId}</b></>;
+  }
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '9px 0', borderBottom: '1px solid #1C1730' }}>
+      <span style={{ fontSize: 16, flexShrink: 0, width: 22, textAlign: 'center' }}>{icon}</span>
+      <div style={{ flex: 1, fontSize: 12.5, color: '#C7C8E0', lineHeight: 1.4 }}>{text}</div>
+      <span style={{ fontSize: 10.5, color: '#4A4666', flexShrink: 0 }}>{time}</span>
+    </div>
+  );
+}
+function JourneyLegendRow({ color, title, desc }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+        background: `linear-gradient(160deg, ${color}, ${color}99)`, boxShadow: `0 3px 10px ${color}55`, border: '2px solid #0B0A14',
+      }}></div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.45 }}>
+        <span className="heading-font" style={{ fontWeight: 700, color: '#fff' }}>{title}</span>
+        <span style={{ color: '#8A86A8' }}> — {desc}</span>
+      </div>
+    </div>
+  );
+}
+function JourneyLegend() {
+  return (
+    <div style={{
+      marginTop: 26, background: 'linear-gradient(160deg, #1F1440, #0B0A1C)', border: '1px solid #362A5C', borderRadius: 18,
+      padding: '18px 20px', boxShadow: '0 10px 30px rgba(155,60,224,0.14)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <span style={{ fontSize: 15 }}>💡</span>
+        <span className="heading-font" style={{ fontSize: 12.5, fontWeight: 800, color: '#C7C8E0', letterSpacing: 0.4, textTransform: 'uppercase' }}>Ce înseamnă culoarea unei zile</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <JourneyLegendRow color="#F87171" title="Roșu" desc="a rămas cu un cartonaș neplătit în acea zi." />
+        <JourneyLegendRow color="#4ADE80" title="Verde" desc="a avut cel puțin o notă (test) în acea zi." />
+        <JourneyLegendRow color="#9B3CE0" title="Mov" desc="altceva s-a întâmplat — o laudă, un Shield sau un cartonaș deja rezolvat." />
+      </div>
+      <p style={{ fontSize: 10.5, color: '#6E6A8C', margin: '14px 0 0', lineHeight: 1.4 }}>Când o zi are mai multe tipuri de evenimente, culoarea urmează ordinea de mai sus, de sus în jos.</p>
+    </div>
+  );
+}
+function AcademicJourneyView({ student }) {
+  const groups = React.useMemo(() => buildAcademicTimeline(student), [student]);
+  return (
+    <div>
+      <SectionHeader icon="🗓️" title="Parcurs Academic" color="#9B3CE0" />
+      <p style={{ fontSize: 12, color: '#8A86A8', margin: '-8px 0 18px' }}>Calificative, cartonașe și laude ale lui/ei {student.name}, în ordine cronologică.</p>
+      {groups.length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: 30 }}>Niciun eveniment înregistrat încă.</div>
+      ) : (
+        <div style={{ position: 'relative', paddingLeft: 48 }}>
+          <div style={{ position: 'absolute', left: 20, top: 6, bottom: 6, width: 3, borderRadius: 2, background: 'linear-gradient(180deg, #9B3CE0, #38BDF8 45%, #2E2850 95%)' }}></div>
+          {groups.map((g, gi) => {
+            const d = g.day ? new Date(g.day) : null;
+            const hasUnpaidCard = g.items.some(it => it.kind === 'card_issued' && !it.paid);
+            const hasGrade = g.items.some(it => it.kind === 'grade');
+            const nodeColor = hasUnpaidCard ? '#F87171' : hasGrade ? '#4ADE80' : '#9B3CE0';
+            return (
+              <div key={g.day} style={{ position: 'relative', marginBottom: gi === groups.length - 1 ? 0 : 22 }}>
+                <div style={{
+                  position: 'absolute', left: -48, top: 0, width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+                  background: `linear-gradient(160deg, ${nodeColor}, ${nodeColor}99)`, border: '3px solid #0B0A14',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, color: '#0B0A14',
+                  boxShadow: `0 4px 14px ${nodeColor}55`,
+                }}>{d ? d.getDate() : '·'}</div>
+                <div className="heading-font" style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 9, marginBottom: 6 }}>
+                  {d ? d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Fără dată'}
+                </div>
+                <div style={{ background: '#151225', borderRadius: 12, padding: '2px 14px' }}>
+                  {g.items.map((it, i) => <TimelineItem key={i} it={it} />)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <JourneyLegend />
+    </div>
+  );
+}
 function BoardView({ student, classmates, isParentView }) {
   const [mode, setMode] = useState('class');           // 'class' sau 'pair'
   const [pairWithId, setPairWithId] = useState('');
@@ -4267,6 +4401,66 @@ function QuickReact({ reactions, myKey, onSet, onClear }) {
     </div>
   );
 }
+/* ---------- Comparație text: arată ce a schimbat profesorul la un test creat de elev ---------- */
+function wordDiff(oldText, newText) {
+  const a = (oldText || '').split(/(\s+)/).filter(x => x !== '');
+  const b = (newText || '').split(/(\s+)/).filter(x => x !== '');
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const ops = []; let i = 0, j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { ops.push({ t: 'same', w: a[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ t: 'del', w: a[i] }); i++; }
+    else { ops.push({ t: 'add', w: b[j] }); j++; }
+  }
+  while (i < a.length) { ops.push({ t: 'del', w: a[i++] }); }
+  while (j < b.length) { ops.push({ t: 'add', w: b[j++] }); }
+  return ops;
+}
+function DiffText({ before, after }) {
+  if (before === after) return <span>{after}</span>;
+  const ops = wordDiff(before, after);
+  return (
+    <span>
+      {ops.map((op, i) => {
+        if (op.t === 'same') return <span key={i}>{op.w}</span>;
+        if (op.t === 'del') return <span key={i} style={{ color: '#F87171', textDecoration: 'line-through', background: 'rgba(248,113,113,0.12)', borderRadius: 3 }}>{op.w}</span>;
+        return <span key={i} style={{ color: '#4ADE80', background: 'rgba(74,222,128,0.14)', borderRadius: 3 }}>{op.w}</span>;
+      })}
+    </span>
+  );
+}
+function TestCorrectionDiff({ before, after }) {
+  const beforeQ = (before && before.questions) || [];
+  const afterQ = after || [];
+  const n = Math.max(beforeQ.length, afterQ.length);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {Array.from({ length: n }, (_, qi) => {
+        const bq = beforeQ[qi], aq = afterQ[qi];
+        if (!aq) return <div key={qi} style={{ fontSize: 11.5, color: '#F87171', textDecoration: 'line-through' }}>{qi + 1}. {bq.q} (întrebare ștearsă)</div>;
+        if (!bq) return <div key={qi} style={{ fontSize: 11.5, color: '#4ADE80' }}>{qi + 1}. {aq.q} (întrebare nouă)</div>;
+        return (
+          <div key={qi} style={{ background: '#0F0C1C', borderRadius: 10, padding: 10 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}><DiffText before={bq.q} after={aq.q} /></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {aq.options.map((o, oi) => (
+                <div key={oi} style={{ fontSize: 11.5, color: oi === aq.correctIdx ? '#4ADE80' : '#C7C8E0' }}>
+                  {oi === aq.correctIdx ? '✓ ' : ''}<DiffText before={bq.options[oi] || ''} after={o} />
+                  {bq.correctIdx !== aq.correctIdx && oi === bq.correctIdx && <span style={{ color: '#F87171', marginLeft: 6, fontSize: 10.5 }}>(nu mai e răspunsul corect)</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 function WallView({ student, classmates, isParentView }) {
   usePresenceTick();
   const [posts, setPosts] = useState([]);
@@ -4398,9 +4592,9 @@ function BossBattleBar({ classId }) {
   );
 }
 
-function StudentTestCreator({ student, onDone, onCancel }) {
-  const [title, setTitle] = useState('');
-  const [questions, setQuestions] = useState([{ q: '', options: ['', '', '', ''], correctIdx: 0 }]);
+function StudentTestCreator({ student, editingTest, onDone, onCancel }) {
+  const [title, setTitle] = useState(editingTest ? editingTest.title : '');
+  const [questions, setQuestions] = useState(editingTest ? editingTest.questions.map(q => ({ ...q, options: [...q.options] })) : [{ q: '', options: ['', '', '', ''], correctIdx: 0 }]);
 
   function updateQ(i, field, value) {
     setQuestions(qs => qs.map((q, idx) => idx !== i ? q : { ...q, [field]: value }));
@@ -4419,7 +4613,8 @@ function StudentTestCreator({ student, onDone, onCancel }) {
 
   function publish() {
     if (!isValid) return;
-    createStudentTest(student.classId, student.id, student.name, title, questions);
+    if (editingTest) updateStudentTestContent(editingTest.id, title, questions, undefined);
+    else createStudentTest(student.classId, student.id, student.name, title, questions);
     onDone();
   }
 
@@ -4459,7 +4654,7 @@ function StudentTestCreator({ student, onDone, onCancel }) {
       <button onClick={publish} disabled={!isValid} style={{
         width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: isValid ? 'pointer' : 'not-allowed', marginTop: 16,
         background: isValid ? 'linear-gradient(135deg, #EC1E8F, #9B3CE0)' : '#221D3A', color: isValid ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 14,
-      }}>Publică testul</button>
+      }}>{editingTest ? '💾 Salvează modificările' : 'Publică testul'}</button>
     </div>
   );
 }
@@ -4520,10 +4715,12 @@ function StudentTestsView({ student, classId, onEarnReward }) {
   const [tests, setTests] = useState([]);
   const [mode, setMode] = useState('list');
   const [playingTest, setPlayingTest] = useState(null);
+  const [editingTest, setEditingTest] = useState(null);
+  const [showCorrectionDiffId, setShowCorrectionDiffId] = useState(null);
   useEffect(() => { const unsub = listenStudentTests(classId, setTests); return unsub; }, [classId]);
 
   if (mode === 'create') {
-    return <StudentTestCreator student={student} onDone={() => setMode('list')} onCancel={() => setMode('list')} />;
+    return <StudentTestCreator student={student} editingTest={editingTest} onDone={() => { setMode('list'); setEditingTest(null); }} onCancel={() => { setMode('list'); setEditingTest(null); }} />;
   }
   if (playingTest) {
     return <StudentTestTaker test={playingTest} onExit={() => setPlayingTest(null)} onFinish={(score, answers) => {
@@ -4548,12 +4745,37 @@ function StudentTestsView({ student, classId, onEarnReward }) {
           const taken = (t.takenBy || []).includes(student.id);
           const isMine = t.authorId === student.id;
           return (
-            <div key={t.id} style={{ background: '#151225', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{t.title} {t.reactions && t.reactions.teacher && <span title="Reacția profesorului">{t.reactions.teacher}</span>}</div>
-                <div style={{ fontSize: 11, color: '#6E6A8C' }}>de {t.authorName}{isMine ? ' (tu)' : ''} · {t.questions.length} întrebări{taken ? ' · făcut deja' : ''}</div>
+            <div key={t.id} style={{ background: '#151225', borderRadius: 12, padding: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{t.title} {t.reactions && t.reactions.teacher && <span title="Reacția profesorului">{t.reactions.teacher}</span>}</div>
+                  <div style={{ fontSize: 11, color: '#6E6A8C' }}>de {t.authorName}{isMine ? ' (tu)' : ''} · {t.questions.length} întrebări{taken ? ' · făcut deja' : ''}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {isMine && (
+                    <button onClick={() => { setEditingTest(t); setMode('create'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 11, fontWeight: 700 }}>✏️ Editează</button>
+                  )}
+                  <button onClick={() => setPlayingTest(t)} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontSize: 11, fontWeight: 700 }}>Joacă</button>
+                </div>
               </div>
-              <button onClick={() => setPlayingTest(t)} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Joacă</button>
+              {isMine && t.teacherNote && (
+                <div style={{ marginTop: 8, background: 'rgba(245,197,66,0.08)', border: '1px solid rgba(245,197,66,0.4)', borderRadius: 8, padding: '8px 10px', fontSize: 11.5, color: '#F5C542' }}>
+                  ✏️ Notă de la profesor: {t.teacherNote}
+                </div>
+              )}
+              {isMine && t.lastCorrectionBefore && (
+                <div style={{ marginTop: 8 }}>
+                  <button onClick={() => setShowCorrectionDiffId(id => id === t.id ? null : t.id)} style={{
+                    background: 'none', border: '1px solid rgba(56,189,248,0.5)', borderRadius: 8, padding: '5px 10px', color: '#38BDF8', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  }}>🔍 {showCorrectionDiffId === t.id ? 'Ascunde' : 'Vezi'} ce a schimbat profesorul {showCorrectionDiffId === t.id ? '▲' : '▼'}</button>
+                  {showCorrectionDiffId === t.id && (
+                    <div style={{ marginTop: 8 }}>
+                      <TestCorrectionDiff before={t.lastCorrectionBefore} after={t.questions} />
+                      <p style={{ fontSize: 10, color: '#6E6A8C', marginTop: 6 }}><span style={{ color: '#F87171', textDecoration: 'line-through' }}>roșu</span> = șters sau greșit · <span style={{ color: '#4ADE80' }}>verde</span> = adăugat de profesor</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -5405,6 +5627,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       { id: 'stickers', icon: '🎫', group: 'acasa' },
       { id: 'parentwall', icon: '👪', group: 'social' },
       { id: 'parentacademic', icon: '📚', group: 'acasa' },
+      ...(isParentView ? [{ id: 'parentjourney', icon: '🗓️', group: 'acasa' }] : []),
     ] : []),
   ].filter(t => !(isParentView && HIDDEN_FOR_PARENT.includes(t.id))).map(t => ({ ...t, label: mt.tabs[t.id] || t.id }));
   const TAB_GROUPS = ['acasa', 'social', 'distractie', 'aurabuddy', 'clasamente', 'finante', 'progres'];
@@ -5581,6 +5804,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
 
       {tab === 'wall' && <WallView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'parentwall' && isParentView && <ParentWallView student={student} />}
+      {tab === 'parentjourney' && isParentView && <AcademicJourneyView student={student} />}
       {tab === 'parentacademic' && isParentView && (() => {
         const readArticles = student.readArticles || [];
         return (
@@ -7617,6 +7841,22 @@ function TeacherApp({ onExit, teacherName }) {
   const [showStudentTests, setShowStudentTests] = useState(false);
   const [expandedStudentTestId, setExpandedStudentTestId] = useState(null);
   const [previewStudentTest, setPreviewStudentTest] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  function openTestPreview(t) {
+    setPreviewStudentTest(t);
+    setEditDraft({ title: t.title, questions: t.questions.map(q => ({ ...q, options: [...q.options] })), teacherNote: t.teacherNote || '' });
+  }
+  function draftUpdateQ(qi, field, value) {
+    setEditDraft(d => ({ ...d, questions: d.questions.map((q, i) => i !== qi ? q : { ...q, [field]: value }) }));
+  }
+  function draftUpdateOpt(qi, oi, value) {
+    setEditDraft(d => ({ ...d, questions: d.questions.map((q, i) => i !== qi ? q : { ...q, options: q.options.map((o, j) => j !== oi ? o : value) }) }));
+  }
+  function saveTeacherCorrection() {
+    if (!previewStudentTest || !editDraft) return;
+    updateStudentTestContent(previewStudentTest.id, editDraft.title, editDraft.questions, editDraft.teacherNote, { title: previewStudentTest.title, questions: previewStudentTest.questions });
+    setPreviewStudentTest(null); setEditDraft(null);
+  }
   const [expandedStudentResultKey, setExpandedStudentResultKey] = useState(null);
   const [studentTestsList, setStudentTestsList] = useState([]);
   useEffect(() => {
@@ -8381,7 +8621,7 @@ function TeacherApp({ onExit, teacherName }) {
                     return (
                     <div key={t.id} style={{ background: '#0F0C1C', borderRadius: 10, padding: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                      <div onClick={() => setPreviewStudentTest(t)} style={{ minWidth: 0, cursor: 'pointer' }}>
+                      <div onClick={() => openTestPreview(t)} style={{ minWidth: 0, cursor: 'pointer' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textDecoration: 'underline', textDecorationColor: 'transparent' }}>👁️ {t.title}</div>
                         <div style={{ fontSize: 10, color: '#6E6A8C' }}>de {t.authorName} · {t.questions.length} întrebări · făcut de {(t.takenBy||[]).length} elevi{(t.takenBy||[]).length === 0 ? ' · corectarea apare după ce un elev îl face' : ''} · apasă titlul ca să vezi testul</div>
                       </div>
@@ -8394,11 +8634,7 @@ function TeacherApp({ onExit, teacherName }) {
                           }} style={{ background: opened ? 'rgba(56,189,248,0.14)' : 'none', border: '1px solid #38BDF8', borderRadius: 8, padding: '4px 8px', color: '#38BDF8', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
                             ✏️ Corectează ({results.length}) {opened ? '▲' : '▼'}
                           </button>
-                        ) : (
-                          <span title="Corectarea apare aici după ce un elev face testul" style={{ border: '1px solid #2E2850', borderRadius: 8, padding: '4px 8px', color: '#4A4666', fontSize: 10.5, fontWeight: 700 }}>
-                            ✏️ Corectează
-                          </span>
-                        )}
+                        ) : null}
                       <QuickReact reactions={t.reactions} myKey="teacher" onSet={e => toggleStudentTestReaction(t.id, e)} onClear={() => removeStudentTestReaction(t.id)} />
                       <button onClick={() => { if (window.confirm('Ștergi acest test?')) deleteStudentTest(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F87171', display: 'flex', flexShrink: 0 }}><IX size={14}/></button>
                     </div>
@@ -9215,31 +9451,50 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
-      {previewStudentTest && (
-        <div onClick={() => setPreviewStudentTest(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
+      {previewStudentTest && editDraft && (
+        <div onClick={() => { setPreviewStudentTest(null); setEditDraft(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#151225', borderRadius: 16, padding: 24, maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto', border: '1px solid #2E2850' }} className="scrollbar">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>📝 {previewStudentTest.title}</h3>
-              <button onClick={() => setPreviewStudentTest(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>✏️ Corectează testul</h3>
+              <button onClick={() => { setPreviewStudentTest(null); setEditDraft(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
             </div>
-            <p style={{ fontSize: 11.5, color: '#6E6A8C', margin: '0 0 16px' }}>Creat de {previewStudentTest.authorName} · {previewStudentTest.questions.length} întrebări · răspunsul corect e marcat cu ✓</p>
+            <p style={{ fontSize: 11.5, color: '#6E6A8C', margin: '0 0 16px' }}>Creat de {previewStudentTest.authorName} · poți schimba textul întrebărilor, variantele de răspuns și care e cea corectă (apasă pe o variantă ca s-o marchezi corectă).</p>
+            <input value={editDraft.title} onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))} placeholder="Titlul testului"
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, fontWeight: 700, marginBottom: 14 }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {previewStudentTest.questions.map((q, qi) => (
+              {editDraft.questions.map((q, qi) => (
                 <div key={qi} style={{ background: '#0F0C1C', borderRadius: 12, padding: 14 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>{qi + 1}. {q.q}</div>
+                  <div style={{ fontSize: 11, color: '#6E6A8C', marginBottom: 4 }}>Întrebarea {qi + 1}</div>
+                  <input value={q.q} onChange={e => draftUpdateQ(qi, 'q', e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13, fontWeight: 600, marginBottom: 8 }} />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {q.options.map((o, oi) => (
-                      <div key={oi} style={{
-                        fontSize: 12.5, padding: '7px 10px', borderRadius: 8,
-                        background: oi === q.correctIdx ? 'rgba(74,222,128,0.14)' : '#151225',
-                        border: oi === q.correctIdx ? '1px solid rgba(74,222,128,0.5)' : '1px solid transparent',
-                        color: oi === q.correctIdx ? '#4ADE80' : '#C7C8E0', fontWeight: oi === q.correctIdx ? 700 : 500,
-                      }}>{oi === q.correctIdx ? '✓ ' : ''}{o}</div>
+                      <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button onClick={() => draftUpdateQ(qi, 'correctIdx', oi)} title="Marchează drept corectă" style={{
+                          flexShrink: 0, width: 26, height: 26, borderRadius: '50%', cursor: 'pointer',
+                          border: oi === q.correctIdx ? '2px solid #4ADE80' : '2px solid #2E2850',
+                          background: oi === q.correctIdx ? 'rgba(74,222,128,0.18)' : 'transparent', color: '#4ADE80', fontSize: 13, fontWeight: 800,
+                        }}>{oi === q.correctIdx ? '✓' : ''}</button>
+                        <input value={o} onChange={e => draftUpdateOpt(qi, oi, e.target.value)} style={{
+                          flex: 1, padding: '7px 10px', borderRadius: 8, fontSize: 12.5,
+                          background: oi === q.correctIdx ? 'rgba(74,222,128,0.10)' : '#151225',
+                          border: oi === q.correctIdx ? '1px solid rgba(74,222,128,0.5)' : '1px solid transparent',
+                          color: oi === q.correctIdx ? '#4ADE80' : '#C7C8E0', fontWeight: oi === q.correctIdx ? 700 : 500,
+                        }} />
+                      </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 11, color: '#6E6A8C', marginBottom: 6 }}>Notă pentru {previewStudentTest.authorName} (opțional — o vede la testul lui)</div>
+              <textarea value={editDraft.teacherNote} onChange={e => setEditDraft(d => ({ ...d, teacherNote: e.target.value }))} rows={2} placeholder="Ex: Am corectat răspunsul la întrebarea 2, verifică și tu."
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12.5, resize: 'vertical', fontFamily: 'inherit' }} />
+            </div>
+            <button onClick={saveTeacherCorrection} style={{ marginTop: 16, width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #4ADE80, #38BDF8)', color: '#0B0A14', fontWeight: 800, fontSize: 13 }}>
+              💾 Salvează corecturile
+            </button>
           </div>
         </div>
       )}
@@ -10205,7 +10460,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.100';
+const APP_VERSION = 'v2.107';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -11706,9 +11961,11 @@ function Root() {
   function handleJudgeResolveCard(cardId, targetStudentId, approved, catalogId, label, emoji, price) {
     if (isParentSession) return;
     if (approved) {
+      const newCard = { id: uid(), catalogId, label, emoji, amount: price, date: new Date().toISOString() };
       const next = students.map(s => s.id !== targetStudentId ? s : {
         ...s,
-        cardDebts: [...(s.cardDebts || []), { id: uid(), catalogId, label, emoji, amount: price, date: new Date().toISOString() }],
+        cardDebts: [...(s.cardDebts || []), newCard],
+        cardHistory: [{ ...newCard, paidDate: null, paidVia: null }, ...(s.cardHistory || [])],   // arhivă permanentă — rămâne și după ce cartonașul e achitat
       });
       persistStudentsLocal(next, students);
     }
@@ -11849,6 +12106,7 @@ function Root() {
         ...s,
         points: s.points - amount,
         cardDebts: (s.cardDebts || []).filter(d => d.id !== debtId),
+        cardHistory: (s.cardHistory || []).map(h => h.id === debtId ? { ...h, paidDate: new Date().toISOString(), paidVia: 'Puncte' } : h),
         pointsLog: [{ id: uid(), delta: -amount, reason: `Plată: ${debt ? debt.label : 'cartonaș'}`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
       };
     });
@@ -11866,6 +12124,7 @@ function Root() {
         ...s,
         stickers: s.stickers.filter(x => x.id !== entry.id),
         cardDebts: (s.cardDebts || []).filter(d => d.id !== debtId),
+        cardHistory: (s.cardHistory || []).map(h => h.id === debtId ? { ...h, paidDate: new Date().toISOString(), paidVia: name } : h),
         pointsLog: [{ id: uid(), delta: 0, reason: `Plată cu ${name}: ${debt.label}`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
       };
     });
@@ -11884,6 +12143,7 @@ function Root() {
         ...s,
         stickers: s.stickers.filter(x => !spentIds.includes(x.id)),
         cardDebts: (s.cardDebts || []).filter(d => !paidIds.includes(d.id)),
+        cardHistory: (s.cardHistory || []).map(h => paidIds.includes(h.id) ? { ...h, paidDate: new Date().toISOString(), paidVia: 'Yellow Wildcard' } : h),
         pointsLog: [{ id: uid(), delta: 0, reason: `Plată cu ${n} × Yellow Wildcard (${n} cartonașe anulate deodată)`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
       };
     });

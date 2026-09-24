@@ -2545,6 +2545,14 @@ async function markStudentTestTaken(testId, studentId, studentName, answers) {
     results: firebase.firestore.FieldValue.arrayUnion({ studentId, studentName, answers: answers || [], date: new Date().toISOString() }),
   }).catch(() => {});
 }
+async function toggleStudentTestReaction(testId, emoji) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_student_tests').doc(testId).update({ [`reactions.teacher`]: emoji }).catch(() => {});
+}
+async function removeStudentTestReaction(testId) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_student_tests').doc(testId).update({ [`reactions.teacher`]: firebase.firestore.FieldValue.delete() }).catch(() => {});
+}
 async function overrideStudentTestAnswer(testId, currentResults, studentId, qIndex, isCorrect) {
   const db = getDb(); if (!db) return;
   const next = (currentResults || []).map(r => r.studentId !== studentId ? r : { ...r, overrides: { ...(r.overrides || {}), [qIndex]: isCorrect } });
@@ -4224,6 +4232,29 @@ function BoardView({ student, classmates, isParentView }) {
     </div>
   );
 }
+function QuickReact({ reactions, myKey, onSet, onClear }) {
+  const [open, setOpen] = useState(false);
+  const mine = reactions ? reactions[myKey] : null;
+  const emojis = ['👍', '❤️', '😍', '🎉', '👏'];
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button onClick={() => setOpen(v => !v)} title="Reacționează" style={{
+        background: mine ? 'rgba(236,30,143,0.14)' : 'none', border: mine ? '1px solid rgba(236,30,143,0.5)' : '1px solid #2E2850', borderRadius: 8,
+        padding: '4px 8px', cursor: 'pointer', fontSize: 13, color: mine ? '#EC1E8F' : '#6E6A8C',
+      }}>{mine || '🤍'}</button>
+      {open && (
+        <div onClick={e => e.stopPropagation()} style={{
+          position: 'absolute', bottom: '110%', right: 0, zIndex: 20, display: 'flex', gap: 4, background: '#151225', border: '1px solid #2E2850',
+          borderRadius: 16, padding: '5px 7px', boxShadow: '0 8px 24px rgba(0,0,0,.5)', whiteSpace: 'nowrap',
+        }}>
+          {emojis.map(e => (
+            <button key={e} onClick={() => { if (e === mine) onClear(); else onSet(e); setOpen(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, opacity: mine === e ? 1 : 0.8 }}>{e}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function WallView({ student, classmates, isParentView }) {
   usePresenceTick();
   const [posts, setPosts] = useState([]);
@@ -4507,7 +4538,7 @@ function StudentTestsView({ student, classId, onEarnReward }) {
           return (
             <div key={t.id} style={{ background: '#151225', borderRadius: 12, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{t.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{t.title} {t.reactions && t.reactions.teacher && <span title="Reacția profesorului">{t.reactions.teacher}</span>}</div>
                 <div style={{ fontSize: 11, color: '#6E6A8C' }}>de {t.authorName}{isMine ? ' (tu)' : ''} · {t.questions.length} întrebări{taken ? ' · făcut deja' : ''}</div>
               </div>
               <button onClick={() => setPlayingTest(t)} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Joacă</button>
@@ -7582,6 +7613,11 @@ function TeacherApp({ onExit, teacherName }) {
     return unsub;
   }, [showStudentTests, activeClassId]);
   const [sidebarPresence, setSidebarPresence] = useState({});
+  const [presenceTick, setPresenceTick] = useState(0);
+  useEffect(() => {                                    // reevaluează "online acum" periodic — altfel un elev deconectat rămâne verde pe ecran până apare oricum un alt re-render
+    const iv = setInterval(() => setPresenceTick(t => t + 1), 20000);
+    return () => clearInterval(iv);
+  }, []);
   useEffect(() => {
     const unsub = listenPresence(list => setSidebarPresence(Object.fromEntries(list.map(p => [p.studentId, p]))));
     return unsub;
@@ -8302,6 +8338,7 @@ function TeacherApp({ onExit, teacherName }) {
                                 <span style={{ fontSize: 12, fontWeight: 700, color: p.isTeacher ? '#F5C542' : '#C7C8E0' }}>{p.isTeacher ? '👩‍🏫 ' : ''}{p.authorName}</span>
                                 <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                   <span style={{ fontSize: 10, color: '#6E6A8C' }}>{new Date(p.date).toLocaleString('ro-RO')}</span>
+                                  <QuickReact reactions={p.reactions} myKey="teacher" onSet={e => toggleWallReaction(p.id, 'teacher', e)} onClear={() => removeWallReaction(p.id, 'teacher')} />
                                   <button onClick={() => { if (window.confirm('Ștergi acest mesaj?')) deleteWallPost(p.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6E6A8C', display: 'flex' }}><IX size={12}/></button>
                                 </span>
                               </div>
@@ -8338,10 +8375,15 @@ function TeacherApp({ onExit, teacherName }) {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                         {results.length > 0 && (
-                          <button onClick={() => setExpandedStudentTestId(opened ? null : t.id)} style={{ background: 'none', border: '1px solid #2E2850', borderRadius: 8, padding: '4px 8px', color: '#38BDF8', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
-                            👁 {results.length} {opened ? '▲' : '▼'}
+                          <button onClick={() => {
+                            const next = opened ? null : t.id;
+                            setExpandedStudentTestId(next);
+                            if (next && results.length === 1) setExpandedStudentResultKey(t.id + '_' + results[0].studentId);
+                          }} style={{ background: opened ? 'rgba(56,189,248,0.14)' : 'none', border: '1px solid #38BDF8', borderRadius: 8, padding: '4px 8px', color: '#38BDF8', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>
+                            ✏️ Corectează ({results.length}) {opened ? '▲' : '▼'}
                           </button>
                         )}
+                      <QuickReact reactions={t.reactions} myKey="teacher" onSet={e => toggleStudentTestReaction(t.id, e)} onClear={() => removeStudentTestReaction(t.id)} />
                       <button onClick={() => { if (window.confirm('Ștergi acest test?')) deleteStudentTest(t.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F87171', display: 'flex', flexShrink: 0 }}><IX size={14}/></button>
                     </div>
                       </div>
@@ -10147,7 +10189,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.096';
+const APP_VERSION = 'v2.097';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

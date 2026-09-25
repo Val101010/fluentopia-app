@@ -4175,6 +4175,7 @@ function buildAcademicTimeline(student) {
   });
   (student.attendance || []).forEach(a => {
     if (a.status === 'absent') items.push({ date: a.date, kind: 'absence' });
+    if (a.type === 'individual') items.push({ date: a.date, kind: 'individual_lesson', module: a.module });
   });
   (student.stickers || []).forEach(entry => {
     const g = /^good([1-7])$/.exec(entry.stickerId);
@@ -4201,6 +4202,9 @@ function TimelineItem({ it }) {
   } else if (it.kind === 'card_issued') {
     icon = it.isRed ? '🟥' : '🟨'; color = '#8A86A8';   // discret — părinții sunt interesați mai ales de calificative
     text = it.label;
+  } else if (it.kind === 'individual_lesson') {
+    icon = '👤'; color = '#8B5CF6';
+    text = <>Lecție individuală — <b>{it.module || 'Modul'}</b></>;
   } else if (it.kind === 'absence') {
     icon = '🪑'; color = '#8A86A8';
     text = 'Absență (-10 puncte)';
@@ -7911,6 +7915,18 @@ function TeacherApp({ onExit, teacherName }) {
   const [showLeads, setShowLeads] = useState(false);
   const [showAcademicAdmin, setShowAcademicAdmin] = useState(false);
   const [showDjPanel, setShowDjPanel] = useState(false);
+  const [showWaitSlide, setShowWaitSlide] = useState(false);
+  const [waitMinutes, setWaitMinutes] = useState(30);
+  const [waitSecondsLeft, setWaitSecondsLeft] = useState(null);
+  const [waitRunning, setWaitRunning] = useState(false);
+  useEffect(() => {
+    if (!waitRunning) return;
+    const iv = setInterval(() => setWaitSecondsLeft(s => {
+      if (s === null || s <= 1) { setWaitRunning(false); return 0; }
+      return s - 1;
+    }), 1000);
+    return () => clearInterval(iv);
+  }, [waitRunning]);
   const [djQueue, setDjQueue] = useState([]);
   const [djMinutes, setDjMinutes] = useState(10);
   const [djSecondsLeft, setDjSecondsLeft] = useState(null);
@@ -8006,6 +8022,10 @@ function TeacherApp({ onExit, teacherName }) {
   }, []);
   const [showAttendance, setShowAttendance] = useState(false);
   const [attendanceViewMode, setAttendanceViewMode] = useState('mark');
+  const [individualStudentId, setIndividualStudentId] = useState('');
+  const [individualModule, setIndividualModule] = useState('M1');
+  const [individualDate, setIndividualDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [individualDone, setIndividualDone] = useState(null);
   const [showRolesWheel, setShowRolesWheel] = useState(false);
   const [showEndWheel, setShowEndWheel] = useState(false);
   const [showRosterOverview, setShowRosterOverview] = useState(false);
@@ -8373,9 +8393,9 @@ function TeacherApp({ onExit, teacherName }) {
   function setAttendance(studentId, date, status) {
     updateStudents(prev => prev.map(s => {
       if (s.id !== studentId) return s;
-      const prevRec = (s.attendance || []).find(a => a.date === date);
+      const prevRec = (s.attendance || []).find(a => a.date === date && !a.type);
       const wasAlreadyAbsent = prevRec && prevRec.status === 'absent';
-      const rest = (s.attendance || []).filter(a => a.date !== date);
+      const rest = (s.attendance || []).filter(a => !(a.date === date && !a.type));
       let next = { ...s, attendance: [...rest, { date, status }] };
       if (status === 'absent' && !wasAlreadyAbsent) {                // -10 puncte + abțibild de absență, o singură dată per zi
         next = {
@@ -8386,6 +8406,13 @@ function TeacherApp({ onExit, teacherName }) {
         };
       }
       return next;
+    }));
+  }
+  function markIndividualLesson(studentId, date, module) {           // lecție individuală (recuperare) — separată de prezența pe toată clasa, nu se suprapun
+    updateStudents(prev => prev.map(s => {
+      if (s.id !== studentId) return s;
+      const rest = (s.attendance || []).filter(a => !(a.date === date && a.type === 'individual'));
+      return { ...s, attendance: [...rest, { date, status: 'present', type: 'individual', module }] };
     }));
   }
   function issueCardDebt(catalogId) {
@@ -8588,6 +8615,10 @@ function TeacherApp({ onExit, teacherName }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
               }}>🎧 DJ for a Day</button>
+              <button onClick={() => setShowWaitSlide(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
+              }}>⏳ Slide de așteptare</button>
             </div>
           )}
         </div>
@@ -9422,8 +9453,49 @@ function TeacherApp({ onExit, teacherName }) {
                 flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
                 background: attendanceViewMode === 'history' ? 'linear-gradient(135deg, #38BDF8, #4ADE80)' : '#0F0C1C', color: attendanceViewMode === 'history' ? '#0B0A14' : '#8A86A8',
               }}>📊 Istoric</button>
+              <button onClick={() => setAttendanceViewMode('individual')} style={{
+                flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: attendanceViewMode === 'individual' ? 'linear-gradient(135deg, #9B3CE0, #8B5CF6)' : '#0F0C1C', color: attendanceViewMode === 'individual' ? '#fff' : '#8A86A8',
+              }}>👤 Individuală</button>
             </div>
-            {attendanceViewMode === 'mark' ? (
+            {attendanceViewMode === 'individual' ? (
+              <div>
+                <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Pentru lecțiile 1-la-1 (recuperări) — nu afectează prezența pe toată clasa și apare separat, în Parcurs Academic, la părinte.</p>
+                <div style={{ fontSize: 11, color: '#6E6A8C', marginBottom: 5 }}>Elev</div>
+                <select value={individualStudentId} onChange={e => setIndividualStudentId(e.target.value)} style={{
+                  width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, marginBottom: 12,
+                }}>
+                  <option value="">Alege elevul…</option>
+                  {classStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: '#6E6A8C', marginBottom: 5 }}>Modul</div>
+                    <select value={individualModule} onChange={e => setIndividualModule(e.target.value)} style={{
+                      width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13,
+                    }}>
+                      {Array.from({ length: 12 }, (_, i) => `M${i + 1}`).map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: '#6E6A8C', marginBottom: 5 }}>Data</div>
+                    <input type="date" value={individualDate} onChange={e => setIndividualDate(e.target.value)} style={{
+                      width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, boxSizing: 'border-box',
+                    }} />
+                  </div>
+                </div>
+                <button onClick={() => {
+                  if (!individualStudentId) return;
+                  markIndividualLesson(individualStudentId, individualDate, individualModule);
+                  setIndividualDone(classStudents.find(s => s.id === individualStudentId)?.name);
+                  setTimeout(() => setIndividualDone(null), 3000);
+                }} disabled={!individualStudentId} style={{
+                  width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: individualStudentId ? 'pointer' : 'default',
+                  background: individualStudentId ? 'linear-gradient(135deg, #9B3CE0, #8B5CF6)' : '#221D3A', color: individualStudentId ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 13,
+                }}>✓ Înregistrează prezența individuală</button>
+                {individualDone && <p style={{ fontSize: 12, color: '#4ADE80', marginTop: 10, textAlign: 'center' }}>✓ Salvat pentru {individualDone}.</p>}
+              </div>
+            ) : attendanceViewMode === 'mark' ? (
               <>
             <input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} style={{
               width: '100%', padding: '10px 12px', borderRadius: 10, marginBottom: 16, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13,
@@ -9909,6 +9981,66 @@ function TeacherApp({ onExit, teacherName }) {
         const roster = classStudents.map(s => ({ id: s.id, name: s.name, present: (s.attendance || []).some(a => a.date === today && a.status === 'present') }));
         return <EndLessonWheel students={present} roster={roster} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
       })()}
+      {showWaitSlide && (() => {
+        const mm = waitSecondsLeft === null ? waitMinutes : Math.floor(waitSecondsLeft / 60);
+        const ss = waitSecondsLeft === null ? 0 : waitSecondsLeft % 60;
+        const clsName = (classes.find(c => c.id === activeClassId) || {}).name || '';
+        return (
+          <div onClick={() => setShowWaitSlide(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={1100} baseH={620} style={{
+              position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 20% 10%, rgba(155,60,224,0.22), transparent 55%), radial-gradient(ellipse at 80% 90%, rgba(56,189,248,0.14), transparent 55%), #0B0A14',
+              borderRadius: 26, padding: 44, boxShadow: '0 25px 70px rgba(0,0,0,.6)',
+            }}>
+              <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6, zIndex: 2 }}>
+                <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
+                <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}><IX size={16}/></button>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 46, height: 46, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+                    boxShadow: '0 4px 18px rgba(155,60,224,.5)',
+                  }}>
+                    <img src="icon-192.png" alt="Fluentopia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <span className="heading-font" style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>FLUENTOPIA</span>
+                </div>
+                {clsName && <span style={{ fontSize: 14, fontWeight: 800, color: '#8A86A8', letterSpacing: 1, marginTop: 10 }}>CLASS {clsName.toUpperCase()}</span>}
+              </div>
+
+              <div style={{ textAlign: 'center', margin: '18px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 6 }}>
+                  <span style={{ fontSize: 46, color: '#F5C542' }}>«</span>
+                  <span className="heading-font" style={{ fontSize: 96, fontWeight: 900, color: '#F5C542', letterSpacing: 2, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 40px rgba(245,197,66,.35)' }}>
+                    {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 4 }}>
+                  {!waitRunning ? (
+                    <button onClick={() => { setWaitSecondsLeft(waitSecondsLeft === null ? waitMinutes * 60 : waitSecondsLeft); setWaitRunning(true); }} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>▶ Pornește</button>
+                  ) : (
+                    <button onClick={() => setWaitRunning(false)} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 13 }}>⏸ Pauză</button>
+                  )}
+                  <button onClick={() => { setWaitRunning(false); setWaitSecondsLeft(null); }} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 13 }}>↺ Reset</button>
+                  <input type="number" min="1" max="90" value={waitMinutes} onChange={e => setWaitMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={waitRunning} style={{ width: 56, padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13 }} />
+                  <span style={{ fontSize: 12, color: '#6E6A8C', alignSelf: 'center' }}>min</span>
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'center', marginBottom: 26 }}>
+                <div className="heading-font" style={{ fontSize: 26, fontWeight: 800, color: '#fff' }}>Următoarea lecție începe în</div>
+                <div style={{ fontSize: 16, fontStyle: 'italic', color: '#8A86A8', marginTop: 2 }}>Next lesson starting in</div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 26 }}>
+                {PET_SPECIES.map(sp => (
+                  <img key={sp.id} src={sp.stages[2]} alt={sp.name} style={{ width: 84, height: 84, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${sp.color}55)` }} />
+                ))}
+              </div>
+            </PresentationBox>
+          </div>
+        );
+      })()}
       {showDjPanel && (() => {
         const current = djQueue[0];
         const upcoming = djQueue.slice(1);
@@ -9933,9 +10065,11 @@ function TeacherApp({ onExit, teacherName }) {
               <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{
-                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19,
-                    background: 'linear-gradient(135deg, #EC1E8F, #9B3CE0, #38BDF8)', boxShadow: '0 4px 16px rgba(155,60,224,.5)',
-                  }}>🌐</div>
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+                    boxShadow: '0 4px 16px rgba(155,60,224,.5)',
+                  }}>
+                    <img src="icon-192.png" alt="Fluentopia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
                   <div>
                     <div className="heading-font" style={{ fontSize: 18, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(90deg,#fff,#C7C8E0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>FLUENTOPIA™</div>
                     <div style={{ fontSize: 12.5, color: '#8B5CF6', fontWeight: 700, letterSpacing: 0.5 }}>🎧 DJ FOR A DAY</div>
@@ -10730,7 +10864,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.114';
+const APP_VERSION = 'v2.116';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

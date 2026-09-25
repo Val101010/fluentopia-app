@@ -9914,26 +9914,42 @@ function TeacherApp({ onExit, teacherName }) {
         const upcoming = djQueue.slice(1);
         const mm = djSecondsLeft === null ? djMinutes : Math.floor(djSecondsLeft / 60);
         const ss = djSecondsLeft === null ? 0 : djSecondsLeft % 60;
+        const currentStudent = current ? classStudents.find(s => s.id === current.studentId) : null;
         return (
           <div onClick={() => setShowDjPanel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <PresentationBox onClick={e => e.stopPropagation()} baseW={760} baseH={720} style={{
-              background: 'radial-gradient(ellipse at top, rgba(139,92,246,0.16), transparent 60%), #151225', border: '1px solid rgba(139,92,246,0.4)',
-              borderRadius: 24, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={800} baseH={800} style={{
+              position: 'relative', overflow: 'hidden',
+              backgroundImage: 'linear-gradient(#12101F, #0D0B18), linear-gradient(135deg, #EC1E8F, #9B3CE0, #8B5CF6, #38BDF8)',
+              backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box', border: '1px solid transparent',
+              borderRadius: 28, padding: 30, boxShadow: '0 25px 70px rgba(139,92,246,.25)',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span className="heading-font" style={{ fontSize: 20, fontWeight: 900, background: 'linear-gradient(90deg,#EC1E8F,#9B3CE0,#8B5CF6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FLUENTOPIA™</span>
-                  <span style={{ fontSize: 15, color: '#8A86A8' }}>🎧 DJ for a Day</span>
+              <style>{`
+                @keyframes djGlowPulse { 0%,100% { opacity: .5; transform: scale(1); } 50% { opacity: .85; transform: scale(1.06); } }
+                @keyframes djEq { 0%,100% { height: 30%; } 50% { height: 100%; } }
+              `}</style>
+              <div style={{ position: 'absolute', top: -120, right: -100, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.28), transparent 70%)', pointerEvents: 'none' }}></div>
+              <div style={{ position: 'absolute', bottom: -140, left: -100, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(236,30,143,0.20), transparent 70%)', pointerEvents: 'none' }}></div>
+
+              <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19,
+                    background: 'linear-gradient(135deg, #EC1E8F, #9B3CE0, #38BDF8)', boxShadow: '0 4px 16px rgba(155,60,224,.5)',
+                  }}>🌐</div>
+                  <div>
+                    <div className="heading-font" style={{ fontSize: 18, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(90deg,#fff,#C7C8E0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>FLUENTOPIA™</div>
+                    <div style={{ fontSize: 12.5, color: '#8B5CF6', fontWeight: 700, letterSpacing: 0.5 }}>🎧 DJ FOR A DAY</div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button>
+                  <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
                   <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, background: '#0F0C1C', borderRadius: 16, padding: '14px 20px', marginBottom: 18 }}>
-                <span style={{ fontSize: 22 }}>⏱️</span>
-                <span className="heading-font" style={{ fontSize: 34, fontWeight: 800, color: djRunning ? '#4ADE80' : '#F5C542', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '13px 20px', marginBottom: 18 }}>
+                <span style={{ fontSize: 20 }}>⏱️</span>
+                <span className="heading-font" style={{ fontSize: 32, fontWeight: 800, color: djRunning ? '#4ADE80' : '#F5C542', fontVariantNumeric: 'tabular-nums' }}>
                   {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
                 </span>
                 {!djRunning ? (
@@ -9947,29 +9963,48 @@ function TeacherApp({ onExit, teacherName }) {
               </div>
 
               {current ? (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #2E2850', aspectRatio: '16/9', background: '#000' }}>
-                    <iframe key={current.videoId} width="100%" height="100%" src={`https://www.youtube.com/embed/${current.videoId}?autoplay=1`} title="DJ for a Day" frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen></iframe>
+                <div style={{ position: 'relative', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,.55), transparent 70%)', animation: 'djGlowPulse 1.8s ease-in-out infinite' }}></div>
+                      <div style={{ position: 'relative' }}>
+                        <Avatar name={current.studentName} avatar={currentStudent && currentStudent.avatar} frame={currentStudent && currentStudent.avatarFrame} size={62} />
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+                        <span style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 12 }}>
+                          {[0, 0.15, 0.3].map(d => <span key={d} style={{ width: 3, background: '#4ADE80', borderRadius: 2, animation: `djEq 0.9s ${d}s ease-in-out infinite` }}></span>)}
+                        </span>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, color: '#4ADE80', letterSpacing: 1 }}>ACUM CÂNTĂ</span>
+                      </div>
+                      <div className="heading-font" style={{ fontSize: 24, fontWeight: 900, color: '#fff', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{current.studentName}</div>
+                      <div style={{ fontSize: 12, color: '#8B5CF6', fontWeight: 700 }}>🎧 DJ for a Day</div>
+                    </div>
+                    <button onClick={() => removeDjRequest(activeClassId, new Date().toISOString().slice(0, 10), djQueue, current.id)} style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.5)', cursor: 'pointer', background: 'rgba(139,92,246,0.14)', color: '#C4B5FD', fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>⏭ Următoarea</button>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-                    <span style={{ fontSize: 13, color: '#C7C8E0' }}>🎧 DJ: <b style={{ color: '#8B5CF6' }}>{current.studentName}</b></span>
-                    <button onClick={() => removeDjRequest(activeClassId, new Date().toISOString().slice(0, 10), djQueue, current.id)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 12, fontWeight: 700 }}>⏭ Următoarea melodie</button>
+                  <div style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', aspectRatio: '16/9', background: '#000', boxShadow: '0 10px 40px rgba(139,92,246,.25)' }}>
+                    <iframe key={current.videoId} width="100%" height="100%" src={`https://www.youtube.com/embed/${current.videoId}?autoplay=1&rel=0&modestbranding=1`} title="DJ for a Day" frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen></iframe>
                   </div>
+                  <p style={{ fontSize: 10.5, color: '#6E6A8C', marginTop: 8, textAlign: 'center' }}>Unele videoclipuri pot avea o reclamă scurtă de YouTube înainte — nu putem controla asta din aplicație.</p>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: '30px 0' }}>Niciun elev n-a trimis încă o melodie azi.</div>
+                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: '40px 0' }}>Niciun elev n-a trimis încă o melodie azi.</div>
               )}
 
               {upcoming.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11.5, color: '#6E6A8C', marginBottom: 8 }}>Urmează:</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {upcoming.map(q => (
-                      <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0F0C1C', borderRadius: 10, padding: '7px 10px' }}>
-                        <img src={`https://img.youtube.com/vi/${q.videoId}/default.jpg`} alt="" style={{ width: 40, height: 30, borderRadius: 6, objectFit: 'cover' }} />
-                        <span style={{ fontSize: 12, color: '#C7C8E0' }}>{q.studentName}</span>
-                      </div>
-                    ))}
+                <div style={{ position: 'relative' }}>
+                  <div style={{ fontSize: 11.5, color: '#6E6A8C', marginBottom: 8, fontWeight: 700, letterSpacing: 0.5 }}>URMEAZĂ</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {upcoming.map(q => {
+                      const qStudent = classStudents.find(s => s.id === q.studentId);
+                      return (
+                        <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '7px 12px 7px 7px' }}>
+                          <Avatar name={q.studentName} avatar={qStudent && qStudent.avatar} frame={qStudent && qStudent.avatarFrame} size={30} />
+                          <span style={{ fontSize: 12.5, color: '#C7C8E0', fontWeight: 600 }}>{q.studentName}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -10695,7 +10730,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.113';
+const APP_VERSION = 'v2.114';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

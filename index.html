@@ -2103,12 +2103,15 @@ async function updateExplorePlayerPos(classId, mapId, studentId, data) {
   const db = getDb(); if (!db) return;
   const patch = {};                                             // scriem fiecare câmp pe calea lui exactă — nu atinge alte câmpuri (ex: frozenUntil pus de altcineva)
   Object.keys(data).forEach(k => { patch[`players.${studentId}.${k}`] = data[k]; });
-  await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`).set(patch, { merge: true }).catch(() => {});
+  const ref = db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`);
+  try { await ref.update(patch); }
+  catch (e) { await ref.set({ players: { [studentId]: data } }, { merge: true }).catch(() => {}); }  // documentul camerei nu exista încă — îl creează
 }
 async function freezeExplorePlayer(classId, mapId, targetStudentId, frozenUntil) {
   const db = getDb(); if (!db) return;
-  await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
-    .set({ [`players.${targetStudentId}.frozenUntil`]: frozenUntil }, { merge: true }).catch(() => {});
+  const ref = db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`);
+  try { await ref.update({ [`players.${targetStudentId}.frozenUntil`]: frozenUntil }); }
+  catch (e) { await ref.set({ players: { [targetStudentId]: { frozenUntil } } }, { merge: true }).catch(() => {}); }
 }
 async function removeExplorePlayer(classId, mapId, studentId) {
   const db = getDb(); if (!db) return;
@@ -2795,7 +2798,7 @@ const MENU_STRINGS = {
   ro: {
     groups: { acasa: 'Acasă', social: 'Social', distractie: 'Distracție', aurabuddy: 'Aura Buddy', clasamente: 'Clasamente', finante: 'Finanțe', progres: 'Progres' },
     tabs: {
-      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day', explore: 'Harta Exploratorilor',
+      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day', explore: 'Fluentcraft',
       wall: 'Wall', messages: 'Mesaje', board: 'Tablă', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Jocuri', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Clasament clasă', globalrank: 'Clasamente Fluentopia',
@@ -2807,7 +2810,7 @@ const MENU_STRINGS = {
   en: {
     groups: { acasa: 'Home', social: 'Social', distractie: 'Fun', aurabuddy: 'Aura Buddy', clasamente: 'Leaderboards', finante: 'Money', progres: 'Progress' },
     tabs: {
-      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day', explore: 'Explorer Map',
+      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day', explore: 'Fluentcraft',
       wall: 'Wall', messages: 'Messages', board: 'Board', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Games', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Class Leaderboard', globalrank: 'Fluentopia Leaderboards',
@@ -4380,6 +4383,12 @@ function DjRequestView({ student, onConsumeDjSticker }) {
 }
 /* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
 const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!'];
+const WAIT_MUSIC_TRACKS = [                                     // alese de profesor, royalty-free (EMW) — nu sunt îmbinate într-o singură piesă, se aleg pe rând
+  { id: 'u2qF9ZWIt3Q', label: 'Ambient exploratori' },
+  { id: 'UoxZ4403hDc', label: 'Vesel, energic' },
+  { id: 'ZzLXJUzyLzQ', label: 'Business, calm' },
+  { id: 'wsinz56ghsk', label: 'Pozitiv, ușor' },
+];
 const EXPLORE_QUESTIONS = [
   { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
   { q: 'Cum se spune „câine" în engleză?', options: ['Cat', 'Bird', 'Dog', 'Fish'], correctIdx: 2 },
@@ -4549,12 +4558,12 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   function onAnswerChest(correct) {
     setOpenedChests(o => ({ ...o, [activeChest.key]: true }));
     onOpenChest(activeChest.key);
-    if (correct) onEarnReward(5, 'Cufăr — Harta Exploratorilor');
+    if (correct) onEarnReward(5, 'Cufăr — Fluentcraft');
     setActiveChest(null);
   }
   return (
     <div>
-      <SectionHeader icon="🗺️" title="Harta Exploratorilor" color="#8B5CF6" />
+      <SectionHeader icon="🗺️" title="Fluentcraft" color="#8B5CF6" />
       <p style={{ fontSize: 12, color: '#8A86A8', margin: '-8px 0 10px' }}>Mișcă-te cu săgețile sau cu butoanele de jos. Deschide cuferele, găsește ușa spre altă hartă!</p>
       {liveOtherPlayers.length > 0 && (
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.4)', borderRadius: 20, padding: '5px 12px', marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: '#4ADE80' }}>
@@ -4589,11 +4598,13 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
               }}>
                 {emoji}
                 {pos.x === x && pos.y === y && (
-                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s ease', boxShadow: `0 0 0 2px ${isFrozen ? '#38BDF8' : '#8B5CF6'}, 0 0 10px ${isFrozen ? 'rgba(56,189,248,.8)' : 'rgba(139,92,246,.7)'}`, filter: isFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
-                    <Avatar name={student.name} avatar={student.avatar} frame={student.avatarFrame} size={34} />
-                    {isFrozen && <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(56,189,248,0.25)' }}>❄️</span>}
+                  <div style={{ position: 'absolute', inset: 2 }}>
+                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s ease', boxShadow: `0 0 0 2px ${isFrozen ? '#38BDF8' : '#8B5CF6'}, 0 0 10px ${isFrozen ? 'rgba(56,189,248,.8)' : 'rgba(139,92,246,.7)'}`, filter: isFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
+                      <Avatar name={student.name} avatar={student.avatar} frame={student.avatarFrame} size={34} />
+                      {isFrozen && <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(56,189,248,0.25)' }}>❄️</span>}
+                    </div>
                     {myBubble && (
-                      <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', background: '#fff', color: '#151225', borderRadius: 10, padding: '3px 7px', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(0,0,0,.4)', zIndex: 8 }}>{myBubble}</div>
+                      <div style={{ position: 'absolute', bottom: '125%', left: '50%', transform: 'translateX(-50%)', background: '#fff', color: '#151225', borderRadius: 10, padding: '4px 9px', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(0,0,0,.4)', zIndex: 9 }}>{myBubble}</div>
                     )}
                   </div>
                 )}
@@ -4602,12 +4613,14 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
                   const pFrozen = p.frozenUntil && new Date(p.frozenUntil).getTime() > Date.now();
                   const pBubbleFresh = p.bubble && (Date.now() - new Date(p.bubble.sentAt).getTime()) < 4000;
                   return (
-                    <div key={pid} style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .3s ease', boxShadow: `0 0 0 2px ${pFrozen ? '#38BDF8' : ringColor}, 0 0 8px ${pFrozen ? 'rgba(56,189,248,.8)' : ringColor + '99'}`, filter: pFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
-                      <Avatar name={p.name} avatar={p.avatar} frame={p.avatarFrame} size={34} />
-                      {pFrozen && <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(56,189,248,0.25)' }}>❄️</span>}
+                    <div key={pid} style={{ position: 'absolute', inset: 2, zIndex: 4 }}>
+                      <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .3s ease', boxShadow: `0 0 0 2px ${pFrozen ? '#38BDF8' : ringColor}, 0 0 8px ${pFrozen ? 'rgba(56,189,248,.8)' : ringColor + '99'}`, filter: pFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
+                        <Avatar name={p.name} avatar={p.avatar} frame={p.avatarFrame} size={34} />
+                        {pFrozen && <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(56,189,248,0.25)' }}>❄️</span>}
+                      </div>
                       <div style={{ position: 'absolute', top: -15, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 800, color: ringColor, whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{p.name}</div>
                       {pBubbleFresh && (
-                        <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', background: '#fff', color: '#151225', borderRadius: 10, padding: '3px 7px', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(0,0,0,.4)', zIndex: 8 }}>{p.bubble.text}</div>
+                        <div style={{ position: 'absolute', bottom: '125%', left: '50%', transform: 'translateX(-50%)', background: '#fff', color: '#151225', borderRadius: 10, padding: '4px 9px', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(0,0,0,.4)', zIndex: 9 }}>{p.bubble.text}</div>
                       )}
                     </div>
                   );
@@ -6606,6 +6619,8 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                           if (p > 0) { onListSticker(entry.id, sticker.id, p); setListingEntryId(null); setListingPrice(''); }
                         }} style={{ width: '100%', padding: '4px 0', borderRadius: 6, border: 'none', background: '#4ADE80', color: '#0B0A14', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Listează</button>
                       </div>
+                    ) : ['ticket', 'ticket2', 'ticket3'].includes(sticker.id) ? (
+                      <div style={{ fontSize: 10, color: '#4A4666', fontStyle: 'italic' }}>Doar cumpărat — nu se vinde</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <button onClick={() => { setListingEntryId(entry.id); setListingPrice(String(maxPrice)); }} style={{
@@ -7290,7 +7305,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 3 }}>🪑 100 Scaune Zburătoare</div>
-                <div style={{ fontSize: 11, color: '#B8B4D6' }}>80 pts · le folosești pe Harta Exploratorilor — {student.chairsCount || 0} rămase acum</div>
+                <div style={{ fontSize: 11, color: '#B8B4D6' }}>80 pts · le folosești în Fluentcraft — {student.chairsCount || 0} rămase acum</div>
               </div>
               <button onClick={onBuyChairs} disabled={student.points < 80} style={{
                 padding: '10px 18px', borderRadius: 10, border: 'none', cursor: student.points >= 80 ? 'pointer' : 'not-allowed',
@@ -8274,6 +8289,8 @@ function TeacherApp({ onExit, teacherName }) {
   const [showAcademicAdmin, setShowAcademicAdmin] = useState(false);
   const [showDjPanel, setShowDjPanel] = useState(false);
   const [showWaitSlide, setShowWaitSlide] = useState(false);
+  const [waitMusicOn, setWaitMusicOn] = useState(false);
+  const [waitMusicTrack, setWaitMusicTrack] = useState(0);
   const [showExploreSpectator, setShowExploreSpectator] = useState(false);
   const [exploreSpectatorMap, setExploreSpectatorMap] = useState('forest');
   const [waitMinutes, setWaitMinutes] = useState(30);
@@ -8437,6 +8454,21 @@ function TeacherApp({ onExit, teacherName }) {
     seenTeacherWarningsRef.current = todayClassWarnings.length;
   }, [todayClassWarnings, showRolesWheel]);
   const [showTeacherTools, setShowTeacherTools] = useState(false);
+  const [warningGivenFeedback, setWarningGivenFeedback] = useState(null);
+  const [toolOrder, setToolOrder] = useState(() => {
+    try { const saved = localStorage.getItem(`fluentopia-tool-order-${teacherName}`); return saved ? JSON.parse(saved) : null; } catch (e) { return null; }
+  });
+  const [toolLabels, setToolLabels] = useState(() => {
+    try { const saved = localStorage.getItem(`fluentopia-tool-labels-${teacherName}`); return saved ? JSON.parse(saved) : {}; } catch (e) { return {}; }
+  });
+  const [renamingTool, setRenamingTool] = useState(null);        // { id, value }
+  const [dragToolId, setDragToolId] = useState(null);
+  function saveToolOrder(next) { setToolOrder(next); try { localStorage.setItem(`fluentopia-tool-order-${teacherName}`, JSON.stringify(next)); } catch (e) {} }
+  function saveToolLabel(id, label) { const next = { ...toolLabels, [id]: label }; setToolLabels(next); try { localStorage.setItem(`fluentopia-tool-labels-${teacherName}`, JSON.stringify(next)); } catch (e) {} }
+  function resetToolCustomization() {
+    setToolOrder(null); setToolLabels({});
+    try { localStorage.removeItem(`fluentopia-tool-order-${teacherName}`); localStorage.removeItem(`fluentopia-tool-labels-${teacherName}`); } catch (e) {}
+  }
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0,10));
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [scheduleDraft, setScheduleDraft] = useState('');
@@ -8765,6 +8797,15 @@ function TeacherApp({ onExit, teacherName }) {
           stickers: [...(next.stickers || []), { id: uid(), stickerId: 'absence', date: new Date().toISOString() }],
           pointsLog: [{ id: uid(), delta: -10, reason: `Absență — ${new Date(date).toLocaleDateString('ro-RO')}`, date: new Date().toISOString() }, ...(next.pointsLog || [])],
         };
+      } else if (status === 'present' && wasAlreadyAbsent) {          // corectare: îi dăm înapoi cele 10 puncte și scutul de absență
+        const absenceStickers = (next.stickers || []).filter(x => x.stickerId === 'absence');
+        const lastAbsenceSticker = absenceStickers[absenceStickers.length - 1];
+        next = {
+          ...next,
+          points: next.points + 10,
+          stickers: lastAbsenceSticker ? next.stickers.filter(x => x.id !== lastAbsenceSticker.id) : next.stickers,
+          pointsLog: [{ id: uid(), delta: 10, reason: `Corectare — absență anulată (${new Date(date).toLocaleDateString('ro-RO')})`, date: new Date().toISOString() }, ...(next.pointsLog || [])],
+        };
       }
       return next;
     }));
@@ -8898,94 +8939,96 @@ function TeacherApp({ onExit, teacherName }) {
             <span>⚙️ Unelte profesor</span>
             <span style={{ fontSize: 11, opacity: 0.6 }}>{showTeacherTools ? '▲' : '▼'}</span>
           </button>
-          {showTeacherTools && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-              <button onClick={() => setShowTestManager(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>📝 Gestionează teste</button>
-              <button onClick={() => setShowPasswordsManager(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>🛡️ Security</button>
-              <button onClick={() => setShowAttendance(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>📋 Prezență</button>
-              <button onClick={() => setShowRolesWheel(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>🎲 Șef & Judecător de azi</button>
-              <button onClick={() => setShowEndWheel(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg, rgba(245,197,66,0.16), rgba(236,30,143,0.14))', color: '#F5C542', fontSize: 12.5, fontWeight: 700, textAlign: 'left',
-              }}>🎡 Roata de final de lecție</button>
-              <button onClick={() => setShowRosterOverview(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>👥 Elevi prezenți &amp; abțibilduri</button>
-              <button onClick={() => setShowBulkPoints(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>🎁 Puncte pentru toată clasa</button>
-              <button onClick={() => setShowAppStats(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>📊 Statistici Aplicație (reale)</button>
-              <button onClick={() => { setEditingAnnouncement(v => !v); setAnnouncementDraft(announcement); }} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>📢 Anunț (bandă derulantă)</button>
-              {editingAnnouncement && (
-                <div style={{ background: '#0F0C1C', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <textarea value={announcementDraft} onChange={e => setAnnouncementDraft(e.target.value)} placeholder="Anunț vizibil tuturor elevilor, din toate clasele..."
-                    rows={3} style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12, resize: 'vertical' }} />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={saveAnnouncement} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#9B3CE0', color: '#fff', fontSize: 11, fontWeight: 700 }}>Salvează</button>
-                    <button onClick={() => { setAnnouncementDraft(''); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 11 }}>Golește</button>
-                  </div>
-                </div>
-              )}
-              <button onClick={() => { setEditingClassAnnouncement(v => !v); setClassAnnouncementDraft(classAnnouncements[activeClassId] || ''); }} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>📣 Anunț doar pentru {classes.find(c => c.id === activeClassId)?.name || 'clasa activă'}</button>
-              {editingClassAnnouncement && (
-                <div style={{ background: '#0F0C1C', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <textarea value={classAnnouncementDraft} onChange={e => setClassAnnouncementDraft(e.target.value)} placeholder={`Anunț vizibil doar elevilor din clasa "${classes.find(c => c.id === activeClassId)?.name || ''}"...`}
-                    rows={3} style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12, resize: 'vertical' }} />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={saveClassAnnouncement} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#38BDF8', color: '#0B0A14', fontSize: 11, fontWeight: 700 }}>Salvează</button>
-                    <button onClick={() => { setClassAnnouncementDraft(''); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 11 }}>Golește</button>
-                  </div>
-                </div>
-              )}
-              <button onClick={() => setShowChatModeration(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>💬 Moderare Chat</button>
-              <button onClick={() => setShowLeads(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left', position: 'relative',
-              }}>🎁 Înscrieri din Demo {leads.filter(l => !l.contacted).length > 0 && <span style={{ background: '#EC1E8F', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800, marginLeft: 'auto' }}>{leads.filter(l => !l.contacted).length}</span>}</button>
-              <button onClick={() => setShowAcademicAdmin(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>📚 Articole Academic</button>
-              <button onClick={() => setShowDjPanel(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>🎧 DJ for a Day</button>
-              <button onClick={() => setShowWaitSlide(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>⏳ Slide de așteptare</button>
-              <button onClick={() => setShowExploreSpectator(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
-              }}>🗺️ Harta Exploratorilor (privește)</button>
-            </div>
-          )}
+          {showTeacherTools && (() => {
+            const TEACHER_TOOLS_DEFAULT = [
+              { id: 'tests', icon: '📝', label: 'Gestionează teste', onClick: () => setShowTestManager(true) },
+              { id: 'security', icon: '🛡️', label: 'Security', onClick: () => setShowPasswordsManager(true) },
+              { id: 'attendance', icon: '📋', label: 'Prezență', onClick: () => setShowAttendance(true) },
+              { id: 'roles', icon: '🎲', label: 'Șef & Judecător de azi', onClick: () => setShowRolesWheel(true) },
+              { id: 'endwheel', icon: '🎡', label: 'Roata de final de lecție', onClick: () => setShowEndWheel(true), highlight: true },
+              { id: 'roster', icon: '👥', label: 'Elevi prezenți & abțibilduri', onClick: () => setShowRosterOverview(true) },
+              { id: 'bulkpoints', icon: '🎁', label: 'Puncte pentru toată clasa', onClick: () => setShowBulkPoints(true) },
+              { id: 'stats', icon: '📊', label: 'Statistici Aplicație (reale)', onClick: () => setShowAppStats(true) },
+              { id: 'announcement', icon: '📢', label: 'Anunț (bandă derulantă)', onClick: () => { setEditingAnnouncement(v => !v); setAnnouncementDraft(announcement); } },
+              { id: 'classAnnouncement', icon: '📣', label: `Anunț doar pentru ${classes.find(c => c.id === activeClassId)?.name || 'clasa activă'}`, onClick: () => { setEditingClassAnnouncement(v => !v); setClassAnnouncementDraft(classAnnouncements[activeClassId] || ''); } },
+              { id: 'chat', icon: '💬', label: 'Moderare Chat', onClick: () => setShowChatModeration(true) },
+              { id: 'leads', icon: '🎁', label: 'Înscrieri din Demo', onClick: () => setShowLeads(true), badge: leads.filter(l => !l.contacted).length },
+              { id: 'academic', icon: '📚', label: 'Articole Academic', onClick: () => setShowAcademicAdmin(true) },
+              { id: 'dj', icon: '🎧', label: 'DJ for a Day', onClick: () => setShowDjPanel(true) },
+              { id: 'wait', icon: '⏳', label: 'Slide de așteptare', onClick: () => setShowWaitSlide(true) },
+              { id: 'explore', icon: '🗺️', label: 'Fluentcraft (privește)', onClick: () => setShowExploreSpectator(true) },
+            ];
+            const orderedTools = toolOrder
+              ? toolOrder.map(id => TEACHER_TOOLS_DEFAULT.find(t => t.id === id)).filter(Boolean).concat(TEACHER_TOOLS_DEFAULT.filter(t => !toolOrder.includes(t.id)))
+              : TEACHER_TOOLS_DEFAULT;
+            function handleDrop(targetId) {
+              if (!dragToolId || dragToolId === targetId) { setDragToolId(null); return; }
+              const currentOrder = orderedTools.map(t => t.id);
+              const from = currentOrder.indexOf(dragToolId), to = currentOrder.indexOf(targetId);
+              const next = [...currentOrder]; next.splice(from, 1); next.splice(to, 0, dragToolId);
+              saveToolOrder(next); setDragToolId(null);
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                <div style={{ fontSize: 9.5, color: '#4A4666', padding: '0 12px 2px' }}>Trage ca să reordonezi · dublu-click ca să redenumești</div>
+                {orderedTools.map(tool => (
+                  <React.Fragment key={tool.id}>
+                    <button
+                      draggable
+                      onDragStart={() => setDragToolId(tool.id)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => handleDrop(tool.id)}
+                      onDoubleClick={e => { e.stopPropagation(); setRenamingTool({ id: tool.id, value: toolLabels[tool.id] || tool.label }); }}
+                      onClick={() => { if (renamingTool?.id !== tool.id) tool.onClick(); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: dragToolId ? 'grabbing' : 'pointer',
+                        background: tool.highlight ? 'linear-gradient(135deg, rgba(245,197,66,0.16), rgba(236,30,143,0.14))' : '#151225',
+                        color: tool.highlight ? '#F5C542' : '#C7C8E0', fontSize: 12.5, fontWeight: tool.highlight ? 700 : 600, textAlign: 'left',
+                        opacity: dragToolId === tool.id ? 0.4 : 1, position: 'relative',
+                      }}>
+                      <span>{tool.icon}</span>
+                      {renamingTool?.id === tool.id ? (
+                        <input
+                          autoFocus value={renamingTool.value}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => setRenamingTool({ id: tool.id, value: e.target.value })}
+                          onBlur={() => { saveToolLabel(tool.id, renamingTool.value.trim() || tool.label); setRenamingTool(null); }}
+                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setRenamingTool(null); }}
+                          style={{ flex: 1, background: '#0F0C1C', border: '1px solid #8B5CF6', borderRadius: 6, color: '#fff', fontSize: 12, padding: '3px 6px' }}
+                        />
+                      ) : (
+                        <span>{toolLabels[tool.id] || tool.label}</span>
+                      )}
+                      {tool.badge > 0 && <span style={{ background: '#EC1E8F', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800, marginLeft: 'auto' }}>{tool.badge}</span>}
+                    </button>
+                    {tool.id === 'announcement' && editingAnnouncement && (
+                      <div style={{ background: '#0F0C1C', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <textarea value={announcementDraft} onChange={e => setAnnouncementDraft(e.target.value)} placeholder="Anunț vizibil tuturor elevilor, din toate clasele..."
+                          rows={3} style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12, resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={saveAnnouncement} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#9B3CE0', color: '#fff', fontSize: 11, fontWeight: 700 }}>Salvează</button>
+                          <button onClick={() => { setAnnouncementDraft(''); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 11 }}>Golește</button>
+                        </div>
+                      </div>
+                    )}
+                    {tool.id === 'classAnnouncement' && editingClassAnnouncement && (
+                      <div style={{ background: '#0F0C1C', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <textarea value={classAnnouncementDraft} onChange={e => setClassAnnouncementDraft(e.target.value)} placeholder={`Anunț vizibil doar elevilor din clasa "${classes.find(c => c.id === activeClassId)?.name || ''}"...`}
+                          rows={3} style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12, resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button onClick={saveClassAnnouncement} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#38BDF8', color: '#0B0A14', fontSize: 11, fontWeight: 700 }}>Salvează</button>
+                          <button onClick={() => { setClassAnnouncementDraft(''); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 11 }}>Golește</button>
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+                {(toolOrder || Object.keys(toolLabels).length > 0) && (
+                  <button onClick={resetToolCustomization} style={{ background: 'none', border: 'none', color: '#6E6A8C', fontSize: 10.5, cursor: 'pointer', textAlign: 'left', padding: '4px 12px' }}>↺ Resetează ordinea și numele</button>
+                )}
+              </div>
+            );
+          })()}
         </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px', marginBottom: 8 }}>
@@ -9611,16 +9654,22 @@ function TeacherApp({ onExit, teacherName }) {
 
             {activeTab === 'discipline' && (
               <div>
-                <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Acordă un cartonaș / o regulă încălcată — elevul va trebui să-l plătească din puncte proprii înainte de a accesa Banca sau Jocurile.</div>
+                <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Acordă un cartonaș / o regulă încălcată — elevul va trebui să-l plătească din puncte proprii înainte de a accesa Banca sau Jocurile. Sau dă întâi un avertisment, fără cartonaș.</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8, marginBottom: 24 }}>
                   {CARDS_CATALOG.map(c => (
-                    <button key={c.id} onClick={() => issueCardDebt(c.id)} style={{
-                      padding: '12px 10px', borderRadius: 12, border: '1px solid #2E2850', cursor: 'pointer', background: '#151225', textAlign: 'left',
-                    }}>
-                      <div style={{ marginBottom: 6 }}><RuleIcon ruleId={c.id} emoji={c.emoji} size={44} /></div>
-                      <div style={{ fontSize: 12, color: '#C7C8E0', marginBottom: 4 }}>{c.label}</div>
-                      <div style={{ fontSize: 11, color: '#F5C542', fontWeight: 700 }}>{c.price} pct</div>
-                    </button>
+                    <div key={c.id} style={{ borderRadius: 12, border: '1px solid #2E2850', background: '#151225', overflow: 'hidden' }}>
+                      <button onClick={() => issueCardDebt(c.id)} style={{
+                        width: '100%', padding: '12px 10px 8px', border: 'none', cursor: 'pointer', background: 'transparent', textAlign: 'left',
+                      }}>
+                        <div style={{ marginBottom: 6 }}><RuleIcon ruleId={c.id} emoji={c.emoji} size={44} /></div>
+                        <div style={{ fontSize: 12, color: '#C7C8E0', marginBottom: 4 }}>{c.label}</div>
+                        <div style={{ fontSize: 11, color: '#F5C542', fontWeight: 700 }}>{c.price} pct</div>
+                      </button>
+                      <button onClick={() => { addRuleWarning(activeClassId, new Date().toISOString().slice(0, 10), selectedStudent.id, c.id); setWarningGivenFeedback(c.id); setTimeout(() => setWarningGivenFeedback(null), 2500); }} style={{
+                        width: '100%', padding: '6px 0', border: 'none', borderTop: '1px solid #221D3A', cursor: 'pointer', background: warningGivenFeedback === c.id ? 'rgba(74,222,128,0.15)' : 'rgba(245,197,66,0.08)',
+                        color: warningGivenFeedback === c.id ? '#4ADE80' : '#F5C542', fontSize: 10.5, fontWeight: 700,
+                      }}>{warningGivenFeedback === c.id ? '✓ Avertisment trimis' : '⚠️ Avertisment întâi'}</button>
+                    </div>
                   ))}
                 </div>
                 <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Cartonașe/reguli active (neplătite)</div>
@@ -9910,7 +9959,9 @@ function TeacherApp({ onExit, teacherName }) {
                 return <div style={{ color: '#4A4666', fontSize: 13 }}>Niciun istoric de prezență încă pentru clasa asta.</div>;
               }
               return (
-                <div style={{ overflowX: 'auto' }} className="scrollbar">
+                <div>
+                  <p style={{ fontSize: 11.5, color: '#8A86A8', marginBottom: 10 }}>Apasă pe orice celulă ca să schimbi prezența acelei zile.</p>
+                  <div style={{ overflowX: 'auto' }} className="scrollbar">
                   <table style={{ borderCollapse: 'collapse', fontSize: 11, width: '100%' }}>
                     <thead>
                       <tr>
@@ -9925,15 +9976,20 @@ function TeacherApp({ onExit, teacherName }) {
                         <tr key={s.id}>
                           <td style={{ padding: '6px 8px', color: '#C7C8E0', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: '#151225' }}>{s.name}</td>
                           {allDates.map(d => {
-                            const rec = (s.attendance || []).find(a => a.date === d);
+                            const rec = (s.attendance || []).find(a => a.date === d && !a.type);
                             const symbol = rec?.status === 'present' ? '✓' : rec?.status === 'absent' ? '✗' : '·';
                             const color = rec?.status === 'present' ? '#4ADE80' : rec?.status === 'absent' ? '#F87171' : '#3A3560';
-                            return <td key={d} style={{ textAlign: 'center', padding: '6px 4px', color, fontWeight: 700 }}>{symbol}</td>;
+                            return (
+                              <td key={d} onClick={() => { if (rec) setAttendance(s.id, d, rec.status === 'present' ? 'absent' : 'present'); }} title={rec ? 'Apasă ca să schimbi' : ''} style={{
+                                textAlign: 'center', padding: '6px 4px', color, fontWeight: 700, cursor: rec ? 'pointer' : 'default', borderRadius: 4,
+                              }}>{symbol}</td>
+                            );
                           })}
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               );
             })()}
@@ -10404,13 +10460,13 @@ function TeacherApp({ onExit, teacherName }) {
                 ))}
                 {classStudents.slice(0, 6).map((s, i) => (
                   <div key={s.id} style={{
-                    position: 'absolute', left: `${8 + (i * 15) % 88}%`, bottom: -40, textAlign: 'center', opacity: 0,
+                    position: 'absolute', left: `${8 + (i * 15) % 88}%`, bottom: -46, textAlign: 'center', opacity: 0,
                     animation: `waitAvatarFloat ${13 + (i % 4) * 2}s ${i * 2.3}s linear infinite`,
                   }}>
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 10px rgba(139,92,246,.6)', margin: '0 auto' }}>
-                      <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={30} />
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 14px rgba(139,92,246,.6)', margin: '0 auto' }}>
+                      <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={44} />
                     </div>
-                    <div style={{ fontSize: 8, fontWeight: 800, color: '#C7C8E0', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: '#C7C8E0', marginTop: 3, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
                   </div>
                 ))}
               </div>
@@ -10448,6 +10504,23 @@ function TeacherApp({ onExit, teacherName }) {
                   <input type="number" min="1" max="90" value={waitMinutes} onChange={e => setWaitMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={waitRunning} style={{ width: 56, padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13 }} />
                   <span style={{ fontSize: 12, color: '#6E6A8C', alignSelf: 'center' }}>min</span>
                 </div>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 10 }}>
+                  <button onClick={() => setWaitMusicOn(v => !v)} style={{
+                    padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(139,92,246,0.4)', cursor: 'pointer',
+                    background: waitMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: waitMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11.5, fontWeight: 700,
+                  }}>{waitMusicOn ? '🎵 Muzică pornită' : '🔇 Fără muzică'}</button>
+                  {waitMusicOn && (
+                    <select value={waitMusicTrack} onChange={e => setWaitMusicTrack(Number(e.target.value))} style={{
+                      padding: '6px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', fontSize: 11.5,
+                    }}>
+                      {WAIT_MUSIC_TRACKS.map((t, i) => <option key={t.id} value={i}>{t.label}</option>)}
+                    </select>
+                  )}
+                </div>
+                {waitMusicOn && (
+                  <iframe key={WAIT_MUSIC_TRACKS[waitMusicTrack].id} title="Muzică de fundal" src={`https://www.youtube.com/embed/${WAIT_MUSIC_TRACKS[waitMusicTrack].id}?autoplay=1&loop=1&playlist=${WAIT_MUSIC_TRACKS[waitMusicTrack].id}&controls=0`}
+                    allow="autoplay" style={{ position: 'absolute', width: 2, height: 2, opacity: 0, pointerEvents: 'none' }}></iframe>
+                )}
               </div>
 
               <div style={{ textAlign: 'center', marginBottom: 26 }}>
@@ -10488,7 +10561,7 @@ function TeacherApp({ onExit, teacherName }) {
         <div onClick={() => setShowExploreSpectator(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 22, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto' }} className="scrollbar">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Harta Exploratorilor — {classes.find(c => c.id === activeClassId)?.name}</h3>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Fluentcraft — {classes.find(c => c.id === activeClassId)?.name}</h3>
               <button onClick={() => setShowExploreSpectator(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
             </div>
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Doar urmărești — elevii se mișcă din contul lor.</p>
@@ -10600,13 +10673,13 @@ function TeacherApp({ onExit, teacherName }) {
                     ))}
                     {classStudents.slice(0, 4).map((s, i) => (
                       <div key={s.id} style={{
-                        position: 'absolute', left: `${12 + (i * 22) % 80}%`, bottom: -30, textAlign: 'center', opacity: 0,
+                        position: 'absolute', left: `${12 + (i * 22) % 80}%`, bottom: -36, textAlign: 'center', opacity: 0,
                         animation: `djIdleAvatarFloat ${9 + (i % 3) * 2}s ${i * 1.8}s linear infinite`,
                       }}>
-                        <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 8px rgba(139,92,246,.6)', margin: '0 auto' }}>
-                          <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={24} />
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 10px rgba(139,92,246,.6)', margin: '0 auto' }}>
+                          <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={36} />
                         </div>
-                        <div style={{ fontSize: 7, fontWeight: 800, color: '#C7C8E0', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: '#C7C8E0', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
                       </div>
                     ))}
                   </div>
@@ -11356,7 +11429,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.125';
+const APP_VERSION = 'v2.127';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

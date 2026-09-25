@@ -10023,9 +10023,10 @@ function TeacherApp({ onExit, teacherName }) {
         const mm = waitSecondsLeft === null ? waitMinutes : Math.floor(waitSecondsLeft / 60);
         const ss = waitSecondsLeft === null ? 0 : waitSecondsLeft % 60;
         const clsName = (classes.find(c => c.id === activeClassId) || {}).name || '';
+        const clsAnnouncement = (classAnnouncements && classAnnouncements[activeClassId]) || '';
         return (
           <div onClick={() => setShowWaitSlide(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <PresentationBox onClick={e => e.stopPropagation()} baseW={1100} baseH={620} style={{
+            <PresentationBox onClick={e => e.stopPropagation()} baseW={1100} baseH={700} style={{
               position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 20% 10%, rgba(155,60,224,0.22), transparent 55%), radial-gradient(ellipse at 80% 90%, rgba(56,189,248,0.14), transparent 55%), #0B0A14',
               borderRadius: 26, padding: 44, boxShadow: '0 25px 70px rgba(0,0,0,.6)',
             }}>
@@ -10034,6 +10035,7 @@ function TeacherApp({ onExit, teacherName }) {
                 @keyframes waitTimerGlow { 0%,100% { opacity: .4; transform: scale(1); } 50% { opacity: .8; transform: scale(1.08); } }
                 @keyframes waitPetFloat { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-14px) rotate(3deg); } }
                 @keyframes waitPetGlow { 0%,100% { opacity: .35; } 50% { opacity: .7; } }
+                @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
               `}</style>
               {Array.from({ length: 14 }, (_, i) => (
                 <span key={i} style={{
@@ -10084,7 +10086,7 @@ function TeacherApp({ onExit, teacherName }) {
                 <div style={{ fontSize: 16, fontStyle: 'italic', color: '#8A86A8', marginTop: 2 }}>Next lesson starting in</div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 26 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 26, marginBottom: (announcement && announcement.trim()) || (clsAnnouncement && clsAnnouncement.trim()) ? 22 : 0 }}>
                 {PET_SPECIES.map((sp, i) => (
                   <div key={sp.id} style={{ position: 'relative', animation: `waitPetFloat ${2.6 + i * 0.3}s ${i * 0.25}s ease-in-out infinite` }}>
                     <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', background: `radial-gradient(circle, ${sp.color}66, transparent 70%)`, animation: `waitPetGlow ${2.6 + i * 0.3}s ${i * 0.25}s ease-in-out infinite`, pointerEvents: 'none' }}></div>
@@ -10092,6 +10094,23 @@ function TeacherApp({ onExit, teacherName }) {
                   </div>
                 ))}
               </div>
+
+              {announcement && announcement.trim() && (
+                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #EC1E8F, #9B3CE0)', borderRadius: 10, padding: '9px 0', marginBottom: (clsAnnouncement && clsAnnouncement.trim()) ? 10 : 0 }}>
+                  <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
+                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
+                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
+                  </div>
+                </div>
+              )}
+              {clsAnnouncement && clsAnnouncement.trim() && (
+                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #38BDF8, #4ADE80)', borderRadius: 10, padding: '9px 0' }}>
+                  <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
+                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
+                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
+                  </div>
+                </div>
+              )}
             </PresentationBox>
           </div>
         );
@@ -10919,7 +10938,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.119';
+const APP_VERSION = 'v2.120';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

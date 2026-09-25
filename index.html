@@ -2101,8 +2101,14 @@ function listenExplorePlayers(classId, mapId, cb) {
 }
 async function updateExplorePlayerPos(classId, mapId, studentId, data) {
   const db = getDb(); if (!db) return;
+  const patch = {};                                             // scriem fiecare câmp pe calea lui exactă — nu atinge alte câmpuri (ex: frozenUntil pus de altcineva)
+  Object.keys(data).forEach(k => { patch[`players.${studentId}.${k}`] = data[k]; });
+  await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`).set(patch, { merge: true }).catch(() => {});
+}
+async function freezeExplorePlayer(classId, mapId, targetStudentId, frozenUntil) {
+  const db = getDb(); if (!db) return;
   await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
-    .set({ players: { [studentId]: data } }, { merge: true }).catch(() => {});
+    .set({ [`players.${targetStudentId}.frozenUntil`]: frozenUntil }, { merge: true }).catch(() => {});
 }
 async function removeExplorePlayer(classId, mapId, studentId) {
   const db = getDb(); if (!db) return;
@@ -4373,6 +4379,7 @@ function DjRequestView({ student, onConsumeDjSticker }) {
   );
 }
 /* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
+const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!'];
 const EXPLORE_QUESTIONS = [
   { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
   { q: 'Cum se spune „câine" în engleză?', options: ['Cat', 'Bird', 'Dog', 'Fish'], correctIdx: 2 },
@@ -4442,12 +4449,17 @@ function ExploreChestModal({ question, onAnswer, onClose }) {
     </div>
   );
 }
-function MapExploreView({ student, onEarnReward }) {
+function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   const [mapId, setMapId] = useState('forest');
   const [pos, setPos] = useState(() => buildExploreMap('forest').start);
   const [activeChest, setActiveChest] = useState(null);
-  const [openedChests, setOpenedChests] = useState({});
+  const [openedChests, setOpenedChests] = useState(() => {
+    const obj = {}; (student.exploreOpenedChests || []).forEach(k => { obj[k] = true; }); return obj;
+  });
   const [otherPlayers, setOtherPlayers] = useState({});
+  const [myRoomData, setMyRoomData] = useState(null);            // propria intrare din cameră — ca să văd dacă altcineva m-a "înghețat"
+  const [myBubble, setMyBubble] = useState(null);
+  const [showMsgPicker, setShowMsgPicker] = useState(false);
   const [tick, setTick] = useState(0);                          // reevaluează periodic cine mai e "online" pe hartă
   const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
   const prevRoomRef = useRef(null);                              // camera (clasă+hartă) pe care tocmai am părăsit-o, ca s-o curățăm
@@ -4456,6 +4468,7 @@ function MapExploreView({ student, onEarnReward }) {
     const unsub = listenExplorePlayers(student.classId, mapId, players => {
       const copy = { ...players }; delete copy[student.id];
       setOtherPlayers(copy);
+      setMyRoomData(players[student.id] || null);
     });
     return unsub;
   }, [student.classId, mapId]);
@@ -4482,10 +4495,29 @@ function MapExploreView({ student, onEarnReward }) {
   }, [mapId, student.classId, student.id]);
 
   useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 15000); return () => clearInterval(iv); }, []);
+  useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(iv); }, []);   // rapid, doar ca "înghețat" să se dezactiveze exact la timp
   const liveOtherPlayers = Object.entries(otherPlayers).filter(([, p]) => p.lastSeen && (Date.now() - new Date(p.lastSeen).getTime()) < 60000);
+  const myFrozenUntil = myRoomData && myRoomData.frozenUntil ? new Date(myRoomData.frozenUntil).getTime() : 0;
+  const isFrozen = myFrozenUntil > Date.now();
+  const freezeSecondsLeft = isFrozen ? Math.ceil((myFrozenUntil - Date.now()) / 1000) : 0;
+  const nearbyTarget = liveOtherPlayers.find(([, p]) => Math.abs(p.x - pos.x) <= 1 && Math.abs(p.y - pos.y) <= 1);
+  function throwChairAt(targetId, targetName) {
+    if ((student.chairsCount || 0) < 1) return;
+    onThrowChair(targetName);
+    freezeExplorePlayer(student.classId, mapId, targetId, new Date(Date.now() + 8000).toISOString());
+  }
 
+  function sendBubble(text) {
+    setMyBubble(text);
+    updateExplorePlayerPos(student.classId, mapId, student.id, {
+      x: pos.x, y: pos.y, name: student.name, avatar: student.avatar || null, avatarFrame: student.avatarFrame || null,
+      lastSeen: new Date().toISOString(), bubble: { text, sentAt: new Date().toISOString() },
+    });
+    setShowMsgPicker(false);
+    setTimeout(() => setMyBubble(null), 4000);
+  }
   function tryMove(dx, dy) {
-    if (activeChest) return;
+    if (activeChest || isFrozen) return;
     setPos(prev => {
       const nx = prev.x + dx, ny = prev.y + dy;
       if (nx < 0 || ny < 0 || nx >= EXPLORE_COLS || ny >= EXPLORE_ROWS) return prev;
@@ -4516,6 +4548,7 @@ function MapExploreView({ student, onEarnReward }) {
   });
   function onAnswerChest(correct) {
     setOpenedChests(o => ({ ...o, [activeChest.key]: true }));
+    onOpenChest(activeChest.key);
     if (correct) onEarnReward(5, 'Cufăr — Harta Exploratorilor');
     setActiveChest(null);
   }
@@ -4528,6 +4561,17 @@ function MapExploreView({ student, onEarnReward }) {
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', boxShadow: '0 0 6px #4ADE80' }}></span>
           {liveOtherPlayers.length} {liveOtherPlayers.length === 1 ? 'explorator' : 'exploratori'} pe hartă acum
         </div>
+      )}
+      {isFrozen && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.5)', borderRadius: 12, padding: '8px 14px', marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: '#38BDF8' }}>
+          ❄️ Ești înghețat! Te dezgheți în {freezeSecondsLeft}s.
+        </div>
+      )}
+      {!isFrozen && nearbyTarget && (student.chairsCount || 0) > 0 && (
+        <button onClick={() => throwChairAt(nearbyTarget[0], nearbyTarget[1].name)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,122,69,0.5)',
+          background: 'rgba(255,122,69,0.14)', color: '#FF7A45', fontSize: 13, fontWeight: 800, cursor: 'pointer', marginBottom: 10,
+        }}>🪑 Aruncă un scaun spre {nearbyTarget[1].name}! ({student.chairsCount} rămase)</button>
       )}
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%', boxShadow: '0 10px 34px rgba(139,92,246,.15)' }}>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EXPLORE_COLS}, 1fr)`, gap: 1, background: '#050409' }}>
@@ -4545,16 +4589,26 @@ function MapExploreView({ student, onEarnReward }) {
               }}>
                 {emoji}
                 {pos.x === x && pos.y === y && (
-                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s ease', boxShadow: '0 0 0 2px #8B5CF6, 0 0 10px rgba(139,92,246,.7)' }}>
+                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s ease', boxShadow: `0 0 0 2px ${isFrozen ? '#38BDF8' : '#8B5CF6'}, 0 0 10px ${isFrozen ? 'rgba(56,189,248,.8)' : 'rgba(139,92,246,.7)'}`, filter: isFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
                     <Avatar name={student.name} avatar={student.avatar} frame={student.avatarFrame} size={34} />
+                    {isFrozen && <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(56,189,248,0.25)' }}>❄️</span>}
+                    {myBubble && (
+                      <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', background: '#fff', color: '#151225', borderRadius: 10, padding: '3px 7px', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(0,0,0,.4)', zIndex: 8 }}>{myBubble}</div>
+                    )}
                   </div>
                 )}
                 {liveOtherPlayers.filter(([, p]) => p.x === x && p.y === y).map(([pid, p], oi) => {
                   const ringColor = ['#38BDF8', '#4ADE80', '#F5C542', '#EC1E8F', '#FF7A45'][Math.abs(pid.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 5];
+                  const pFrozen = p.frozenUntil && new Date(p.frozenUntil).getTime() > Date.now();
+                  const pBubbleFresh = p.bubble && (Date.now() - new Date(p.bubble.sentAt).getTime()) < 4000;
                   return (
-                    <div key={pid} style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .3s ease', boxShadow: `0 0 0 2px ${ringColor}, 0 0 8px ${ringColor}99` }}>
+                    <div key={pid} style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .3s ease', boxShadow: `0 0 0 2px ${pFrozen ? '#38BDF8' : ringColor}, 0 0 8px ${pFrozen ? 'rgba(56,189,248,.8)' : ringColor + '99'}`, filter: pFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
                       <Avatar name={p.name} avatar={p.avatar} frame={p.avatarFrame} size={34} />
+                      {pFrozen && <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: 'rgba(56,189,248,0.25)' }}>❄️</span>}
                       <div style={{ position: 'absolute', top: -15, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 800, color: ringColor, whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{p.name}</div>
+                      {pBubbleFresh && (
+                        <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', background: '#fff', color: '#151225', borderRadius: 10, padding: '3px 7px', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(0,0,0,.4)', zIndex: 8 }}>{p.bubble.text}</div>
+                      )}
                     </div>
                   );
                 })}
@@ -4563,15 +4617,74 @@ function MapExploreView({ student, onEarnReward }) {
           }))}
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, marginTop: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 46px)', gridTemplateRows: 'repeat(3, 46px)', gap: 5 }}>
           <div></div><button onClick={() => tryMove(0, -1)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>▲</button><div></div>
           <button onClick={() => tryMove(-1, 0)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>◀</button><div></div>
           <button onClick={() => tryMove(1, 0)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>▶</button>
           <div></div><button onClick={() => tryMove(0, 1)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>▼</button><div></div>
         </div>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setShowMsgPicker(v => !v)} title="Trimite un mesaj" style={{
+            width: 46, height: 46, borderRadius: 12, border: '1px solid #2E2850', background: showMsgPicker ? 'rgba(139,92,246,0.2)' : '#151225', color: '#C7C8E0', fontSize: 18, cursor: 'pointer',
+          }}>💬</button>
+          {showMsgPicker && (
+            <div style={{
+              position: 'absolute', bottom: '115%', right: 0, background: '#151225', border: '1px solid #2E2850', borderRadius: 14, padding: 10,
+              display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, width: 220, boxShadow: '0 10px 30px rgba(0,0,0,.5)', zIndex: 9,
+            }}>
+              {EXPLORE_QUICK_MESSAGES.map(m => (
+                <button key={m} onClick={() => sendBubble(m)} style={{
+                  padding: '7px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#0F0C1C', color: '#C7C8E0', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>{m}</button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {activeChest && <ExploreChestModal question={activeChest} onAnswer={onAnswerChest} onClose={() => {}} />}
+    </div>
+  );
+}
+function MapSpectatorView({ classId, mapId, tick }) {                // consola profesorului — doar privește, nu se mișcă
+  const [players, setPlayers] = useState({});
+  const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
+  useEffect(() => { const unsub = listenExplorePlayers(classId, mapId, setPlayers); return unsub; }, [classId, mapId]);
+  const live = Object.entries(players).filter(([, p]) => p.lastSeen && (Date.now() - new Date(p.lastSeen).getTime()) < 60000);
+  return (
+    <div>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.4)', borderRadius: 20, padding: '5px 12px', marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: '#4ADE80' }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', boxShadow: '0 0 6px #4ADE80' }}></span>
+        {live.length} {live.length === 1 ? 'explorator' : 'exploratori'} pe {mapId === 'forest' ? 'harta principală' : 'sandbox'}
+      </div>
+      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EXPLORE_COLS}, 1fr)`, gap: 1, background: '#050409' }}>
+          {map.tiles.map((row, y) => row.map((t, x) => {
+            const isChest = map.chests.some(c => c.x === x && c.y === y);
+            const isDoor = map.door.x === x && map.door.y === y;
+            const emoji = isDoor ? '🚪' : isChest ? '📦' : t === 'forest' ? '🌲' : t === 'water' ? '🌊' : '';
+            return (
+              <div key={`${x}_${y}`} style={{
+                aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, position: 'relative',
+                background: isDoor ? 'radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), linear-gradient(160deg,#1B3B22,#132A19)'
+                  : isChest ? 'radial-gradient(circle, rgba(245,197,66,.35), transparent 70%), linear-gradient(160deg,#3A3020,#2A2318)'
+                  : t === 'forest' ? 'linear-gradient(160deg,#12301A,#0D2213)' : t === 'water' ? 'linear-gradient(160deg,#153A5C,#0F2A44)' : 'linear-gradient(160deg,#1B3B22,#132A19)',
+              }}>
+                {emoji}
+                {live.filter(([, p]) => p.x === x && p.y === y).map(([pid, p]) => {
+                  const ringColor = ['#38BDF8', '#4ADE80', '#F5C542', '#EC1E8F', '#FF7A45', '#8B5CF6'][Math.abs(pid.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 6];
+                  return (
+                    <div key={pid} style={{ position: 'absolute', inset: 1, borderRadius: '50%', overflow: 'hidden', zIndex: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .3s ease', boxShadow: `0 0 0 2px ${ringColor}, 0 0 8px ${ringColor}99` }}>
+                      <Avatar name={p.name} avatar={p.avatar} frame={p.avatarFrame} size={30} />
+                      <div style={{ position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)', fontSize: 8, fontWeight: 800, color: ringColor, whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{p.name}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -5634,7 +5747,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   const [newParentPin, setNewParentPin] = useState('');
   const [expandedArticle, setExpandedArticle] = useState(null);
@@ -6180,7 +6293,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       {tab === 'messages' && <MessagesView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'board' && !isParentView && <BoardView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'dj' && !isParentView && <DjRequestView student={student} onConsumeDjSticker={onConsumeDjSticker} />}
-      {tab === 'explore' && !isParentView && <MapExploreView student={student} onEarnReward={onEarnStudentTestReward} />}
+      {tab === 'explore' && !isParentView && <MapExploreView student={student} onEarnReward={onEarnStudentTestReward} onOpenChest={onOpenExploreChest} onThrowChair={onThrowChair} />}
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
@@ -7170,6 +7283,21 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
               background: student.points >= EGG_PRICE ? 'linear-gradient(135deg, #EC1E8F, #9B3CE0)' : '#221D3A', color: student.points >= EGG_PRICE ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 12,
             }}>Cumpără</button>
           </div>
+          {!isParentView && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(255,122,69,0.14), rgba(245,197,66,0.14)), #151225', border: '1px solid rgba(255,122,69,0.35)', borderRadius: 18,
+              padding: '20px 18px', marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 3 }}>🪑 100 Scaune Zburătoare</div>
+                <div style={{ fontSize: 11, color: '#B8B4D6' }}>80 pts · le folosești pe Harta Exploratorilor — {student.chairsCount || 0} rămase acum</div>
+              </div>
+              <button onClick={onBuyChairs} disabled={student.points < 80} style={{
+                padding: '10px 18px', borderRadius: 10, border: 'none', cursor: student.points >= 80 ? 'pointer' : 'not-allowed',
+                background: student.points >= 80 ? 'linear-gradient(135deg, #FF7A45, #F5C542)' : '#221D3A', color: student.points >= 80 ? '#2A1400' : '#5A5570', fontWeight: 700, fontSize: 12,
+              }}>Cumpără</button>
+            </div>
+          )}
           <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 16 }}>Ai {student.points} puncte. Alege un sticker de cumpărat.</div>
           <div style={{ background: 'rgba(245,197,66,0.08)', border: '1px solid rgba(245,197,66,0.3)', borderRadius: 12, padding: 12, marginBottom: 16, fontSize: 11, color: '#F5C542' }}>
             ⛏️ Abțibildele de Minerit (10/15/20/25/30 zile la rând + Coroana Supremă) nu se cumpără — se câștigă doar prin conectare zilnică! Vezi progresul la tab-ul „Acasă".
@@ -8146,6 +8274,8 @@ function TeacherApp({ onExit, teacherName }) {
   const [showAcademicAdmin, setShowAcademicAdmin] = useState(false);
   const [showDjPanel, setShowDjPanel] = useState(false);
   const [showWaitSlide, setShowWaitSlide] = useState(false);
+  const [showExploreSpectator, setShowExploreSpectator] = useState(false);
+  const [exploreSpectatorMap, setExploreSpectatorMap] = useState('forest');
   const [waitMinutes, setWaitMinutes] = useState(30);
   const [waitSecondsLeft, setWaitSecondsLeft] = useState(null);
   const [waitRunning, setWaitRunning] = useState(false);
@@ -8158,7 +8288,7 @@ function TeacherApp({ onExit, teacherName }) {
     return () => clearInterval(iv);
   }, [waitRunning]);
   const [djQueue, setDjQueue] = useState([]);
-  const [djMinutes, setDjMinutes] = useState(10);
+  const [djMinutes, setDjMinutes] = useState(7);
   const [djSecondsLeft, setDjSecondsLeft] = useState(null);
   const [djRunning, setDjRunning] = useState(false);
   useEffect(() => {
@@ -8850,6 +8980,10 @@ function TeacherApp({ onExit, teacherName }) {
                 display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
               }}>⏳ Slide de așteptare</button>
+              <button onClick={() => setShowExploreSpectator(true)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#151225', color: '#C7C8E0', fontSize: 12.5, fontWeight: 600, textAlign: 'left',
+              }}>🗺️ Harta Exploratorilor (privește)</button>
             </div>
           )}
         </div>
@@ -10257,6 +10391,7 @@ function TeacherApp({ onExit, teacherName }) {
                 @keyframes waitPetFloat { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-14px) rotate(3deg); } }
                 @keyframes waitPetGlow { 0%,100% { opacity: .35; } 50% { opacity: .7; } }
                 @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+                @keyframes waitAvatarFloat { 0% { transform: translateY(0) rotate(0deg) scale(0.8); opacity: 0; } 12% { opacity: 1; transform: scale(1); } 88% { opacity: 1; } 100% { transform: translateY(-620px) rotate(360deg) scale(0.8); opacity: 0; } }
               `}</style>
               <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 26, pointerEvents: 'none' }}>
                 {Array.from({ length: 14 }, (_, i) => (
@@ -10266,6 +10401,17 @@ function TeacherApp({ onExit, teacherName }) {
                     '--drift': `${((i % 5) - 2) * 30}px`,
                     animation: `waitParticleUp ${7 + (i % 5)}s ${i * 0.9}s linear infinite`,
                   }}>✦</span>
+                ))}
+                {classStudents.slice(0, 6).map((s, i) => (
+                  <div key={s.id} style={{
+                    position: 'absolute', left: `${8 + (i * 15) % 88}%`, bottom: -40, textAlign: 'center', opacity: 0,
+                    animation: `waitAvatarFloat ${13 + (i % 4) * 2}s ${i * 2.3}s linear infinite`,
+                  }}>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 10px rgba(139,92,246,.6)', margin: '0 auto' }}>
+                      <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={30} />
+                    </div>
+                    <div style={{ fontSize: 8, fontWeight: 800, color: '#C7C8E0', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
+                  </div>
                 ))}
               </div>
               <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6, zIndex: 2 }}>
@@ -10338,6 +10484,26 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
+      {showExploreSpectator && (
+        <div onClick={() => setShowExploreSpectator(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 22, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto' }} className="scrollbar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Harta Exploratorilor — {classes.find(c => c.id === activeClassId)?.name}</h3>
+              <button onClick={() => setShowExploreSpectator(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
+            </div>
+            <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Doar urmărești — elevii se mișcă din contul lor.</p>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+              {[['forest', '🌲 Harta principală'], ['sandbox', '🏝️ Sandbox']].map(([m, label]) => (
+                <button key={m} onClick={() => setExploreSpectatorMap(m)} style={{
+                  flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  background: exploreSpectatorMap === m ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : '#0F0C1C', color: exploreSpectatorMap === m ? '#fff' : '#8A86A8',
+                }}>{label}</button>
+              ))}
+            </div>
+            <MapSpectatorView classId={activeClassId} mapId={exploreSpectatorMap} />
+          </div>
+        </div>
+      )}
       {showDjPanel && (() => {
         const current = djQueue[0];
         const upcoming = djQueue.slice(1);
@@ -10355,6 +10521,9 @@ function TeacherApp({ onExit, teacherName }) {
               <style>{`
                 @keyframes djGlowPulse { 0%,100% { opacity: .5; transform: scale(1); } 50% { opacity: .85; transform: scale(1.06); } }
                 @keyframes djEq { 0%,100% { height: 30%; } 50% { height: 100%; } }
+                @keyframes djIdleLogoPulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(139,92,246,.4)); } 50% { transform: scale(1.06); filter: drop-shadow(0 0 40px rgba(139,92,246,.7)); } }
+                @keyframes djIdleParticle { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .8; } 85% { opacity: .5; } 100% { transform: translateY(-180px); opacity: 0; } }
+                @keyframes djIdleAvatarFloat { 0% { transform: translateY(0) scale(0.7); opacity: 0; } 15% { opacity: 1; transform: scale(1); } 85% { opacity: 1; } 100% { transform: translateY(-220px) scale(0.7); opacity: 0; } }
               `}</style>
               <div style={{ position: 'absolute', top: -120, right: -100, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.28), transparent 70%)', pointerEvents: 'none' }}></div>
               <div style={{ position: 'absolute', bottom: -140, left: -100, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(236,30,143,0.20), transparent 70%)', pointerEvents: 'none' }}></div>
@@ -10420,7 +10589,33 @@ function TeacherApp({ onExit, teacherName }) {
                   <p style={{ fontSize: 10.5, color: '#6E6A8C', marginTop: 8, textAlign: 'center' }}>Unele videoclipuri pot avea o reclamă scurtă de YouTube înainte — nu putem controla asta din aplicație.</p>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 13, padding: '40px 0' }}>Niciun elev n-a trimis încă o melodie azi.</div>
+                <div style={{ position: 'relative', borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.3)', aspectRatio: '16/9', background: 'radial-gradient(ellipse at center, rgba(139,92,246,0.16), #0B0A14 70%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <span key={i} style={{
+                        position: 'absolute', left: `${(i * 43) % 100}%`, bottom: -10, fontSize: 9 + (i % 3) * 5,
+                        color: ['#8B5CF6', '#EC1E8F', '#38BDF8', '#F5C542'][i % 4],
+                        animation: `djIdleParticle ${5 + (i % 4)}s ${i * 0.7}s linear infinite`,
+                      }}>✦</span>
+                    ))}
+                    {classStudents.slice(0, 4).map((s, i) => (
+                      <div key={s.id} style={{
+                        position: 'absolute', left: `${12 + (i * 22) % 80}%`, bottom: -30, textAlign: 'center', opacity: 0,
+                        animation: `djIdleAvatarFloat ${9 + (i % 3) * 2}s ${i * 1.8}s linear infinite`,
+                      }}>
+                        <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 8px rgba(139,92,246,.6)', margin: '0 auto' }}>
+                          <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={24} />
+                        </div>
+                        <div style={{ fontSize: 7, fontWeight: 800, color: '#C7C8E0', marginTop: 2, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ textAlign: 'center', position: 'relative' }}>
+                    <img src="icon-192.png" alt="Fluentopia" style={{ width: 96, height: 96, borderRadius: '50%', animation: 'djIdleLogoPulse 2.6s ease-in-out infinite' }} />
+                    <div className="heading-font" style={{ fontSize: 15, fontWeight: 800, color: '#C7C8E0', marginTop: 14 }}>Se așteaptă o melodie…</div>
+                    <div style={{ fontSize: 11.5, color: '#6E6A8C', marginTop: 3 }}>Un elev cu „DJ for a Day" poate trimite una din tab-ul lui</div>
+                  </div>
+                </div>
               )}
 
               {upcoming.length > 0 && (
@@ -11161,7 +11356,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.123';
+const APP_VERSION = 'v2.125';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -13166,6 +13361,36 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
+  function handleOpenExploreChest(chestKey) {                       // ține minte pe cont, nu doar local — altfel un refresh reface cufărul la infinit
+    const next = students.map(s => s.id !== loggedInStudentId ? s : {
+      ...s,
+      exploreOpenedChests: [...new Set([...(s.exploreOpenedChests || []), chestKey])],
+    });
+    persistStudentsLocal(next, students);
+  }
+  function handleBuyChairs() {
+    const cur = students.find(s => s.id === loggedInStudentId);
+    if (!cur || cur.points < 80) return;
+    playDing();
+    const next = students.map(s => s.id !== loggedInStudentId ? s : {
+      ...s,
+      points: s.points - 80,
+      chairsCount: (s.chairsCount || 0) + 100,
+      pointsLog: [{ id: uid(), delta: -80, reason: '🪑 100 Scaune Zburătoare', date: new Date().toISOString() }, ...(s.pointsLog||[])],
+    });
+    persistStudentsLocal(next, students);
+  }
+  function handleThrowChair(targetName) {
+    const cur = students.find(s => s.id === loggedInStudentId);
+    if (!cur || (cur.chairsCount || 0) < 1) return;
+    const next = students.map(s => s.id !== loggedInStudentId ? s : {
+      ...s,
+      chairsCount: (s.chairsCount || 0) - 1,
+      points: s.points + 50,
+      pointsLog: [{ id: uid(), delta: 50, reason: `🪑 Scaun aruncat spre ${targetName} — ținta!`, date: new Date().toISOString() }, ...(s.pointsLog||[])],
+    });
+    persistStudentsLocal(next, students);
+  }
 
   function handleSubmitTest(test, score, skillBreakdown, answers) {
     const next = students.map(s => s.id !== loggedInStudentId ? s : {
@@ -13207,7 +13432,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

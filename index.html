@@ -903,6 +903,15 @@ function EndLessonWheel({ students, roster, onAward, onRevert, onClose }) {
           {mode === 'random' ? (
             pool.length === 0
               ? <div style={{ textAlign: 'center', color: '#F5C542', fontSize: 14, padding: 12 }}>{students.length === 0 ? 'Niciun elev marcat „Prezent" azi — alege manual sau marchează Prezența.' : 'Toți elevii prezenți au câștigat deja azi 🎉'}</div>
+              : pool.length === 1
+              ? <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, color: '#8A86A8', marginBottom: 10 }}>👤 Lecție individuală — un singur elev prezent, nu are sens să învârtim „la sorți".</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: '#F5C542', marginBottom: 14 }}>{pool[0].name}</div>
+                  <button onClick={() => onPickName(pool[0].name)} style={{
+                    padding: '12px 28px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                    background: 'linear-gradient(135deg, #F5C542, #FF7A45)', color: '#2A1400',
+                  }}>🍀 {pool[0].name} învârte roata</button>
+                </div>
               : <div>
                   <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, textAlign: 'center' }}>🍀 Cine e norocosul?</div>
                   <RandomPicker big fx={fx} celebrate={false} names={pool.map(s => s.name)} color="#F5C542" buttonLabel="🎲 Extrage norocosul" onPick={onPickName} />
@@ -8023,6 +8032,7 @@ function TeacherApp({ onExit, teacherName }) {
   const [showAttendance, setShowAttendance] = useState(false);
   const [attendanceViewMode, setAttendanceViewMode] = useState('mark');
   const [individualStudentId, setIndividualStudentId] = useState('');
+  const [activeIndividualLesson, setActiveIndividualLesson] = useState(null);   // { classId, studentId, studentName, module, date } sau null — cine e "la clasă" acum, 1-la-1
   const [individualModule, setIndividualModule] = useState('M1');
   const [individualDate, setIndividualDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [individualDone, setIndividualDone] = useState(null);
@@ -9460,7 +9470,19 @@ function TeacherApp({ onExit, teacherName }) {
             </div>
             {attendanceViewMode === 'individual' ? (
               <div>
-                <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Pentru lecțiile 1-la-1 (recuperări) — nu afectează prezența pe toată clasa și apare separat, în Parcurs Academic, la părinte.</p>
+                <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Pentru lecțiile 1-la-1 (recuperări) — nu afectează prezența pe toată clasa și apare separat, în Parcurs Academic, la părinte. Poți începe mai multe, una după alta, în aceeași zi — oprești una înainte să începi următoarea.</p>
+                {activeIndividualLesson && activeIndividualLesson.classId === activeClassId ? (
+                  <div style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 14, padding: 18, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: '#8B5CF6', fontWeight: 800, letterSpacing: 0.5, marginBottom: 6 }}>🔴 LECȚIE INDIVIDUALĂ ACTIVĂ</div>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: '#fff', marginBottom: 2 }}>{activeIndividualLesson.studentName}</div>
+                    <div style={{ fontSize: 12.5, color: '#8A86A8', marginBottom: 16 }}>{activeIndividualLesson.module}</div>
+                    <button onClick={() => setActiveIndividualLesson(null)} style={{
+                      width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: 'linear-gradient(135deg, #F87171, #DC2626)', color: '#2A0808', fontWeight: 800, fontSize: 13,
+                    }}>⏹ Oprește lecția individuală</button>
+                  </div>
+                ) : (
+                  <>
                 <div style={{ fontSize: 11, color: '#6E6A8C', marginBottom: 5 }}>Elev</div>
                 <select value={individualStudentId} onChange={e => setIndividualStudentId(e.target.value)} style={{
                   width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, marginBottom: 12,
@@ -9486,14 +9508,19 @@ function TeacherApp({ onExit, teacherName }) {
                 </div>
                 <button onClick={() => {
                   if (!individualStudentId) return;
+                  const stName = classStudents.find(s => s.id === individualStudentId)?.name;
                   markIndividualLesson(individualStudentId, individualDate, individualModule);
-                  setIndividualDone(classStudents.find(s => s.id === individualStudentId)?.name);
+                  setActiveIndividualLesson({ classId: activeClassId, studentId: individualStudentId, studentName: stName, module: individualModule, date: individualDate });
+                  setIndividualDone(stName);
                   setTimeout(() => setIndividualDone(null), 3000);
+                  setIndividualStudentId('');
                 }} disabled={!individualStudentId} style={{
                   width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', cursor: individualStudentId ? 'pointer' : 'default',
                   background: individualStudentId ? 'linear-gradient(135deg, #9B3CE0, #8B5CF6)' : '#221D3A', color: individualStudentId ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 13,
-                }}>✓ Înregistrează prezența individuală</button>
+                }}>▶ Începe lecția individuală</button>
                 {individualDone && <p style={{ fontSize: 12, color: '#4ADE80', marginTop: 10, textAlign: 'center' }}>✓ Salvat pentru {individualDone}.</p>}
+                  </>
+                )}
               </div>
             ) : attendanceViewMode === 'mark' ? (
               <>
@@ -9806,9 +9833,12 @@ function TeacherApp({ onExit, teacherName }) {
       })()}
       {showRolesWheel && (() => {
         const today = new Date().toISOString().slice(0, 10);
-        const presentNames = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).map(s => s.name);
+        const activeIndiv = (activeIndividualLesson && activeIndividualLesson.classId === activeClassId && activeIndividualLesson.date === today) ? activeIndividualLesson : null;
+        const presentNames = activeIndiv ? [activeIndiv.studentName] : classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present' && a.type !== 'individual')).map(s => s.name);
         const monitorCandidates = presentNames;
         const judgeCandidates = presentNames.filter(n => n !== (pickedMonitor || (todayRoles && todayRoles.monitorName)));
+        const isIndividualLessonDay = !!activeIndiv;
+        const individualToday = activeIndiv ? { name: activeIndiv.studentName, module: activeIndiv.module } : null;
         return (
           <div onClick={() => { setShowRolesWheel(false); setPickedMonitor(null); setPickedJudge(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <PresentationBox onClick={e => e.stopPropagation()} baseW={560} baseH={650} style={{
@@ -9822,13 +9852,20 @@ function TeacherApp({ onExit, teacherName }) {
                 <h3 className="heading-font" style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>🎲 Șef & Judecător — {classes.find(c => c.id === activeClassId)?.name}</h3>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SoundToggle /><button onClick={toggleFullscreen} aria-label="Ecran complet" title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 30, height: 30 }}>⛶</button><button onClick={() => { setShowRolesWheel(false); setPickedMonitor(null); setPickedJudge(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button></div>
               </div>
-              {!(todayRoles && todayRoles.skipped) && <p style={{ fontSize: 13, color: '#8A86A8', marginBottom: 20 }}>Extrage din elevii marcați „Prezent" azi. Fă mai întâi Prezența, dacă n-ai făcut-o încă.</p>}
+              {!(todayRoles && todayRoles.skipped) && !isIndividualLessonDay && <p style={{ fontSize: 13, color: '#8A86A8', marginBottom: 20 }}>Extrage din elevii marcați „Prezent" azi. Fă mai întâi Prezența, dacă n-ai făcut-o încă.</p>}
               {todayRoles && todayRoles.skipped ? (
                 <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
                   <div style={{ fontSize: 44, marginBottom: 8 }}>⏭️</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#F5C542', marginBottom: 6 }}>Șef & Judecător e sărit azi (lecție individuală)</div>
                   <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Elevii văd în tab că azi nu se folosește.</div>
                   <button onClick={() => stopDailyRoles(activeClassId, today)} style={{ background: 'none', border: '1px solid #2E2850', borderRadius: 10, padding: '9px 18px', color: '#C7C8E0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>↩ Reia Șef & Judecător</button>
+                </div>
+              ) : isIndividualLessonDay ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 44, marginBottom: 8 }}>👤</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#F5C542', marginBottom: 6 }}>Azi e lecție individuală pentru {individualToday.name}{individualToday.module ? ` — ${individualToday.module}` : ''}</div>
+                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 18 }}>Șef & Judecător cere cel puțin doi elevi prezenți — nu are sens azi.</div>
+                  <button onClick={() => skipDailyRoles(activeClassId, today)} style={{ background: 'rgba(245,197,66,0.12)', border: '1px solid rgba(245,197,66,0.5)', borderRadius: 10, padding: '10px 18px', color: '#F5C542', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>⏭️ Sari peste azi</button>
                 </div>
               ) : presentNames.length === 0 ? (
                 <div style={{ textAlign: 'center' }}>
@@ -9977,8 +10014,9 @@ function TeacherApp({ onExit, teacherName }) {
       })()}
       {showEndWheel && (() => {
         const today = new Date().toISOString().slice(0, 10);
-        const present = classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present')).map(s => ({ id: s.id, name: s.name }));
-        const roster = classStudents.map(s => ({ id: s.id, name: s.name, present: (s.attendance || []).some(a => a.date === today && a.status === 'present') }));
+        const activeIndiv = (activeIndividualLesson && activeIndividualLesson.classId === activeClassId && activeIndividualLesson.date === today) ? activeIndividualLesson : null;
+        const present = activeIndiv ? [{ id: activeIndiv.studentId, name: activeIndiv.studentName }] : classStudents.filter(s => (s.attendance || []).some(a => a.date === today && a.status === 'present' && a.type !== 'individual')).map(s => ({ id: s.id, name: s.name }));
+        const roster = activeIndiv ? classStudents.map(s => ({ id: s.id, name: s.name, present: s.id === activeIndiv.studentId })) : classStudents.map(s => ({ id: s.id, name: s.name, present: (s.attendance || []).some(a => a.date === today && a.status === 'present') }));
         return <EndLessonWheel students={present} roster={roster} onAward={awardWheelPrize} onRevert={revertWheelPrize} onClose={() => setShowEndWheel(false)} />;
       })()}
       {showWaitSlide && (() => {
@@ -9991,6 +10029,20 @@ function TeacherApp({ onExit, teacherName }) {
               position: 'relative', overflow: 'hidden', background: 'radial-gradient(ellipse at 20% 10%, rgba(155,60,224,0.22), transparent 55%), radial-gradient(ellipse at 80% 90%, rgba(56,189,248,0.14), transparent 55%), #0B0A14',
               borderRadius: 26, padding: 44, boxShadow: '0 25px 70px rgba(0,0,0,.6)',
             }}>
+              <style>{`
+                @keyframes waitParticleUp { 0% { transform: translateY(0) translateX(0); opacity: 0; } 10% { opacity: .8; } 90% { opacity: .5; } 100% { transform: translateY(-560px) translateX(var(--drift)); opacity: 0; } }
+                @keyframes waitTimerGlow { 0%,100% { opacity: .4; transform: scale(1); } 50% { opacity: .8; transform: scale(1.08); } }
+                @keyframes waitPetFloat { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-14px) rotate(3deg); } }
+                @keyframes waitPetGlow { 0%,100% { opacity: .35; } 50% { opacity: .7; } }
+              `}</style>
+              {Array.from({ length: 14 }, (_, i) => (
+                <span key={i} style={{
+                  position: 'absolute', left: `${(i * 37) % 100}%`, bottom: -20, fontSize: 8 + (i % 3) * 6,
+                  color: ['#F5C542', '#9B3CE0', '#38BDF8', '#EC1E8F'][i % 4], opacity: 0, pointerEvents: 'none',
+                  '--drift': `${((i % 5) - 2) * 30}px`,
+                  animation: `waitParticleUp ${7 + (i % 5)}s ${i * 0.9}s linear infinite`,
+                }}>✦</span>
+              ))}
               <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6, zIndex: 2 }}>
                 <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
                 <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}><IX size={16}/></button>
@@ -10009,9 +10061,9 @@ function TeacherApp({ onExit, teacherName }) {
               </div>
 
               <div style={{ textAlign: 'center', margin: '18px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 6 }}>
-                  <span style={{ fontSize: 46, color: '#F5C542' }}>«</span>
-                  <span className="heading-font" style={{ fontSize: 96, fontWeight: 900, color: '#F5C542', letterSpacing: 2, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 40px rgba(245,197,66,.35)' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                  <div style={{ position: 'absolute', width: 340, height: 130, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(245,197,66,0.35), transparent 70%)', animation: 'waitTimerGlow 2.4s ease-in-out infinite', pointerEvents: 'none' }}></div>
+                  <span className="heading-font" style={{ position: 'relative', fontSize: 96, fontWeight: 900, color: '#F5C542', letterSpacing: 2, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 40px rgba(245,197,66,.35)' }}>
                     {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
                   </span>
                 </div>
@@ -10033,8 +10085,11 @@ function TeacherApp({ onExit, teacherName }) {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'center', gap: 26 }}>
-                {PET_SPECIES.map(sp => (
-                  <img key={sp.id} src={sp.stages[2]} alt={sp.name} style={{ width: 84, height: 84, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${sp.color}55)` }} />
+                {PET_SPECIES.map((sp, i) => (
+                  <div key={sp.id} style={{ position: 'relative', animation: `waitPetFloat ${2.6 + i * 0.3}s ${i * 0.25}s ease-in-out infinite` }}>
+                    <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', background: `radial-gradient(circle, ${sp.color}66, transparent 70%)`, animation: `waitPetGlow ${2.6 + i * 0.3}s ${i * 0.25}s ease-in-out infinite`, pointerEvents: 'none' }}></div>
+                    <img src={sp.stages[2]} alt={sp.name} style={{ position: 'relative', width: 84, height: 84, objectFit: 'contain', filter: `drop-shadow(0 6px 16px ${sp.color}55)` }} />
+                  </div>
                 ))}
               </div>
             </PresentationBox>
@@ -10864,7 +10919,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.116';
+const APP_VERSION = 'v2.119';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

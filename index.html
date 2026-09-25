@@ -2773,7 +2773,7 @@ const MENU_STRINGS = {
   ro: {
     groups: { acasa: 'Acasă', social: 'Social', distractie: 'Distracție', aurabuddy: 'Aura Buddy', clasamente: 'Clasamente', finante: 'Finanțe', progres: 'Progres' },
     tabs: {
-      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day',
+      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day', explore: 'Harta Exploratorilor',
       wall: 'Wall', messages: 'Mesaje', board: 'Tablă', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Jocuri', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Clasament clasă', globalrank: 'Clasamente Fluentopia',
@@ -2785,7 +2785,7 @@ const MENU_STRINGS = {
   en: {
     groups: { acasa: 'Home', social: 'Social', distractie: 'Fun', aurabuddy: 'Aura Buddy', clasamente: 'Leaderboards', finante: 'Money', progres: 'Progress' },
     tabs: {
-      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day',
+      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day', explore: 'Explorer Map',
       wall: 'Wall', messages: 'Messages', board: 'Board', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Games', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Class Leaderboard', globalrank: 'Fluentopia Leaderboards',
@@ -4356,6 +4356,154 @@ function DjRequestView({ student, onConsumeDjSticker }) {
     </div>
   );
 }
+/* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
+const EXPLORE_QUESTIONS = [
+  { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
+  { q: 'Cum se spune „câine" în engleză?', options: ['Cat', 'Bird', 'Dog', 'Fish'], correctIdx: 2 },
+  { q: 'Ce culoare este „yellow"?', options: ['Roșu', 'Verde', 'Galben', 'Albastru'], correctIdx: 2 },
+  { q: 'Cum se spune „a alerga" în engleză?', options: ['To walk', 'To run', 'To jump', 'To sleep'], correctIdx: 1 },
+  { q: 'Ce înseamnă „river"?', options: ['Munte', 'Râu', 'Pustiu', 'Plajă'], correctIdx: 1 },
+  { q: 'Cum se spune „pisică" în engleză?', options: ['Dog', 'Cat', 'Cow', 'Duck'], correctIdx: 1 },
+];
+function seededRandom(seed) {
+  let s = seed % 2147483647; if (s <= 0) s += 2147483646;
+  return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+}
+const EXPLORE_COLS = 14, EXPLORE_ROWS = 9;
+function buildExploreMap(mapId) {
+  const seed = mapId === 'sandbox' ? 91 : 7;
+  const rand = seededRandom(seed);
+  const tiles = [];
+  for (let y = 0; y < EXPLORE_ROWS; y++) {
+    const row = [];
+    for (let x = 0; x < EXPLORE_COLS; x++) {
+      let t = 'grass';
+      if (mapId === 'sandbox') {
+        if ((y <= 1 && x >= 2 && x <= 4) || (y >= 6 && x >= 9 && x <= 11)) t = 'water';
+        else if (rand() < 0.2) t = 'forest';
+      } else {
+        if ((y <= 1 && x >= 10 && x <= 12) || (y >= 7 && x >= 1 && x <= 3)) t = 'water';
+        else if (rand() < 0.24) t = 'forest';
+      }
+      row.push(t);
+    }
+    tiles.push(row);
+  }
+  const chests = mapId === 'sandbox' ? [{ x: 6, y: 3, qIdx: 3 }, { x: 11, y: 2, qIdx: 4 }] : [{ x: 3, y: 2, qIdx: 0 }, { x: 6, y: 4, qIdx: 1 }, { x: 9, y: 6, qIdx: 5 }];
+  chests.forEach(ch => { tiles[ch.y][ch.x] = 'grass'; });
+  const door = mapId === 'sandbox' ? { x: 0, y: 4 } : { x: 13, y: 4 };
+  tiles[door.y][door.x] = 'grass';
+  const start = mapId === 'sandbox' ? { x: 1, y: 4 } : { x: 1, y: 1 };
+  tiles[start.y][start.x] = 'grass';
+  return { tiles, chests, door, start };
+}
+function ExploreChestModal({ question, onAnswer, onClose }) {
+  const [picked, setPicked] = useState(null);
+  const q = EXPLORE_QUESTIONS[question.qIdx];
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'linear-gradient(160deg, #2A2318, #1A1610)', border: '1px solid rgba(245,197,66,0.5)', borderRadius: 20, padding: 24, maxWidth: 380, width: '100%',
+        boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+      }}>
+        <div style={{ textAlign: 'center', fontSize: 34, marginBottom: 6 }}>📦</div>
+        <div className="heading-font" style={{ textAlign: 'center', fontSize: 16, fontWeight: 800, color: '#F5C542', marginBottom: 16 }}>Cufăr găsit!</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>{q.q}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {q.options.map((o, oi) => {
+            const isCorrect = oi === q.correctIdx;
+            const show = picked !== null;
+            return (
+              <button key={oi} disabled={picked !== null} onClick={() => { setPicked(oi); setTimeout(() => onAnswer(isCorrect), 900); }} style={{
+                padding: '10px 12px', borderRadius: 10, border: 'none', cursor: picked === null ? 'pointer' : 'default', fontSize: 13, fontWeight: 700, textAlign: 'left',
+                background: show ? (isCorrect ? 'rgba(74,222,128,0.2)' : (picked === oi ? 'rgba(248,113,113,0.2)' : '#151225')) : '#151225',
+                color: show ? (isCorrect ? '#4ADE80' : (picked === oi ? '#F87171' : '#8A86A8')) : '#fff',
+              }}>{o}</button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+function MapExploreView({ student, onEarnReward }) {
+  const [mapId, setMapId] = useState('forest');
+  const [pos, setPos] = useState(() => buildExploreMap('forest').start);
+  const [activeChest, setActiveChest] = useState(null);
+  const [openedChests, setOpenedChests] = useState({});
+  const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
+
+  function tryMove(dx, dy) {
+    if (activeChest) return;
+    const nx = pos.x + dx, ny = pos.y + dy;
+    if (nx < 0 || ny < 0 || nx >= EXPLORE_COLS || ny >= EXPLORE_ROWS) return;
+    if (map.tiles[ny][nx] === 'water') return;
+    setPos({ x: nx, y: ny });
+    const chest = map.chests.find(c => c.x === nx && c.y === ny);
+    const chestKey = `${mapId}_${nx}_${ny}`;
+    if (chest && !openedChests[chestKey]) setActiveChest({ ...chest, key: chestKey });
+    if (map.door.x === nx && map.door.y === ny) {
+      const nextMap = mapId === 'forest' ? 'sandbox' : 'forest';
+      const nextStart = buildExploreMap(nextMap).start;
+      setTimeout(() => { setMapId(nextMap); setPos(nextStart); }, 150);
+    }
+  }
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'ArrowUp') tryMove(0, -1);
+      else if (e.key === 'ArrowDown') tryMove(0, 1);
+      else if (e.key === 'ArrowLeft') tryMove(-1, 0);
+      else if (e.key === 'ArrowRight') tryMove(1, 0);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  function onAnswerChest(correct) {
+    setOpenedChests(o => ({ ...o, [activeChest.key]: true }));
+    if (correct) onEarnReward(5, 'Cufăr — Harta Exploratorilor');
+    setActiveChest(null);
+  }
+  return (
+    <div>
+      <SectionHeader icon="🗺️" title="Harta Exploratorilor" color="#8B5CF6" />
+      <p style={{ fontSize: 12, color: '#8A86A8', margin: '-8px 0 14px' }}>Mișcă-te cu săgețile sau cu butoanele de jos. Deschide cuferele, găsește ușa spre altă hartă!</p>
+      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%', boxShadow: '0 10px 34px rgba(139,92,246,.15)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EXPLORE_COLS}, 1fr)`, gap: 1, background: '#050409' }}>
+          {map.tiles.map((row, y) => row.map((t, x) => {
+            const isChest = map.chests.some(c => c.x === x && c.y === y) && !openedChests[`${mapId}_${x}_${y}`];
+            const isDoor = map.door.x === x && map.door.y === y;
+            const emoji = isDoor ? '🚪' : isChest ? '📦' : t === 'forest' ? '🌲' : t === 'water' ? '🌊' : '';
+            return (
+              <div key={`${x}_${y}`} style={{
+                aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, position: 'relative',
+                background: isDoor ? 'radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), linear-gradient(160deg,#1B3B22,#132A19)'
+                  : isChest ? 'radial-gradient(circle, rgba(245,197,66,.35), transparent 70%), linear-gradient(160deg,#3A3020,#2A2318)'
+                  : t === 'forest' ? 'linear-gradient(160deg,#12301A,#0D2213)' : t === 'water' ? 'linear-gradient(160deg,#153A5C,#0F2A44)' : 'linear-gradient(160deg,#1B3B22,#132A19)',
+                boxShadow: isChest ? 'inset 0 0 0 2px rgba(245,197,66,.7)' : 'none',
+              }}>
+                {emoji}
+                {pos.x === x && pos.y === y && (
+                  <div style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s ease', boxShadow: '0 0 0 2px #8B5CF6, 0 0 10px rgba(139,92,246,.7)' }}>
+                    <Avatar name={student.name} avatar={student.avatar} frame={student.avatarFrame} size={34} />
+                  </div>
+                )}
+              </div>
+            );
+          }))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 46px)', gridTemplateRows: 'repeat(3, 46px)', gap: 5 }}>
+          <div></div><button onClick={() => tryMove(0, -1)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>▲</button><div></div>
+          <button onClick={() => tryMove(-1, 0)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>◀</button><div></div>
+          <button onClick={() => tryMove(1, 0)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>▶</button>
+          <div></div><button onClick={() => tryMove(0, 1)} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 17, cursor: 'pointer' }}>▼</button><div></div>
+        </div>
+      </div>
+      {activeChest && <ExploreChestModal question={activeChest} onAnswer={onAnswerChest} onClose={() => {}} />}
+    </div>
+  );
+}
 function BoardView({ student, classmates, isParentView }) {
   const [mode, setMode] = useState('class');           // 'class' sau 'pair'
   const [pairWithId, setPairWithId] = useState('');
@@ -5712,6 +5860,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     { id: 'wheel', icon: '🎡', group: isParentView ? 'acasa' : 'distractie' },
     { id: 'radio', icon: '📻', group: 'distractie' },
     { id: 'hero', icon: '🦸', group: 'distractie' },
+    ...(!isParentView ? [{ id: 'explore', icon: '🗺️', group: 'distractie' }] : []),
     { id: 'pet', icon: '🐣', group: 'aurabuddy' },
     ...(!isParentView ? [{ id: 'dj', icon: '🎧', group: 'distractie' }] : []),
     ...(!isParentView ? [{ id: 'stickers', icon: '🎫', group: 'aurabuddy' }] : []),
@@ -5960,6 +6109,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       {tab === 'messages' && <MessagesView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'board' && !isParentView && <BoardView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'dj' && !isParentView && <DjRequestView student={student} onConsumeDjSticker={onConsumeDjSticker} />}
+      {tab === 'explore' && !isParentView && <MapExploreView student={student} onEarnReward={onEarnStudentTestReward} />}
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
@@ -10938,7 +11088,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.120';
+const APP_VERSION = 'v2.121';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

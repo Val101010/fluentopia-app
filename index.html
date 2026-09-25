@@ -10187,14 +10187,16 @@ function TeacherApp({ onExit, teacherName }) {
                 @keyframes waitPetGlow { 0%,100% { opacity: .35; } 50% { opacity: .7; } }
                 @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
               `}</style>
-              {Array.from({ length: 14 }, (_, i) => (
-                <span key={i} style={{
-                  position: 'absolute', left: `${(i * 37) % 100}%`, bottom: -20, fontSize: 8 + (i % 3) * 6,
-                  color: ['#F5C542', '#9B3CE0', '#38BDF8', '#EC1E8F'][i % 4], opacity: 0, pointerEvents: 'none',
-                  '--drift': `${((i % 5) - 2) * 30}px`,
-                  animation: `waitParticleUp ${7 + (i % 5)}s ${i * 0.9}s linear infinite`,
-                }}>✦</span>
-              ))}
+              <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 26, pointerEvents: 'none' }}>
+                {Array.from({ length: 14 }, (_, i) => (
+                  <span key={i} style={{
+                    position: 'absolute', left: `${(i * 37) % 100}%`, bottom: -20, fontSize: 8 + (i % 3) * 6,
+                    color: ['#F5C542', '#9B3CE0', '#38BDF8', '#EC1E8F'][i % 4], opacity: 0, pointerEvents: 'none',
+                    '--drift': `${((i % 5) - 2) * 30}px`,
+                    animation: `waitParticleUp ${7 + (i % 5)}s ${i * 0.9}s linear infinite`,
+                  }}>✦</span>
+                ))}
+              </div>
               <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6, zIndex: 2 }}>
                 <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
                 <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}><IX size={16}/></button>
@@ -11088,7 +11090,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.121';
+const APP_VERSION = 'v2.122';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

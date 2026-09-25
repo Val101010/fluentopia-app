@@ -2093,6 +2093,22 @@ async function removeDjRequest(classId, date, currentQueue, entryId) {
   await db.collection('fluentopia_dj_queue').doc(`${classId}_${date}`)
     .set({ queue: (currentQueue || []).filter(q => q.id !== entryId) }).catch(() => {});
 }
+/* ---------- Harta Exploratorilor — cameră partajată (Pasul 2, live): un document per clasă+hartă, jucătorii ca sub-câmpuri ---------- */
+function listenExplorePlayers(classId, mapId, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
+    .onSnapshot(doc => cb((doc.data() && doc.data().players) || {}), err => console.error('explore players listen error', err));
+}
+async function updateExplorePlayerPos(classId, mapId, studentId, data) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
+    .set({ players: { [studentId]: data } }, { merge: true }).catch(() => {});
+}
+async function removeExplorePlayer(classId, mapId, studentId) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
+    .update({ [`players.${studentId}`]: firebase.firestore.FieldValue.delete() }).catch(() => {});
+}
 function listenPendingCards(classId, date, cb) {
   const db = getDb(); if (!db) return () => {};
   return db.collection('fluentopia_pending_cards').where('classId', '==', classId).where('date', '==', date)
@@ -4431,23 +4447,63 @@ function MapExploreView({ student, onEarnReward }) {
   const [pos, setPos] = useState(() => buildExploreMap('forest').start);
   const [activeChest, setActiveChest] = useState(null);
   const [openedChests, setOpenedChests] = useState({});
+  const [otherPlayers, setOtherPlayers] = useState({});
+  const [tick, setTick] = useState(0);                          // reevaluează periodic cine mai e "online" pe hartă
   const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
+  const prevRoomRef = useRef(null);                              // camera (clasă+hartă) pe care tocmai am părăsit-o, ca s-o curățăm
+
+  useEffect(() => {                                              // ascult live ceilalți exploratori din ACEEAȘI cameră (clasă + hartă)
+    const unsub = listenExplorePlayers(student.classId, mapId, players => {
+      const copy = { ...players }; delete copy[student.id];
+      setOtherPlayers(copy);
+    });
+    return unsub;
+  }, [student.classId, mapId]);
+
+  useEffect(() => {                                              // îmi trimit poziția — la mutare, și la fiecare 20s ca "puls" (rămân vizibil chiar dacă stau pe loc)
+    updateExplorePlayerPos(student.classId, mapId, student.id, {
+      x: pos.x, y: pos.y, name: student.name, avatar: student.avatar || null, avatarFrame: student.avatarFrame || null, lastSeen: new Date().toISOString(),
+    });
+    const iv = setInterval(() => {
+      updateExplorePlayerPos(student.classId, mapId, student.id, {
+        x: pos.x, y: pos.y, name: student.name, avatar: student.avatar || null, avatarFrame: student.avatarFrame || null, lastSeen: new Date().toISOString(),
+      });
+    }, 20000);
+    return () => clearInterval(iv);
+  }, [pos.x, pos.y, mapId, student.classId, student.id]);
+
+  useEffect(() => {                                              // ies din camera veche când schimb harta sau când ies din tab
+    const prev = prevRoomRef.current;
+    if (prev && (prev.classId !== student.classId || prev.mapId !== mapId)) {
+      removeExplorePlayer(prev.classId, prev.mapId, student.id);
+    }
+    prevRoomRef.current = { classId: student.classId, mapId };
+    return () => { if (prevRoomRef.current) removeExplorePlayer(prevRoomRef.current.classId, prevRoomRef.current.mapId, student.id); };
+  }, [mapId, student.classId, student.id]);
+
+  useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 15000); return () => clearInterval(iv); }, []);
+  const liveOtherPlayers = Object.entries(otherPlayers).filter(([, p]) => p.lastSeen && (Date.now() - new Date(p.lastSeen).getTime()) < 60000);
 
   function tryMove(dx, dy) {
     if (activeChest) return;
-    const nx = pos.x + dx, ny = pos.y + dy;
-    if (nx < 0 || ny < 0 || nx >= EXPLORE_COLS || ny >= EXPLORE_ROWS) return;
-    if (map.tiles[ny][nx] === 'water') return;
-    setPos({ x: nx, y: ny });
-    const chest = map.chests.find(c => c.x === nx && c.y === ny);
-    const chestKey = `${mapId}_${nx}_${ny}`;
-    if (chest && !openedChests[chestKey]) setActiveChest({ ...chest, key: chestKey });
-    if (map.door.x === nx && map.door.y === ny) {
+    setPos(prev => {
+      const nx = prev.x + dx, ny = prev.y + dy;
+      if (nx < 0 || ny < 0 || nx >= EXPLORE_COLS || ny >= EXPLORE_ROWS) return prev;
+      if (map.tiles[ny][nx] === 'water') return prev;
+      return { x: nx, y: ny };
+    });
+  }
+  useEffect(() => {                                              // verifică cufăr/ușă după FIECARE schimbare reală de poziție — nu se pierde la apăsări rapide
+    const chest = map.chests.find(c => c.x === pos.x && c.y === pos.y);
+    const chestKey = `${mapId}_${pos.x}_${pos.y}`;
+    if (chest && !openedChests[chestKey] && !activeChest) setActiveChest({ ...chest, key: chestKey });
+    if (map.door.x === pos.x && map.door.y === pos.y) {
       const nextMap = mapId === 'forest' ? 'sandbox' : 'forest';
       const nextStart = buildExploreMap(nextMap).start;
-      setTimeout(() => { setMapId(nextMap); setPos(nextStart); }, 150);
+      const t = setTimeout(() => { setMapId(nextMap); setPos(nextStart); }, 150);
+      return () => clearTimeout(t);
     }
-  }
+  }, [pos.x, pos.y]);
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'ArrowUp') tryMove(0, -1);
@@ -4466,7 +4522,13 @@ function MapExploreView({ student, onEarnReward }) {
   return (
     <div>
       <SectionHeader icon="🗺️" title="Harta Exploratorilor" color="#8B5CF6" />
-      <p style={{ fontSize: 12, color: '#8A86A8', margin: '-8px 0 14px' }}>Mișcă-te cu săgețile sau cu butoanele de jos. Deschide cuferele, găsește ușa spre altă hartă!</p>
+      <p style={{ fontSize: 12, color: '#8A86A8', margin: '-8px 0 10px' }}>Mișcă-te cu săgețile sau cu butoanele de jos. Deschide cuferele, găsește ușa spre altă hartă!</p>
+      {liveOtherPlayers.length > 0 && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.4)', borderRadius: 20, padding: '5px 12px', marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: '#4ADE80' }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', boxShadow: '0 0 6px #4ADE80' }}></span>
+          {liveOtherPlayers.length} {liveOtherPlayers.length === 1 ? 'explorator' : 'exploratori'} pe hartă acum
+        </div>
+      )}
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%', boxShadow: '0 10px 34px rgba(139,92,246,.15)' }}>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EXPLORE_COLS}, 1fr)`, gap: 1, background: '#050409' }}>
           {map.tiles.map((row, y) => row.map((t, x) => {
@@ -4487,6 +4549,15 @@ function MapExploreView({ student, onEarnReward }) {
                     <Avatar name={student.name} avatar={student.avatar} frame={student.avatarFrame} size={34} />
                   </div>
                 )}
+                {liveOtherPlayers.filter(([, p]) => p.x === x && p.y === y).map(([pid, p], oi) => {
+                  const ringColor = ['#38BDF8', '#4ADE80', '#F5C542', '#EC1E8F', '#FF7A45'][Math.abs(pid.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % 5];
+                  return (
+                    <div key={pid} style={{ position: 'absolute', inset: 2, borderRadius: '50%', overflow: 'hidden', zIndex: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .3s ease', boxShadow: `0 0 0 2px ${ringColor}, 0 0 8px ${ringColor}99` }}>
+                      <Avatar name={p.name} avatar={p.avatar} frame={p.avatarFrame} size={34} />
+                      <div style={{ position: 'absolute', top: -15, left: '50%', transform: 'translateX(-50%)', fontSize: 8.5, fontWeight: 800, color: ringColor, whiteSpace: 'nowrap', textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{p.name}</div>
+                    </div>
+                  );
+                })}
               </div>
             );
           }))}
@@ -11090,7 +11161,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.122';
+const APP_VERSION = 'v2.123';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

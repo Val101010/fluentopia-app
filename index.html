@@ -8291,6 +8291,34 @@ function TeacherApp({ onExit, teacherName }) {
   const [showWaitSlide, setShowWaitSlide] = useState(false);
   const [waitMusicOn, setWaitMusicOn] = useState(false);
   const [waitMusicTrack, setWaitMusicTrack] = useState(0);
+  const [waitMusicVolume, setWaitMusicVolume] = useState(60);
+  const waitYtPlayerRef = useRef(null);
+  useEffect(() => {                                              // creează / distruge playerul YouTube (cu control real de volum) când pornești/oprești muzica
+    if (!showWaitSlide || !waitMusicOn) {
+      if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} waitYtPlayerRef.current = null; }
+      return;
+    }
+    let cancelled = false;
+    function createPlayer() {
+      if (cancelled || !document.getElementById('wait-music-player-target')) return;
+      waitYtPlayerRef.current = new window.YT.Player('wait-music-player-target', {
+        videoId: WAIT_MUSIC_TRACKS[waitMusicTrack].id,
+        playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[waitMusicTrack].id, controls: 0 },
+        events: { onReady: e => { e.target.setVolume(waitMusicVolume); e.target.playVideo(); } },
+      });
+    }
+    if (window.YT && window.YT.Player) {
+      createPlayer();
+    } else {
+      const tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); createPlayer(); };
+    }
+    return () => { cancelled = true; if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} waitYtPlayerRef.current = null; } };
+  }, [showWaitSlide, waitMusicOn, waitMusicTrack]);
+  useEffect(() => {                                              // volumul se schimbă live, fără să repornească piesa
+    if (waitYtPlayerRef.current && waitYtPlayerRef.current.setVolume) { try { waitYtPlayerRef.current.setVolume(waitMusicVolume); } catch (e) {} }
+  }, [waitMusicVolume]);
   const [showExploreSpectator, setShowExploreSpectator] = useState(false);
   const [exploreSpectatorMap, setExploreSpectatorMap] = useState('forest');
   const [waitMinutes, setWaitMinutes] = useState(30);
@@ -10504,7 +10532,7 @@ function TeacherApp({ onExit, teacherName }) {
                   <input type="number" min="1" max="90" value={waitMinutes} onChange={e => setWaitMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={waitRunning} style={{ width: 56, padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13 }} />
                   <span style={{ fontSize: 12, color: '#6E6A8C', alignSelf: 'center' }}>min</span>
                 </div>
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 10 }}>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
                   <button onClick={() => setWaitMusicOn(v => !v)} style={{
                     padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(139,92,246,0.4)', cursor: 'pointer',
                     background: waitMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: waitMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11.5, fontWeight: 700,
@@ -10516,10 +10544,16 @@ function TeacherApp({ onExit, teacherName }) {
                       {WAIT_MUSIC_TRACKS.map((t, i) => <option key={t.id} value={i}>{t.label}</option>)}
                     </select>
                   )}
+                  {waitMusicOn && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225' }}>
+                      <span style={{ fontSize: 12 }}>{waitMusicVolume === 0 ? '🔇' : waitMusicVolume < 50 ? '🔉' : '🔊'}</span>
+                      <input type="range" min="0" max="100" value={waitMusicVolume} onChange={e => setWaitMusicVolume(Number(e.target.value))} style={{ width: 80, accentColor: '#8B5CF6' }} />
+                      <span style={{ fontSize: 10.5, color: '#8A86A8', width: 24, textAlign: 'right' }}>{waitMusicVolume}</span>
+                    </div>
+                  )}
                 </div>
                 {waitMusicOn && (
-                  <iframe key={WAIT_MUSIC_TRACKS[waitMusicTrack].id} title="Muzică de fundal" src={`https://www.youtube.com/embed/${WAIT_MUSIC_TRACKS[waitMusicTrack].id}?autoplay=1&loop=1&playlist=${WAIT_MUSIC_TRACKS[waitMusicTrack].id}&controls=0`}
-                    allow="autoplay" style={{ position: 'absolute', width: 2, height: 2, opacity: 0, pointerEvents: 'none' }}></iframe>
+                  <div id="wait-music-player-target" style={{ position: 'absolute', width: 2, height: 2, opacity: 0, pointerEvents: 'none' }}></div>
                 )}
               </div>
 
@@ -11429,7 +11463,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.127';
+const APP_VERSION = 'v2.128';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

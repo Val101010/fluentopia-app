@@ -2095,29 +2095,29 @@ async function removeDjRequest(classId, date, currentQueue, entryId) {
   await db.collection('fluentopia_dj_queue').doc(`${classId}_${date}`)
     .set({ queue: (currentQueue || []).filter(q => q.id !== entryId) }).catch(() => {});
 }
-/* ---------- Harta Exploratorilor — cameră partajată (Pasul 2, live): un document per clasă+hartă, jucătorii ca sub-câmpuri ---------- */
-function listenExplorePlayers(classId, mapId, cb) {
+/* ---------- Harta Exploratorilor — cameră partajată (Pasul 2, live): UN document per hartă, comun întregii școli — jucătorii ca sub-câmpuri ---------- */
+function listenExplorePlayers(mapId, cb) {
   const db = getDb(); if (!db) return () => {};
-  return db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
+  return db.collection('fluentopia_explore_players').doc(mapId)
     .onSnapshot(doc => cb((doc.data() && doc.data().players) || {}), err => console.error('explore players listen error', err));
 }
-async function updateExplorePlayerPos(classId, mapId, studentId, data) {
+async function updateExplorePlayerPos(mapId, studentId, data) {
   const db = getDb(); if (!db) return;
   const patch = {};                                             // scriem fiecare câmp pe calea lui exactă — nu atinge alte câmpuri (ex: frozenUntil pus de altcineva)
   Object.keys(data).forEach(k => { patch[`players.${studentId}.${k}`] = data[k]; });
-  const ref = db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`);
+  const ref = db.collection('fluentopia_explore_players').doc(mapId);
   try { await ref.update(patch); }
   catch (e) { await ref.set({ players: { [studentId]: data } }, { merge: true }).catch(() => {}); }  // documentul camerei nu exista încă — îl creează
 }
-async function freezeExplorePlayer(classId, mapId, targetStudentId, frozenUntil) {
+async function freezeExplorePlayer(mapId, targetStudentId, frozenUntil) {
   const db = getDb(); if (!db) return;
-  const ref = db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`);
+  const ref = db.collection('fluentopia_explore_players').doc(mapId);
   try { await ref.update({ [`players.${targetStudentId}.frozenUntil`]: frozenUntil }); }
   catch (e) { await ref.set({ players: { [targetStudentId]: { frozenUntil } } }, { merge: true }).catch(() => {}); }
 }
-async function removeExplorePlayer(classId, mapId, studentId) {
+async function removeExplorePlayer(mapId, studentId) {
   const db = getDb(); if (!db) return;
-  await db.collection('fluentopia_explore_players').doc(`${classId}_${mapId}`)
+  await db.collection('fluentopia_explore_players').doc(mapId)
     .update({ [`players.${studentId}`]: firebase.firestore.FieldValue.delete() }).catch(() => {});
 }
 function listenPendingCards(classId, date, cb) {
@@ -4510,37 +4510,35 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   const [showMsgPicker, setShowMsgPicker] = useState(false);
   const [tick, setTick] = useState(0);                          // reevaluează periodic cine mai e "online" pe hartă
   const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
-  const prevRoomRef = useRef(null);                              // camera (clasă+hartă) pe care tocmai am părăsit-o, ca s-o curățăm
+  const prevRoomRef = useRef(null);                              // harta pe care tocmai am părăsit-o, ca s-o curățăm
 
-  useEffect(() => {                                              // ascult live ceilalți exploratori din ACEEAȘI cameră (clasă + hartă)
-    const unsub = listenExplorePlayers(student.classId, mapId, players => {
+  useEffect(() => {                                              // ascult live ceilalți exploratori din ACEEAȘI hartă — comună întregii școli, nu doar clasei
+    const unsub = listenExplorePlayers(mapId, players => {
       const copy = { ...players }; delete copy[student.id];
       setOtherPlayers(copy);
       setMyRoomData(players[student.id] || null);
     });
     return unsub;
-  }, [student.classId, mapId]);
+  }, [mapId]);
 
   useEffect(() => {                                              // îmi trimit poziția — la mutare, și la fiecare 20s ca "puls" (rămân vizibil chiar dacă stau pe loc)
-    updateExplorePlayerPos(student.classId, mapId, student.id, {
+    updateExplorePlayerPos(mapId, student.id, {
       x: pos.x, y: pos.y, name: student.name, avatar: student.avatar || null, avatarFrame: student.avatarFrame || null, lastSeen: new Date().toISOString(),
     });
     const iv = setInterval(() => {
-      updateExplorePlayerPos(student.classId, mapId, student.id, {
+      updateExplorePlayerPos(mapId, student.id, {
         x: pos.x, y: pos.y, name: student.name, avatar: student.avatar || null, avatarFrame: student.avatarFrame || null, lastSeen: new Date().toISOString(),
       });
     }, 20000);
     return () => clearInterval(iv);
-  }, [pos.x, pos.y, mapId, student.classId, student.id]);
+  }, [pos.x, pos.y, mapId, student.id]);
 
-  useEffect(() => {                                              // ies din camera veche când schimb harta sau când ies din tab
+  useEffect(() => {                                              // ies din harta veche când schimb harta sau când ies din tab
     const prev = prevRoomRef.current;
-    if (prev && (prev.classId !== student.classId || prev.mapId !== mapId)) {
-      removeExplorePlayer(prev.classId, prev.mapId, student.id);
-    }
-    prevRoomRef.current = { classId: student.classId, mapId };
-    return () => { if (prevRoomRef.current) removeExplorePlayer(prevRoomRef.current.classId, prevRoomRef.current.mapId, student.id); };
-  }, [mapId, student.classId, student.id]);
+    if (prev && prev !== mapId) removeExplorePlayer(prev, student.id);
+    prevRoomRef.current = mapId;
+    return () => { if (prevRoomRef.current) removeExplorePlayer(prevRoomRef.current, student.id); };
+  }, [mapId, student.id]);
 
   useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 15000); return () => clearInterval(iv); }, []);
   useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(iv); }, []);   // rapid, doar ca "înghețat" să se dezactiveze exact la timp
@@ -4552,12 +4550,12 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   function throwChairAt(targetId, targetName) {
     if ((student.chairsCount || 0) < 1) return;
     onThrowChair(targetName);
-    freezeExplorePlayer(student.classId, mapId, targetId, new Date(Date.now() + 8000).toISOString());
+    freezeExplorePlayer(mapId, targetId, new Date(Date.now() + 8000).toISOString());
   }
 
   function sendBubble(text) {
     setMyBubble(text);
-    updateExplorePlayerPos(student.classId, mapId, student.id, {
+    updateExplorePlayerPos(mapId, student.id, {
       x: pos.x, y: pos.y, name: student.name, avatar: student.avatar || null, avatarFrame: student.avatarFrame || null,
       lastSeen: new Date().toISOString(), bubble: { text, sentAt: new Date().toISOString() },
     });
@@ -4704,10 +4702,10 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
     </div>
   );
 }
-function MapSpectatorView({ classId, mapId, tick }) {                // consola profesorului — doar privește, nu se mișcă
+function MapSpectatorView({ mapId }) {                          // consola profesorului — doar privește, nu se mișcă; vede toată școala, nu doar clasa activă
   const [players, setPlayers] = useState({});
   const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
-  useEffect(() => { const unsub = listenExplorePlayers(classId, mapId, setPlayers); return unsub; }, [classId, mapId]);
+  useEffect(() => { const unsub = listenExplorePlayers(mapId, setPlayers); return unsub; }, [mapId]);
   const live = Object.entries(players).filter(([, p]) => p.lastSeen && (Date.now() - new Date(p.lastSeen).getTime()) < 60000);
   return (
     <div>
@@ -10653,7 +10651,7 @@ function TeacherApp({ onExit, teacherName }) {
         <div onClick={() => setShowExploreSpectator(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 22, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto' }} className="scrollbar">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Fluentcraft — {classes.find(c => c.id === activeClassId)?.name}</h3>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Fluentcraft — toată școala</h3>
               <button onClick={() => setShowExploreSpectator(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
             </div>
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Doar urmărești — elevii se mișcă din contul lor.</p>
@@ -10665,7 +10663,7 @@ function TeacherApp({ onExit, teacherName }) {
                 }}>{icon} {MAP_THEMES[m].name}</button>
               ))}
             </div>
-            <MapSpectatorView classId={activeClassId} mapId={exploreSpectatorMap} />
+            <MapSpectatorView mapId={exploreSpectatorMap} />
           </div>
         </div>
       )}
@@ -11521,7 +11519,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.132';
+const APP_VERSION = 'v2.133';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

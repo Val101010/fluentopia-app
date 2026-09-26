@@ -2120,6 +2120,42 @@ async function removeExplorePlayer(mapId, studentId) {
   await db.collection('fluentopia_explore_players').doc(mapId)
     .update({ [`players.${studentId}`]: firebase.firestore.FieldValue.delete() }).catch(() => {});
 }
+/* ---------- Worldcraft — invitații la joc între doi elevi (X și 0, deocamdată) ---------- */
+async function inviteToGame(mapId, targetStudentId, gameId, fromId, fromName) {
+  const db = getDb(); if (!db) return;
+  const ref = db.collection('fluentopia_explore_players').doc(mapId);
+  const patch = { [`players.${targetStudentId}.invitedToGame`]: { gameId, fromId, fromName } };
+  try { await ref.update(patch); } catch (e) { await ref.set({ players: { [targetStudentId]: { invitedToGame: { gameId, fromId, fromName } } } }, { merge: true }).catch(() => {}); }
+}
+async function clearGameInvite(mapId, studentId) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_explore_players').doc(mapId)
+    .update({ [`players.${studentId}.invitedToGame`]: firebase.firestore.FieldValue.delete() }).catch(() => {});
+}
+function listenTicTacToe(gameId, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_minigames').doc(gameId).onSnapshot(doc => cb(doc.data() || null), err => console.error('ttt listen error', err));
+}
+async function createTicTacToe(gameId, playerX) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_minigames').doc(gameId)
+    .set({ board: Array(9).fill(null), turn: 'X', winner: null, playerX, playerO: null, createdAt: new Date().toISOString() }).catch(() => {});
+}
+async function joinTicTacToe(gameId, playerO) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_minigames').doc(gameId).update({ playerO }).catch(() => {});
+}
+async function playTicTacToeMove(gameId, cellIdx, mark, board) {
+  const db = getDb(); if (!db) return;
+  const next = [...board]; next[cellIdx] = mark;
+  const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  let winner = lines.some(([a,b,c]) => next[a] && next[a] === next[b] && next[a] === next[c]) ? mark : (next.every(c => c) ? 'draw' : null);
+  await db.collection('fluentopia_minigames').doc(gameId).update({ board: next, turn: mark === 'X' ? 'O' : 'X', winner }).catch(() => {});
+}
+async function resetTicTacToe(gameId) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_minigames').doc(gameId).update({ board: Array(9).fill(null), turn: 'X', winner: null }).catch(() => {});
+}
 function listenPendingCards(classId, date, cb) {
   const db = getDb(); if (!db) return () => {};
   return db.collection('fluentopia_pending_cards').where('classId', '==', classId).where('date', '==', date)
@@ -4401,7 +4437,7 @@ function DjRequestView({ student, onConsumeDjSticker }) {
   );
 }
 /* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
-const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!'];
+const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!', 'Hai să ne jucăm! 🎮'];
 const WAIT_MUSIC_TRACKS = [                                     // alese de profesor, royalty-free (EMW) — nu sunt îmbinate într-o singură piesă, se aleg pe rând
   { id: 'u2qF9ZWIt3Q', label: 'Ambient exploratori' },
   { id: 'UoxZ4403hDc', label: 'Vesel, energic' },
@@ -4493,6 +4529,42 @@ function trapState(seed) {                                       // ciclu de 8s:
   if (t < 7) return 'warning';
   return 'active';
 }
+function TicTacToeModal({ gameId, myMark, myName, onClose }) {
+  const [game, setGame] = useState(null);
+  useEffect(() => { const unsub = listenTicTacToe(gameId, setGame); return unsub; }, [gameId]);
+  if (!game) return null;
+  const myTurn = game.turn === myMark && !game.winner;
+  const oppName = myMark === 'X' ? (game.playerO ? game.playerO.name : '...') : game.playerX.name;
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 20, padding: 24, maxWidth: 340, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+      }}>
+        <div style={{ textAlign: 'center', fontSize: 30, marginBottom: 6 }}>❌⭕</div>
+        <div className="heading-font" style={{ textAlign: 'center', fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 4 }}>{myName} <span style={{ color: '#8A86A8', fontWeight: 400 }}>vs</span> {oppName}</div>
+        <div style={{ textAlign: 'center', fontSize: 12.5, fontWeight: 700, marginBottom: 16, color: game.winner ? '#F5C542' : myTurn ? '#4ADE80' : '#8A86A8' }}>
+          {game.winner === 'draw' ? '🤝 Egalitate!' : game.winner ? `🏆 A câștigat ${game.winner}!` : myTurn ? 'E rândul tău!' : `Așteaptă mutarea lui ${oppName}...`}
+        </div>
+        {!game.playerO ? (
+          <div style={{ textAlign: 'center', fontSize: 12.5, color: '#8A86A8', padding: '20px 0' }}>Se așteaptă ca {oppName} să accepte invitația...</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 16 }}>
+            {game.board.map((cell, i) => (
+              <button key={i} disabled={!myTurn || cell || game.winner} onClick={() => playTicTacToeMove(gameId, i, myMark, game.board)} style={{
+                aspectRatio: '1', borderRadius: 10, border: '1px solid #2E2850', cursor: (myTurn && !cell && !game.winner) ? 'pointer' : 'default',
+                background: '#0F0C1C', fontSize: 26, fontWeight: 900, color: cell === 'X' ? '#EC1E8F' : '#38BDF8',
+              }}>{cell}</button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {game.winner && <button onClick={() => resetTicTacToe(gameId)} style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: '#fff', fontWeight: 700, fontSize: 12.5 }}>🔁 Revanșă</button>}
+          <button onClick={onClose} style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12.5 }}>Închide</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function ExploreChestModal({ question, onAnswer, onClose }) {
   const [picked, setPicked] = useState(null);
   const q = EXPLORE_QUESTIONS[question.qIdx];
@@ -4534,6 +4606,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   const [myBubble, setMyBubble] = useState(null);
   const [showMsgPicker, setShowMsgPicker] = useState(false);
   const [npcTipText, setNpcTipText] = useState(null);
+  const [myGame, setMyGame] = useState(null);                    // { gameId, myMark } — jocul X și 0 activ, dacă e cazul
   const [tick, setTick] = useState(0);                          // reevaluează periodic cine mai e "online" pe hartă
   const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
   const prevRoomRef = useRef(null);                              // harta pe care tocmai am părăsit-o, ca s-o curățăm
@@ -4578,6 +4651,20 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
     onThrowChair(targetName);
     freezeExplorePlayer(mapId, targetId, new Date(Date.now() + 8000).toISOString(), student.name);
   }
+
+  function inviteNearbyToGame(targetId) {
+    const gameId = 'ttt_' + uid();
+    createTicTacToe(gameId, { id: student.id, name: student.name });
+    inviteToGame(mapId, targetId, gameId, student.id, student.name);
+    setMyGame({ gameId, myMark: 'X' });
+  }
+  const myInvite = myRoomData && myRoomData.invitedToGame;
+  function acceptGameInvite() {
+    joinTicTacToe(myInvite.gameId, { id: student.id, name: student.name });
+    setMyGame({ gameId: myInvite.gameId, myMark: 'O' });
+    clearGameInvite(mapId, student.id);
+  }
+  function declineGameInvite() { clearGameInvite(mapId, student.id); }
 
   function sendBubble(text) {
     setMyBubble(text);
@@ -4658,6 +4745,19 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
           display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,122,69,0.5)',
           background: 'rgba(255,122,69,0.14)', color: '#FF7A45', fontSize: 13, fontWeight: 800, cursor: 'pointer', marginBottom: 10,
         }}>🪑 Aruncă un scaun spre {nearbyTarget[1].name}! ({student.chairsCount} rămase)</button>
+      )}
+      {!isFrozen && nearbyTarget && !myGame && (
+        <button onClick={() => inviteNearbyToGame(nearbyTarget[0])} style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(139,92,246,0.5)',
+          background: 'rgba(139,92,246,0.14)', color: '#C4B5FD', fontSize: 13, fontWeight: 800, cursor: 'pointer', marginBottom: 10,
+        }}>🎮 Invită pe {nearbyTarget[1].name} la X și 0</button>
+      )}
+      {myInvite && !myGame && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(139,92,246,0.14)', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 12, padding: '10px 14px', marginBottom: 10 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: '#C4B5FD', flex: 1 }}>🎮 {myInvite.fromName} te invită la X și 0!</span>
+          <button onClick={acceptGameInvite} style={{ padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12 }}>Accept</button>
+          <button onClick={declineGameInvite} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12 }}>Refuz</button>
+        </div>
       )}
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%', boxShadow: '0 10px 34px rgba(139,92,246,.15)' }}>
         <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none' }}>
@@ -4756,6 +4856,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
         </div>
       </div>
       {activeChest && <ExploreChestModal question={activeChest} onAnswer={onAnswerChest} onClose={() => {}} />}
+      {myGame && <TicTacToeModal gameId={myGame.gameId} myMark={myGame.myMark} myName={student.name} onClose={() => setMyGame(null)} />}
     </div>
   );
 }
@@ -11576,7 +11677,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.135';
+const APP_VERSION = 'v2.136';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

@@ -4420,31 +4420,51 @@ function seededRandom(seed) {
   let s = seed % 2147483647; if (s <= 0) s += 2147483646;
   return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
+const MAP_ORDER = ['forest', 'sandbox', 'ice', 'desert', 'mario'];
+const MAP_THEMES = {
+  forest:  { name: 'Pădure',              groundBg: 'linear-gradient(160deg,#1B3B22,#132A19)', obstacleEmoji: '🌲', obstacleBg: 'linear-gradient(160deg,#12301A,#0D2213)', waterEmoji: '🌊', waterBg: 'linear-gradient(160deg,#153A5C,#0F2A44)', doorEmoji: '🚪' },
+  sandbox: { name: 'Insula Nisipurilor',  groundBg: 'linear-gradient(160deg,#5C4A28,#3E3119)', obstacleEmoji: '🌴', obstacleBg: 'linear-gradient(160deg,#4A3A1F,#332812)', waterEmoji: '🌊', waterBg: 'linear-gradient(160deg,#0F6E8C,#0A4D64)', doorEmoji: '⛵' },
+  ice:     { name: 'Tărâm Înghețat',      groundBg: 'linear-gradient(160deg,#2E4A5C,#1E3340)', obstacleEmoji: '🌲', obstacleBg: 'linear-gradient(160deg,#3A5A70,#26404F)', waterEmoji: '🧊', waterBg: 'linear-gradient(160deg,#153A5C,#0F2A44)', doorEmoji: '🚪' },
+  desert:  { name: 'Deșert',              groundBg: 'linear-gradient(160deg,#6B4E1E,#4A3512)', obstacleEmoji: '🌵', obstacleBg: 'linear-gradient(160deg,#5A4118,#3D2C0F)', waterEmoji: '💧', waterBg: 'linear-gradient(160deg,#1E6B5C,#144A3E)', doorEmoji: '🏺' },
+  mario:   { name: 'Regatul Ciupercilor', groundBg: 'linear-gradient(160deg,#3A6EA5,#274C73)', obstacleEmoji: '🧱', obstacleBg: 'linear-gradient(160deg,#8B4513,#5C2E0C)', waterEmoji: '🟢', waterBg: 'linear-gradient(160deg,#1B6B1F,#124A15)', doorEmoji: '🏰' },
+};
 const EXPLORE_COLS = 14, EXPLORE_ROWS = 9;
 function buildExploreMap(mapId) {
-  const seed = mapId === 'sandbox' ? 91 : 7;
+  const seed = { forest: 7, sandbox: 91, ice: 233, desert: 577, mario: 919 }[mapId] || 7;
   const rand = seededRandom(seed);
+  const waterBands = {
+    forest:  [[0, 1, 10, 12], [7, 8, 1, 3]],
+    sandbox: [[0, 1, 2, 4], [6, 8, 9, 11]],
+    ice:     [[0, 1, 5, 7], [6, 8, 2, 4]],
+    desert:  [[3, 4, 6, 8], [0, 1, 11, 13]],
+    mario:   [[4, 5, 0, 13]],                                    // un rând de "țevi" traversând harta, ca un obstacol clasic
+  }[mapId] || [];
+  const density = { forest: 0.24, sandbox: 0.2, ice: 0.22, desert: 0.16, mario: 0.28 }[mapId] || 0.22;
   const tiles = [];
   for (let y = 0; y < EXPLORE_ROWS; y++) {
     const row = [];
     for (let x = 0; x < EXPLORE_COLS; x++) {
       let t = 'grass';
-      if (mapId === 'sandbox') {
-        if ((y <= 1 && x >= 2 && x <= 4) || (y >= 6 && x >= 9 && x <= 11)) t = 'water';
-        else if (rand() < 0.2) t = 'forest';
-      } else {
-        if ((y <= 1 && x >= 10 && x <= 12) || (y >= 7 && x >= 1 && x <= 3)) t = 'water';
-        else if (rand() < 0.24) t = 'forest';
-      }
+      if (waterBands.some(([y1, y2, x1, x2]) => y >= y1 && y <= y2 && x >= x1 && x <= x2)) t = 'water';
+      else if (rand() < density) t = 'forest';
       row.push(t);
     }
     tiles.push(row);
   }
-  const chests = mapId === 'sandbox' ? [{ x: 6, y: 3, qIdx: 3 }, { x: 11, y: 2, qIdx: 4 }] : [{ x: 3, y: 2, qIdx: 0 }, { x: 6, y: 4, qIdx: 1 }, { x: 9, y: 6, qIdx: 5 }];
+  const chestSets = {
+    forest:  [{ x: 3, y: 2, qIdx: 0 }, { x: 6, y: 4, qIdx: 1 }, { x: 9, y: 6, qIdx: 5 }],
+    sandbox: [{ x: 6, y: 3, qIdx: 3 }, { x: 11, y: 2, qIdx: 4 }],
+    ice:     [{ x: 4, y: 2, qIdx: 2 }, { x: 10, y: 5, qIdx: 0 }],
+    desert:  [{ x: 2, y: 6, qIdx: 1 }, { x: 8, y: 3, qIdx: 4 }],
+    mario:   [{ x: 5, y: 1, qIdx: 5 }, { x: 9, y: 2, qIdx: 3 }, { x: 3, y: 7, qIdx: 2 }],
+  };
+  const chests = chestSets[mapId] || chestSets.forest;
   chests.forEach(ch => { tiles[ch.y][ch.x] = 'grass'; });
-  const door = mapId === 'sandbox' ? { x: 0, y: 4 } : { x: 13, y: 4 };
+  const doorPositions = { forest: { x: 13, y: 4 }, sandbox: { x: 0, y: 4 }, ice: { x: 13, y: 4 }, desert: { x: 0, y: 4 }, mario: { x: 13, y: 4 } };
+  const door = doorPositions[mapId] || doorPositions.forest;
   tiles[door.y][door.x] = 'grass';
-  const start = mapId === 'sandbox' ? { x: 1, y: 4 } : { x: 1, y: 1 };
+  const startPositions = { forest: { x: 1, y: 1 }, sandbox: { x: 1, y: 4 }, ice: { x: 1, y: 1 }, desert: { x: 1, y: 4 }, mario: { x: 1, y: 1 } };
+  const start = startPositions[mapId] || startPositions.forest;
   tiles[start.y][start.x] = 'grass';
   return { tiles, chests, door, start };
 }
@@ -4558,7 +4578,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
     const chestKey = `${mapId}_${pos.x}_${pos.y}`;
     if (chest && !openedChests[chestKey] && !activeChest) setActiveChest({ ...chest, key: chestKey });
     if (map.door.x === pos.x && map.door.y === pos.y) {
-      const nextMap = mapId === 'forest' ? 'sandbox' : 'forest';
+      const nextMap = MAP_ORDER[(MAP_ORDER.indexOf(mapId) + 1) % MAP_ORDER.length];
       const nextStart = buildExploreMap(nextMap).start;
       const t = setTimeout(() => { setMapId(nextMap); setPos(nextStart); }, 150);
       return () => clearTimeout(t);
@@ -4580,10 +4600,15 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
     if (correct) onEarnReward(5, 'Cufăr — Fluentcraft');
     setActiveChest(null);
   }
+  const totalChests = React.useMemo(() => MAP_ORDER.reduce((sum, m) => sum + buildExploreMap(m).chests.length, 0), []);
+  const openedCount = (student.exploreOpenedChests || []).length;
   return (
     <div>
       <SectionHeader icon="🗺️" title="Fluentcraft" color="#8B5CF6" />
-      <p style={{ fontSize: 12, color: '#8A86A8', margin: '-8px 0 10px' }}>Mișcă-te cu săgețile sau cu butoanele de jos. Deschide cuferele, găsește ușa spre altă hartă!</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-8px 0 10px' }}>
+        <p style={{ fontSize: 12, color: '#8A86A8', margin: 0 }}>Ești pe: <b style={{ color: '#C4B5FD' }}>{(MAP_THEMES[mapId] || MAP_THEMES.forest).name}</b></p>
+        <div style={{ fontSize: 11, color: '#F5C542', fontWeight: 700, background: 'rgba(245,197,66,0.1)', border: '1px solid rgba(245,197,66,0.35)', borderRadius: 20, padding: '3px 10px' }}>📦 {openedCount}/{totalChests} descoperite</div>
+      </div>
       {liveOtherPlayers.length > 0 && (
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.4)', borderRadius: 20, padding: '5px 12px', marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: '#4ADE80' }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', boxShadow: '0 0 6px #4ADE80' }}></span>
@@ -4606,13 +4631,14 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
           {map.tiles.map((row, y) => row.map((t, x) => {
             const isChest = map.chests.some(c => c.x === x && c.y === y) && !openedChests[`${mapId}_${x}_${y}`];
             const isDoor = map.door.x === x && map.door.y === y;
-            const emoji = isDoor ? '🚪' : isChest ? '📦' : t === 'forest' ? '🌲' : t === 'water' ? '🌊' : '';
+            const theme = MAP_THEMES[mapId] || MAP_THEMES.forest;
+            const emoji = isDoor ? theme.doorEmoji : isChest ? '📦' : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
             return (
               <div key={`${x}_${y}`} style={{
                 aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, position: 'relative',
-                background: isDoor ? 'radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), linear-gradient(160deg,#1B3B22,#132A19)'
+                background: isDoor ? `radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), ${theme.groundBg}`
                   : isChest ? 'radial-gradient(circle, rgba(245,197,66,.35), transparent 70%), linear-gradient(160deg,#3A3020,#2A2318)'
-                  : t === 'forest' ? 'linear-gradient(160deg,#12301A,#0D2213)' : t === 'water' ? 'linear-gradient(160deg,#153A5C,#0F2A44)' : 'linear-gradient(160deg,#1B3B22,#132A19)',
+                  : t === 'forest' ? theme.obstacleBg : t === 'water' ? theme.waterBg : theme.groundBg,
                 boxShadow: isChest ? 'inset 0 0 0 2px rgba(245,197,66,.7)' : 'none',
               }}>
                 {emoji}
@@ -4687,20 +4713,21 @@ function MapSpectatorView({ classId, mapId, tick }) {                // consola 
     <div>
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.4)', borderRadius: 20, padding: '5px 12px', marginBottom: 10, fontSize: 11.5, fontWeight: 700, color: '#4ADE80' }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ADE80', boxShadow: '0 0 6px #4ADE80' }}></span>
-        {live.length} {live.length === 1 ? 'explorator' : 'exploratori'} pe {mapId === 'forest' ? 'harta principală' : 'sandbox'}
+        {live.length} {live.length === 1 ? 'explorator' : 'exploratori'} pe {(MAP_THEMES[mapId] || MAP_THEMES.forest).name}
       </div>
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%' }}>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EXPLORE_COLS}, 1fr)`, gap: 1, background: '#050409' }}>
           {map.tiles.map((row, y) => row.map((t, x) => {
             const isChest = map.chests.some(c => c.x === x && c.y === y);
             const isDoor = map.door.x === x && map.door.y === y;
-            const emoji = isDoor ? '🚪' : isChest ? '📦' : t === 'forest' ? '🌲' : t === 'water' ? '🌊' : '';
+            const theme = MAP_THEMES[mapId] || MAP_THEMES.forest;
+            const emoji = isDoor ? theme.doorEmoji : isChest ? '📦' : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
             return (
               <div key={`${x}_${y}`} style={{
                 aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, position: 'relative',
-                background: isDoor ? 'radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), linear-gradient(160deg,#1B3B22,#132A19)'
+                background: isDoor ? `radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), ${theme.groundBg}`
                   : isChest ? 'radial-gradient(circle, rgba(245,197,66,.35), transparent 70%), linear-gradient(160deg,#3A3020,#2A2318)'
-                  : t === 'forest' ? 'linear-gradient(160deg,#12301A,#0D2213)' : t === 'water' ? 'linear-gradient(160deg,#153A5C,#0F2A44)' : 'linear-gradient(160deg,#1B3B22,#132A19)',
+                  : t === 'forest' ? theme.obstacleBg : t === 'water' ? theme.waterBg : theme.groundBg,
               }}>
                 {emoji}
                 {live.filter(([, p]) => p.x === x && p.y === y).map(([pid, p]) => {
@@ -10630,12 +10657,12 @@ function TeacherApp({ onExit, teacherName }) {
               <button onClick={() => setShowExploreSpectator(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
             </div>
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Doar urmărești — elevii se mișcă din contul lor.</p>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-              {[['forest', '🌲 Harta principală'], ['sandbox', '🏝️ Sandbox']].map(([m, label]) => (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+              {[['forest', '🌲'], ['sandbox', '🏖️'], ['ice', '❄️'], ['desert', '🏜️'], ['mario', '🍄']].map(([m, icon]) => (
                 <button key={m} onClick={() => setExploreSpectatorMap(m)} style={{
-                  flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  flex: '1 0 auto', padding: '8px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
                   background: exploreSpectatorMap === m ? 'linear-gradient(135deg, #8B5CF6, #6D28D9)' : '#0F0C1C', color: exploreSpectatorMap === m ? '#fff' : '#8A86A8',
-                }}>{label}</button>
+                }}>{icon} {MAP_THEMES[m].name}</button>
               ))}
             </div>
             <MapSpectatorView classId={activeClassId} mapId={exploreSpectatorMap} />
@@ -11494,7 +11521,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.131';
+const APP_VERSION = 'v2.132';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

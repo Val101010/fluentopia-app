@@ -2109,11 +2109,11 @@ async function updateExplorePlayerPos(mapId, studentId, data) {
   try { await ref.update(patch); }
   catch (e) { await ref.set({ players: { [studentId]: data } }, { merge: true }).catch(() => {}); }  // documentul camerei nu exista încă — îl creează
 }
-async function freezeExplorePlayer(mapId, targetStudentId, frozenUntil) {
+async function freezeExplorePlayer(mapId, targetStudentId, frozenUntil, frozenBy) {
   const db = getDb(); if (!db) return;
   const ref = db.collection('fluentopia_explore_players').doc(mapId);
-  try { await ref.update({ [`players.${targetStudentId}.frozenUntil`]: frozenUntil }); }
-  catch (e) { await ref.set({ players: { [targetStudentId]: { frozenUntil } } }, { merge: true }).catch(() => {}); }
+  try { await ref.update({ [`players.${targetStudentId}.frozenUntil`]: frozenUntil, [`players.${targetStudentId}.frozenBy`]: frozenBy }); }
+  catch (e) { await ref.set({ players: { [targetStudentId]: { frozenUntil, frozenBy } } }, { merge: true }).catch(() => {}); }
 }
 async function removeExplorePlayer(mapId, studentId) {
   const db = getDb(); if (!db) return;
@@ -2800,7 +2800,7 @@ const MENU_STRINGS = {
   ro: {
     groups: { acasa: 'Acasă', social: 'Social', distractie: 'Distracție', aurabuddy: 'Aura Buddy', clasamente: 'Clasamente', finante: 'Finanțe', progres: 'Progres' },
     tabs: {
-      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day', explore: 'Fluentcraft',
+      overview: 'Rezumat', howto: 'Cum funcționează', roluri: 'Șef & Judecător', discipline: 'Disciplină', hero: 'Cartonaș Erou', dj: 'DJ for a Day', explore: 'Worldcraft',
       wall: 'Wall', messages: 'Mesaje', board: 'Tablă', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Jocuri', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Clasament clasă', globalrank: 'Clasamente Fluentopia',
@@ -2812,7 +2812,7 @@ const MENU_STRINGS = {
   en: {
     groups: { acasa: 'Home', social: 'Social', distractie: 'Fun', aurabuddy: 'Aura Buddy', clasamente: 'Leaderboards', finante: 'Money', progres: 'Progress' },
     tabs: {
-      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day', explore: 'Fluentcraft',
+      overview: 'Overview', howto: 'How It Works', roluri: 'Monitor & Judge', discipline: 'Discipline', hero: 'Hero Card', dj: 'DJ for a Day', explore: 'Worldcraft',
       wall: 'Wall', messages: 'Messages', board: 'Board', duel: 'Duel', aurabattle: 'Aura Battle',
       games: 'Games', wheel: 'Spin', radio: 'Radio', pet: 'Aura Buddy', stickers: 'Sticker Chart',
       leaderboard: 'Class Leaderboard', globalrank: 'Fluentopia Leaderboards',
@@ -4428,6 +4428,13 @@ const MAP_THEMES = {
   desert:  { name: 'Deșert',              groundBg: 'linear-gradient(160deg,#6B4E1E,#4A3512)', obstacleEmoji: '🌵', obstacleBg: 'linear-gradient(160deg,#5A4118,#3D2C0F)', waterEmoji: '💧', waterBg: 'linear-gradient(160deg,#1E6B5C,#144A3E)', doorEmoji: '🏺' },
   mario:   { name: 'Regatul Ciupercilor', groundBg: 'linear-gradient(160deg,#3A6EA5,#274C73)', obstacleEmoji: '🧱', obstacleBg: 'linear-gradient(160deg,#8B4513,#5C2E0C)', waterEmoji: '🟢', waterBg: 'linear-gradient(160deg,#1B6B1F,#124A15)', doorEmoji: '🏰' },
 };
+const MAP_NPCS = {
+  forest:  { emoji: '🦉', name: 'Bufnița Ozzy',    tips: ['„Owl" înseamnă bufniță — exact ca mine!', 'Sfat: repetă cu voce tare cuvintele noi, se lipesc mai bine.', 'Am auzit că mai sunt cufere neexplorate pe-aici...'] },
+  sandbox: { emoji: '🦀', name: 'Crabul Sandy',     tips: ['„Beach" se pronunță /biːtʃ/ — atenție, nu „bitch"!', 'Aici e „insulă", în engleză „island" — cu „s" mut!', 'Ai grijă la valuri, dar și la engleza ta 😉'] },
+  ice:     { emoji: '🐧', name: 'Pinguinul Pip',    tips: ['„Cold" înseamnă frig — exact ca aici, brrr!', '„Ice" e gheață, „snow" e zăpadă — nu le încurca!', 'Alunecă ușor pe-aici, ca și verbele neregulate...'] },
+  desert:  { emoji: '🦂', name: 'Scorpionul Sandy', tips: ['„Hot" înseamnă fierbinte — exact ca deșertul ăsta!', 'Nu mă atinge, sunt „dangerous" — periculos!', 'Cactușii se zic „cactus" și-n engleză — ușor de reținut!'] },
+  mario:   { emoji: '🍄', name: 'Ciupercuța Toadie',tips: ['„Jump" înseamnă a sări — hop!', 'Colectez „coins" — monede, pe-aici!', 'Regatul ăsta are secrete în fiecare cărămidă 🧱'] },
+};
 const EXPLORE_COLS = 14, EXPLORE_ROWS = 9;
 function buildExploreMap(mapId) {
   const seed = { forest: 7, sandbox: 91, ice: 233, desert: 577, mario: 919 }[mapId] || 7;
@@ -4466,7 +4473,25 @@ function buildExploreMap(mapId) {
   const startPositions = { forest: { x: 1, y: 1 }, sandbox: { x: 1, y: 4 }, ice: { x: 1, y: 1 }, desert: { x: 1, y: 4 }, mario: { x: 1, y: 1 } };
   const start = startPositions[mapId] || startPositions.forest;
   tiles[start.y][start.x] = 'grass';
-  return { tiles, chests, door, start };
+  const npcPositions = { forest: { x: 8, y: 1 }, sandbox: { x: 4, y: 6 }, ice: { x: 8, y: 6 }, desert: { x: 11, y: 5 }, mario: { x: 11, y: 6 } };
+  const npc = npcPositions[mapId] || npcPositions.forest;
+  tiles[npc.y][npc.x] = 'grass';
+  const trapSets = {                                            // capcane dinamice — se deschid și se închid pe rând, ca un puzzle de sincronizare
+    forest:  [{ x: 5, y: 6, seed: 0 }],
+    sandbox: [{ x: 9, y: 5, seed: 1 }],
+    ice:     [{ x: 6, y: 3, seed: 2 }],
+    desert:  [{ x: 5, y: 2, seed: 3 }],
+    mario:   [{ x: 7, y: 3, seed: 4 }, { x: 2, y: 5, seed: 5 }],
+  };
+  const traps = trapSets[mapId] || trapSets.forest;
+  traps.forEach(tr => { tiles[tr.y][tr.x] = 'grass'; });
+  return { tiles, chests, door, start, npc, traps };
+}
+function trapState(seed) {                                       // ciclu de 8s: 5s liber, 2s avertisment, 1s activ (blochează) — sincronizat pe ceasul real, la fel pentru toți
+  const t = (Math.floor(Date.now() / 1000) + seed * 3) % 8;
+  if (t < 5) return 'safe';
+  if (t < 7) return 'warning';
+  return 'active';
 }
 function ExploreChestModal({ question, onAnswer, onClose }) {
   const [picked, setPicked] = useState(null);
@@ -4508,6 +4533,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   const [myRoomData, setMyRoomData] = useState(null);            // propria intrare din cameră — ca să văd dacă altcineva m-a "înghețat"
   const [myBubble, setMyBubble] = useState(null);
   const [showMsgPicker, setShowMsgPicker] = useState(false);
+  const [npcTipText, setNpcTipText] = useState(null);
   const [tick, setTick] = useState(0);                          // reevaluează periodic cine mai e "online" pe hartă
   const map = React.useMemo(() => buildExploreMap(mapId), [mapId]);
   const prevRoomRef = useRef(null);                              // harta pe care tocmai am părăsit-o, ca s-o curățăm
@@ -4550,7 +4576,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   function throwChairAt(targetId, targetName) {
     if ((student.chairsCount || 0) < 1) return;
     onThrowChair(targetName);
-    freezeExplorePlayer(mapId, targetId, new Date(Date.now() + 8000).toISOString());
+    freezeExplorePlayer(mapId, targetId, new Date(Date.now() + 8000).toISOString(), student.name);
   }
 
   function sendBubble(text) {
@@ -4568,6 +4594,8 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
       const nx = prev.x + dx, ny = prev.y + dy;
       if (nx < 0 || ny < 0 || nx >= EXPLORE_COLS || ny >= EXPLORE_ROWS) return prev;
       if (map.tiles[ny][nx] === 'water') return prev;
+      const trapHere = map.traps.find(tr => tr.x === nx && tr.y === ny);
+      if (trapHere && trapState(trapHere.seed) === 'active') return prev;
       return { x: nx, y: ny };
     });
   }
@@ -4595,14 +4623,21 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   function onAnswerChest(correct) {
     setOpenedChests(o => ({ ...o, [activeChest.key]: true }));
     onOpenChest(activeChest.key);
-    if (correct) onEarnReward(5, 'Cufăr — Fluentcraft');
+    if (correct) onEarnReward(5, 'Cufăr — Worldcraft');
     setActiveChest(null);
   }
   const totalChests = React.useMemo(() => MAP_ORDER.reduce((sum, m) => sum + buildExploreMap(m).chests.length, 0), []);
   const openedCount = (student.exploreOpenedChests || []).length;
   return (
     <div>
-      <SectionHeader icon="🗺️" title="Fluentcraft" color="#8B5CF6" />
+      <style>{`
+        @keyframes wcSway { 0%,100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+        @keyframes wcShimmer { 0%,100% { opacity: .75; } 50% { opacity: 1; } }
+        @keyframes wcFirefly { 0% { transform: translate(0,0); opacity: 0; } 15% { opacity: .9; } 85% { opacity: .6; } 100% { transform: translate(var(--fx), var(--fy)); opacity: 0; } }
+        @keyframes wcTrapWarn { 0%,100% { box-shadow: inset 0 0 0 2px rgba(248,113,113,.3); } 50% { box-shadow: inset 0 0 0 2px rgba(248,113,113,.9); } }
+        @keyframes wcNpcBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+      `}</style>
+      <SectionHeader icon="🗺️" title="Worldcraft" color="#8B5CF6" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-8px 0 10px' }}>
         <p style={{ fontSize: 12, color: '#8A86A8', margin: 0 }}>Ești pe: <b style={{ color: '#C4B5FD' }}>{(MAP_THEMES[mapId] || MAP_THEMES.forest).name}</b></p>
         <div style={{ fontSize: 11, color: '#F5C542', fontWeight: 700, background: 'rgba(245,197,66,0.1)', border: '1px solid rgba(245,197,66,0.35)', borderRadius: 20, padding: '3px 10px' }}>📦 {openedCount}/{totalChests} descoperite</div>
@@ -4615,7 +4650,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
       )}
       {isFrozen && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.5)', borderRadius: 12, padding: '8px 14px', marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: '#38BDF8' }}>
-          ❄️ Ești înghețat! Te dezgheți în {freezeSecondsLeft}s.
+          ❄️ {myRoomData && myRoomData.frozenBy ? <>Te-a înghețat <b>{myRoomData.frozenBy}</b> cu un scaun!</> : 'Ești înghețat!'} Te dezgheți în {freezeSecondsLeft}s.
         </div>
       )}
       {!isFrozen && nearbyTarget && (student.chairsCount || 0) > 0 && (
@@ -4625,21 +4660,43 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
         }}>🪑 Aruncă un scaun spre {nearbyTarget[1].name}! ({student.chairsCount} rămase)</button>
       )}
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(139,92,246,0.4)', maxWidth: '100%', boxShadow: '0 10px 34px rgba(139,92,246,.15)' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none' }}>
+          {Array.from({ length: 8 }, (_, i) => (
+            <span key={i} style={{
+              position: 'absolute', left: `${(i * 27) % 100}%`, top: `${(i * 41) % 100}%`, fontSize: 7 + (i % 3) * 3,
+              '--fx': `${((i % 3) - 1) * 60}px`, '--fy': `${((i % 4) - 2) * 40}px`,
+              animation: `wcFirefly ${6 + (i % 4)}s ${i * 1.1}s ease-in-out infinite`,
+            }}>✨</span>
+          ))}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${EXPLORE_COLS}, 1fr)`, gap: 1, background: '#050409' }}>
           {map.tiles.map((row, y) => row.map((t, x) => {
             const isChest = map.chests.some(c => c.x === x && c.y === y) && !openedChests[`${mapId}_${x}_${y}`];
             const isDoor = map.door.x === x && map.door.y === y;
+            const isNpc = map.npc.x === x && map.npc.y === y;
+            const trap = map.traps.find(tr => tr.x === x && tr.y === y);
+            const trState = trap ? trapState(trap.seed) : null;
             const theme = MAP_THEMES[mapId] || MAP_THEMES.forest;
-            const emoji = isDoor ? theme.doorEmoji : isChest ? '📦' : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
+            const npcInfo = MAP_NPCS[mapId] || MAP_NPCS.forest;
+            const emoji = isDoor ? theme.doorEmoji : isChest ? '📦' : isNpc ? npcInfo.emoji : trap ? (trState === 'active' ? '💥' : '⚠️') : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
+            const swaySeed = (x * 7 + y * 13) % 5;
             return (
-              <div key={`${x}_${y}`} style={{
-                aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, position: 'relative',
+              <div key={`${x}_${y}`} onClick={() => { if (isNpc) { setNpcTipText(npcInfo.tips[Math.floor(Math.random() * npcInfo.tips.length)]); setTimeout(() => setNpcTipText(null), 5000); } }} style={{
+                aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, position: 'relative', cursor: isNpc ? 'pointer' : 'default',
                 background: isDoor ? `radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), ${theme.groundBg}`
                   : isChest ? 'radial-gradient(circle, rgba(245,197,66,.35), transparent 70%), linear-gradient(160deg,#3A3020,#2A2318)'
+                  : isNpc ? `radial-gradient(circle, rgba(139,92,246,.3), transparent 70%), ${theme.groundBg}`
+                  : trap ? theme.groundBg
                   : t === 'forest' ? theme.obstacleBg : t === 'water' ? theme.waterBg : theme.groundBg,
-                boxShadow: isChest ? 'inset 0 0 0 2px rgba(245,197,66,.7)' : 'none',
+                boxShadow: isChest ? 'inset 0 0 0 2px rgba(245,197,66,.7)' : trap && trState === 'warning' ? 'inset 0 0 0 2px rgba(248,113,113,.6)' : trap && trState === 'active' ? 'inset 0 0 0 3px #F87171' : 'none',
+                animation: trap && trState === 'warning' ? 'wcTrapWarn 0.5s ease-in-out infinite' : 'none',
               }}>
-                {emoji}
+                <span style={{ display: 'inline-block', animation: isNpc ? 'wcNpcBob 1.6s ease-in-out infinite' : t === 'forest' ? `wcSway 3s ${swaySeed * 0.3}s ease-in-out infinite` : t === 'water' ? `wcShimmer 2.2s ${swaySeed * 0.2}s ease-in-out infinite` : 'none' }}>{emoji}</span>
+                {isNpc && npcTipText && (
+                  <div style={{ position: 'absolute', bottom: '115%', left: '50%', transform: 'translateX(-50%)', background: '#151225', border: '1px solid rgba(139,92,246,0.5)', color: '#fff', borderRadius: 10, padding: '7px 11px', fontSize: 11, fontWeight: 600, whiteSpace: 'normal', width: 160, textAlign: 'center', boxShadow: '0 6px 20px rgba(0,0,0,.5)', zIndex: 10 }}>
+                    <b style={{ color: '#C4B5FD' }}>{npcInfo.name}:</b> {npcTipText}
+                  </div>
+                )}
                 {pos.x === x && pos.y === y && (
                   <div style={{ position: 'absolute', inset: 2 }}>
                     <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden', zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s ease', boxShadow: `0 0 0 2px ${isFrozen ? '#38BDF8' : '#8B5CF6'}, 0 0 10px ${isFrozen ? 'rgba(56,189,248,.8)' : 'rgba(139,92,246,.7)'}`, filter: isFrozen ? 'grayscale(0.3) brightness(1.15)' : 'none' }}>
@@ -7349,7 +7406,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 3 }}>🪑 100 Scaune Zburătoare</div>
-                <div style={{ fontSize: 11, color: '#B8B4D6' }}>80 pts · le folosești în Fluentcraft — {student.chairsCount || 0} rămase acum</div>
+                <div style={{ fontSize: 11, color: '#B8B4D6' }}>80 pts · le folosești în Worldcraft — {student.chairsCount || 0} rămase acum</div>
               </div>
               <button onClick={onBuyChairs} disabled={student.points < 80} style={{
                 padding: '10px 18px', borderRadius: 10, border: 'none', cursor: student.points >= 80 ? 'pointer' : 'not-allowed',
@@ -9031,7 +9088,7 @@ function TeacherApp({ onExit, teacherName }) {
               { id: 'academic', icon: '📚', label: 'Articole Academic', onClick: () => setShowAcademicAdmin(true) },
               { id: 'dj', icon: '🎧', label: 'DJ for a Day', onClick: () => setShowDjPanel(true) },
               { id: 'wait', icon: '⏳', label: 'Slide de așteptare', onClick: () => setShowWaitSlide(true) },
-              { id: 'explore', icon: '🗺️', label: 'Fluentcraft (privește)', onClick: () => setShowExploreSpectator(true) },
+              { id: 'explore', icon: '🗺️', label: 'Worldcraft (privește)', onClick: () => setShowExploreSpectator(true) },
             ];
             const orderedTools = toolOrder
               ? toolOrder.map(id => TEACHER_TOOLS_DEFAULT.find(t => t.id === id)).filter(Boolean).concat(TEACHER_TOOLS_DEFAULT.filter(t => !toolOrder.includes(t.id)))
@@ -10651,7 +10708,7 @@ function TeacherApp({ onExit, teacherName }) {
         <div onClick={() => setShowExploreSpectator(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 22, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto' }} className="scrollbar">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Fluentcraft — toată școala</h3>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🗺️ Worldcraft — toată școala</h3>
               <button onClick={() => setShowExploreSpectator(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
             </div>
             <p style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Doar urmărești — elevii se mișcă din contul lor.</p>
@@ -11519,7 +11576,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.133';
+const APP_VERSION = 'v2.135';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

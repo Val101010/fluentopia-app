@@ -8581,38 +8581,6 @@ function TeacherApp({ onExit, teacherName }) {
   useEffect(() => {                                              // volumul se schimbă live, fără să repornească piesa
     if (waitYtPlayerRef.current && waitYtPlayerRef.current.setVolume) { try { waitYtPlayerRef.current.setVolume(waitMusicVolume); } catch (e) {} }
   }, [waitMusicVolume]);
-  const [djBgMusicOn, setDjBgMusicOn] = useState(false);
-  const [djBgMusicTrack, setDjBgMusicTrack] = useState(0);
-  const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
-  const djBgYtPlayerRef = useRef(null);
-  useEffect(() => {                                              // muzică de fundal pe DJ for a Day, cât timp niciun elev n-a trimis o melodie
-    if (!showDjPanel || !djBgMusicOn || djQueue.length > 0) {
-      if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; }
-      return;
-    }
-    let cancelled = false;
-    function createPlayer() {
-      if (cancelled || !document.getElementById('dj-music-player-target')) return;
-      djBgYtPlayerRef.current = new window.YT.Player('dj-music-player-target', {
-        videoId: WAIT_MUSIC_TRACKS[djBgMusicTrack].id,
-        playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[djBgMusicTrack].id, controls: 0 },
-        events: {
-          onReady: e => { e.target.setVolume(djBgMusicVolume); e.target.playVideo(); },
-          onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },
-        },
-      });
-    }
-    if (window.YT && window.YT.Player) createPlayer();
-    else {
-      const tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
-      const prevReady = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); createPlayer(); };
-    }
-    return () => { cancelled = true; if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; } };
-  }, [showDjPanel, djBgMusicOn, djBgMusicTrack, djQueue.length]);
-  useEffect(() => {
-    if (djBgYtPlayerRef.current && djBgYtPlayerRef.current.setVolume) { try { djBgYtPlayerRef.current.setVolume(djBgMusicVolume); } catch (e) {} }
-  }, [djBgMusicVolume]);
   const [showExploreSpectator, setShowExploreSpectator] = useState(false);
   const [exploreSpectatorMap, setExploreSpectatorMap] = useState('forest');
   const [waitMinutes, setWaitMinutes] = useState(30);
@@ -8650,6 +8618,38 @@ function TeacherApp({ onExit, teacherName }) {
     }), 1000);
     return () => clearInterval(iv);
   }, [djRunning]);
+  const [djBgMusicOn, setDjBgMusicOn] = useState(false);
+  const [djBgMusicTrack, setDjBgMusicTrack] = useState(0);
+  const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
+  const djBgYtPlayerRef = useRef(null);
+  useEffect(() => {                                              // muzică de fundal pe DJ for a Day, cât timp niciun elev n-a trimis o melodie
+    if (!showDjPanel || !djBgMusicOn || djQueue.length > 0) {
+      if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; }
+      return;
+    }
+    let cancelled = false;
+    function createPlayer() {
+      if (cancelled || !document.getElementById('dj-music-player-target')) return;
+      djBgYtPlayerRef.current = new window.YT.Player('dj-music-player-target', {
+        videoId: WAIT_MUSIC_TRACKS[djBgMusicTrack].id,
+        playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[djBgMusicTrack].id, controls: 0 },
+        events: {
+          onReady: e => { e.target.setVolume(djBgMusicVolume); e.target.playVideo(); },
+          onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },
+        },
+      });
+    }
+    if (window.YT && window.YT.Player) createPlayer();
+    else {
+      const tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); createPlayer(); };
+    }
+    return () => { cancelled = true; if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; } };
+  }, [showDjPanel, djBgMusicOn, djBgMusicTrack, djQueue.length]);
+  useEffect(() => {
+    if (djBgYtPlayerRef.current && djBgYtPlayerRef.current.setVolume) { try { djBgYtPlayerRef.current.setVolume(djBgMusicVolume); } catch (e) {} }
+  }, [djBgMusicVolume]);
   const [academicArticlesAdmin, setAcademicArticlesAdmin] = useState(PARENT_ARTICLES);
   const [editingArticleDraft, setEditingArticleDraft] = useState(null);
   useEffect(() => {
@@ -11806,7 +11806,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.138';
+const APP_VERSION = 'v2.139';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

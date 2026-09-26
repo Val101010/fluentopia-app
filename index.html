@@ -2892,7 +2892,7 @@ function StudentLogin({ classes, students, onLoggedIn, onBack, initialAsParent, 
       background: 'radial-gradient(ellipse 800px 500px at 50% 20%, #2A0F3D 0%, #0B0A14 55%)', color: '#fff', padding: 20,
     }}>
       <div style={{ width: '100%', maxWidth: 340 }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#A5A2C0', fontSize: 13, cursor: 'pointer', marginBottom: 20, padding: 0 }}>
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 20, padding: '8px 14px' }}>
           <IChevronLeft size={16}/> {t.back}
         </button>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 20px' }}>{asParent ? t.loginParentTitle : t.loginStudentTitle}</h2>
@@ -2985,7 +2985,7 @@ function VocabGame({ onFinish, onExit, level }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>
-        <button onClick={onExit} style={{ background: 'none', border: 'none', color: '#8A86A8', cursor: 'pointer', fontSize: 12, padding: 0 }}>← Înapoi</button>
+        <button onClick={onExit} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '8px 14px' }}>← Înapoi</button>
         <span style={{ display: 'flex', gap: 12 }}><span>Runda {round + 1}/{ROUNDS}</span><span>Scor: {score}</span></span>
       </div>
       <div style={{ fontSize: 64, textAlign: 'center', marginBottom: 20 }}>{current.word.emoji}</div>
@@ -3064,7 +3064,7 @@ function LightningGame({ onFinish, onExit, level }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#8A86A8', marginBottom: 8 }}>
-        <button onClick={onExit} style={{ background: 'none', border: 'none', color: '#8A86A8', cursor: 'pointer', fontSize: 12, padding: 0 }}>← Înapoi</button>
+        <button onClick={onExit} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '8px 14px' }}>← Înapoi</button>
         <span style={{ display: 'flex', gap: 12 }}><span>Runda {round + 1}/{ROUNDS}</span><span>Scor: {score}</span></span>
       </div>
       <div style={{ height: 6, background: '#221D3A', borderRadius: 3, marginBottom: 14, overflow: 'hidden' }}>
@@ -3480,7 +3480,7 @@ function HangmanGame({ onFinish, onExit, level }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <button onClick={onExit} style={{ background: 'none', border: 'none', color: '#8A86A8', cursor: 'pointer', fontSize: 12, padding: 0 }}>← Înapoi</button>
+        <button onClick={onExit} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '8px 14px' }}>← Înapoi</button>
         <div style={{ fontSize: 12, color: '#8A86A8' }}>Indiciu (RO): <b style={{ color: '#C7C8E0' }}>{word.ro}</b> {word.emoji}</div>
       </div>
       <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 16 }}>Greșeli: {wrong}/{MAX_WRONG}</div>
@@ -3580,7 +3580,7 @@ function WordleGame({ onFinish, onExit }) {
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 6 }}>
-        <button onClick={onExit} style={{ background: 'none', border: 'none', color: '#8A86A8', cursor: 'pointer', fontSize: 12, padding: 0 }}>← Înapoi</button>
+        <button onClick={onExit} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '8px 14px' }}>← Înapoi</button>
       </div>
       <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 8 }}>Ghicește cuvântul din 5 litere — {MAX_TRIES} încercări</div>
       {status === 'playing' && (
@@ -4999,7 +4999,7 @@ function DmThread({ student, other, onBack, isParentView }) {
   }
   return (
     <div>
-      <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#A5A2C0', fontSize: 13, cursor: 'pointer', marginBottom: 14, padding: 0 }}>
+      <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 14, padding: '8px 14px' }}>
         <IChevronLeft size={16}/> Toate mesajele
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -6140,7 +6140,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#A5A2C0', fontSize: 13, cursor: 'pointer', padding: 0 }}>
+        <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: '8px 14px' }}>
           <IChevronLeft size={16}/> {menuLang === 'en' ? 'Log out' : 'Ieșire'}
         </button>
         {onSetLang && (
@@ -8207,7 +8207,7 @@ function TeacherLogin({ onLoggedIn, onBack }) {
       background: 'radial-gradient(ellipse 800px 500px at 50% 20%, #2A0F3D 0%, #0B0A14 55%)', color: '#fff', padding: 20,
     }}>
       <div style={{ width: '100%', maxWidth: 340 }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#A5A2C0', fontSize: 13, cursor: 'pointer', marginBottom: 20, padding: 0 }}>
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 20, padding: '8px 14px' }}>
           <IChevronLeft size={16}/> Înapoi
         </button>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 20px' }}>Conectare profesor</h2>
@@ -8980,7 +8980,7 @@ function TeacherApp({ onExit, teacherName }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
           <span style={{ fontSize: 12, color: '#A5A2C0' }}>Profesor: {teacherName}</span>
         </div>
-        <button onClick={onExit} style={{ fontSize: 12, color: '#6E6A8C', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '0 8px' }}>&#8249; Schimbă utilizator</button>
+        <button onClick={onExit} style={{ fontSize: 12.5, fontWeight: 700, color: '#C7C8E0', background: '#151225', border: '1px solid #2E2850', borderRadius: 10, cursor: 'pointer', textAlign: 'left', padding: '8px 12px', margin: '0 8px' }}>‹ Schimbă utilizator</button>
         <div>
           <button onClick={() => setShowTeacherTools(v => !v)} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 8, padding: '10px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
@@ -11494,7 +11494,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.130';
+const APP_VERSION = 'v2.131';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -12667,7 +12667,7 @@ function DemoMode() {
 
         {step === 'cta' && (
           <div>
-            <button onClick={() => setStep('certificate')} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#8A86A8', fontSize: 12.5, cursor: 'pointer', padding: 0, marginBottom: 14 }}>
+            <button onClick={() => setStep('certificate')} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#151225', border: '1px solid #2E2850', borderRadius: 10, color: '#C7C8E0', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: '8px 14px', marginBottom: 14 }}>
               ← Înapoi la cartonaș
             </button>
             <LeadForm quizScore={quizScore} species={species} ownedStickerIds={ownedStickerIds} />

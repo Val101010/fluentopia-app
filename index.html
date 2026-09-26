@@ -4498,11 +4498,17 @@ function DjRequestView({ student, onConsumeDjSticker }) {
 }
 /* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
 const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!', 'Hai să ne jucăm! 🎮'];
-const WAIT_MUSIC_TRACKS = [                                     // alese de profesor, royalty-free (EMW) — nu sunt îmbinate într-o singură piesă, se aleg pe rând
+const DEFAULT_MUSIC_TRACKS = [                                  // set implicit — profesorul poate reordona, adăuga sau șterge din consolă
   { id: 'u2qF9ZWIt3Q', label: 'Ambient exploratori' },
   { id: 'UoxZ4403hDc', label: 'Vesel, energic' },
   { id: 'ZzLXJUzyLzQ', label: 'Business, calm' },
   { id: 'wsinz56ghsk', label: 'Pozitiv, ușor' },
+  { id: 'rY12J2ZF_H8', label: 'Miss You — upbeat' },
+  { id: 'JpuhuTkOQgw', label: 'STARTUP — chill' },
+  { id: 'jjr3oYJ5wVo', label: 'Modern Technology' },
+  { id: 'rFMT6DgiK0c', label: 'Digital Technology' },
+  { id: 'KK2smasHg6w', label: 'Uplifting & Inspiring' },
+  { id: 'bOZCnxJAq_0', label: 'Upbeat & Happy' },
 ];
 const EXPLORE_QUESTIONS = [
   { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
@@ -6327,6 +6333,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     ...(!isParentView ? [{ id: 'roluri', icon: '⚖️', group: 'acasa' }] : []),
     ...(!isParentView ? [{ id: 'discipline', icon: '🚦', group: 'acasa' }] : []),
     { id: 'shop', icon: '🛒', group: 'acasa' },
+    ...(!isParentView ? [{ id: 'stickers', icon: '🎫', group: 'acasa' }] : []),
     { id: 'wall', icon: '🧱', group: 'social' },
     { id: 'messages', icon: '✉️', group: 'social' },
     ...(!isParentView ? [{ id: 'board', icon: '🎨', group: 'social' }] : []),
@@ -6339,7 +6346,6 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     ...(!isParentView ? [{ id: 'explore', icon: '🗺️', group: 'distractie' }] : []),
     { id: 'pet', icon: '🐣', group: 'aurabuddy' },
     ...(!isParentView ? [{ id: 'dj', icon: '🎧', group: 'distractie' }] : []),
-    ...(!isParentView ? [{ id: 'stickers', icon: '🎫', group: 'aurabuddy' }] : []),
     { id: 'leaderboard', icon: '🏆', group: 'clasamente' },
     { id: 'globalrank', icon: '🌍', group: 'clasamente' },
     { id: 'bank', icon: '🏦', group: isParentView ? 'acasa' : 'finante' },
@@ -6417,11 +6423,21 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         )}
       </div>
       {student.onPause && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(245,197,66,0.1)', border: '1px solid rgba(245,197,66,0.4)', borderRadius: 14, padding: '12px 16px', marginBottom: 20 }}>
-          <span style={{ fontSize: 20 }}>🌴</span>
+        <div style={{
+          position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 14,
+          background: 'linear-gradient(135deg, rgba(245,197,66,0.22), rgba(255,122,69,0.14))',
+          border: '2px solid #F5C542', borderRadius: 16, padding: '16px 20px', marginBottom: 20,
+          boxShadow: '0 0 0 4px rgba(245,197,66,0.12), 0 8px 30px rgba(245,197,66,.25)',
+          animation: 'pauseBannerPulse 2.2s ease-in-out infinite',
+        }}>
+          <style>{`@keyframes pauseBannerPulse { 0%,100% { box-shadow: 0 0 0 4px rgba(245,197,66,0.12), 0 8px 30px rgba(245,197,66,.25); } 50% { box-shadow: 0 0 0 8px rgba(245,197,66,0.22), 0 8px 40px rgba(245,197,66,.4); } }
+                     @keyframes pauseIconBounce { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-5px) rotate(8deg); } }`}</style>
+          <span style={{ fontSize: 34, display: 'inline-block', animation: 'pauseIconBounce 1.6s ease-in-out infinite', filter: 'drop-shadow(0 0 10px rgba(245,197,66,.6))' }}>🌴</span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#F5C542' }}>{isParentView ? `${student.name} este în pauză` : 'Ești în pauză'}</div>
-            <div style={{ fontSize: 12, color: '#C7C8E0', marginTop: 2 }}>
+            <div className="heading-font" style={{ fontSize: 18, fontWeight: 900, color: '#F5C542', letterSpacing: 0.3, textShadow: '0 0 20px rgba(245,197,66,.5)' }}>
+              {isParentView ? `${student.name} este în pauză` : 'Ești în pauză'}
+            </div>
+            <div style={{ fontSize: 13, color: '#FFE8B8', marginTop: 3, fontWeight: 500 }}>
               {student.pauseNote && <>„{student.pauseNote}" — </>}
               nu se înregistrează absențe cât timp durează pauza{student.pauseUntil && <> (până la {new Date(student.pauseUntil).toLocaleDateString('ro-RO')})</>}.
             </div>
@@ -8582,8 +8598,33 @@ function TeacherApp({ onExit, teacherName }) {
   const [showAcademicAdmin, setShowAcademicAdmin] = useState(false);
   const [showDjPanel, setShowDjPanel] = useState(false);
   const [showWaitSlide, setShowWaitSlide] = useState(false);
+  const [musicTracks, setMusicTracks] = useState(() => {
+    try { const saved = localStorage.getItem(`fluentopia-music-tracks-${teacherName}`); return saved ? JSON.parse(saved) : DEFAULT_MUSIC_TRACKS; } catch (e) { return DEFAULT_MUSIC_TRACKS; }
+  });
+  const [showMusicManager, setShowMusicManager] = useState(false);
+  const [radioPlaying, setRadioPlaying] = useState(false);
+  const radioAudioRef = useRef(null);
+  function toggleConsoleRadio() {
+    const el = radioAudioRef.current; if (!el) return;
+    if (radioPlaying) { el.pause(); setRadioPlaying(false); }
+    else { el.play().then(() => setRadioPlaying(true)).catch(() => {}); }
+  }
+  const [newTrackUrl, setNewTrackUrl] = useState('');
+  const [newTrackLabel, setNewTrackLabel] = useState('');
+  function saveMusicTracks(next) { setMusicTracks(next); try { localStorage.setItem(`fluentopia-music-tracks-${teacherName}`, JSON.stringify(next)); } catch (e) {} }
+  function moveTrack(idx, dir) {
+    const next = [...musicTracks]; const j = idx + dir; if (j < 0 || j >= next.length) return;
+    [next[idx], next[j]] = [next[j], next[idx]]; saveMusicTracks(next);
+  }
+  function removeTrack(idx) { saveMusicTracks(musicTracks.filter((_, i) => i !== idx)); }
+  function addTrack() {
+    const id = extractYoutubeId(newTrackUrl);
+    if (!id) return;
+    saveMusicTracks([...musicTracks, { id, label: newTrackLabel.trim() || 'Melodie nouă' }]);
+    setNewTrackUrl(''); setNewTrackLabel('');
+  }
   const [waitMusicOn, setWaitMusicOn] = useState(false);
-  const [waitMusicTrack, setWaitMusicTrack] = useState(0);
+  const [waitMusicTrack, setWaitMusicTrack] = useState(() => (DEFAULT_MUSIC_TRACKS[0] || {}).id || '');
   const [waitMusicVolume, setWaitMusicVolume] = useState(60);
   const waitYtPlayerRef = useRef(null);
   const waitBellPlayerRef = useRef(null);
@@ -8601,8 +8642,8 @@ function TeacherApp({ onExit, teacherName }) {
     function createPlayer() {
       if (cancelled) return;
       const player = new window.YT.Player(el.id, {
-        videoId: WAIT_MUSIC_TRACKS[waitMusicTrack].id,
-        playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[waitMusicTrack].id, controls: 0 },
+        videoId: waitMusicTrack,
+        playerVars: { autoplay: 1, loop: 1, playlist: waitMusicTrack, controls: 0 },
         events: {
           onReady: e => { e.target.setVolume(waitMusicVolume); e.target.playVideo(); },
           onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },   // plasă de siguranță — reia melodia dacă bucla nativă nu prinde
@@ -8647,7 +8688,7 @@ function TeacherApp({ onExit, teacherName }) {
   const [djRunning, setDjRunning] = useState(false);
   const [djMusicStopped, setDjMusicStopped] = useState(false);
   const [djBgMusicOn, setDjBgMusicOn] = useState(false);
-  const [djBgMusicTrack, setDjBgMusicTrack] = useState(0);
+  const [djBgMusicTrack, setDjBgMusicTrack] = useState(() => (DEFAULT_MUSIC_TRACKS[0] || {}).id || '');
   const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
   const djBgYtPlayerRef = useRef(null);
   useEffect(() => {
@@ -8683,8 +8724,8 @@ function TeacherApp({ onExit, teacherName }) {
     function createPlayer() {
       if (cancelled) return;
       const player = new window.YT.Player(el.id, {
-        videoId: WAIT_MUSIC_TRACKS[djBgMusicTrack].id,
-        playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[djBgMusicTrack].id, controls: 0 },
+        videoId: djBgMusicTrack,
+        playerVars: { autoplay: 1, loop: 1, playlist: djBgMusicTrack, controls: 0 },
         events: {
           onReady: e => { e.target.setVolume(djBgMusicVolume); e.target.playVideo(); },
           onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },
@@ -10884,8 +10925,9 @@ function TeacherApp({ onExit, teacherName }) {
                 @keyframes waitAvatarFloat { 0% { transform: translateY(0) rotate(0deg) scale(0.8); opacity: 0; } 12% { opacity: 1; transform: scale(1); } 88% { opacity: 1; } 100% { transform: translateY(-620px) rotate(360deg) scale(0.8); opacity: 0; } }
                 @keyframes waitLivePulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(1.3); } }
                 @keyframes waitBorderShift { 0% { background-position: 0% 50%, 0% 50%; } 50% { background-position: 0% 50%, 100% 50%; } 100% { background-position: 0% 50%, 0% 50%; } }
+                @keyframes djTimerWow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
               `}</style>
-              <div style={{ position: 'absolute', inset: 0, borderRadius: 26, background: 'radial-gradient(ellipse at 20% 10%, rgba(155,60,224,0.24), transparent 55%), radial-gradient(ellipse at 80% 90%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(ellipse at 85% 15%, rgba(236,30,143,0.14), transparent 45%), radial-gradient(ellipse at 10% 85%, rgba(74,222,128,0.10), transparent 45%)', pointerEvents: 'none' }}></div>
+              <div style={{ position: 'absolute', inset: 0, borderRadius: 26, background: 'radial-gradient(ellipse at 15% 0%, rgba(236,30,143,0.34), transparent 50%), radial-gradient(ellipse at 85% 100%, rgba(56,189,248,0.28), transparent 50%), radial-gradient(ellipse at 90% 10%, rgba(139,92,246,0.30), transparent 45%), radial-gradient(ellipse at 5% 90%, rgba(74,222,128,0.22), transparent 45%), radial-gradient(ellipse at 50% 50%, rgba(245,197,66,0.08), transparent 60%)', pointerEvents: 'none' }}></div>
               <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.035, pointerEvents: 'none', mixBlendMode: 'overlay' }}>
                 <filter id="waitGrain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" /></filter>
                 <rect width="100%" height="100%" filter="url(#waitGrain)" />
@@ -10922,6 +10964,11 @@ function TeacherApp({ onExit, teacherName }) {
                 <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
                 <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}><IX size={16}/></button>
               </div>
+              <button onClick={toggleConsoleRadio} title="Fun Kids Radio — live" style={{
+                position: 'absolute', top: 20, left: 20, zIndex: 2, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : 'rgba(255,255,255,0.08)', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 14,
+                boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
+              }}>📻</button>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{
@@ -10937,8 +10984,13 @@ function TeacherApp({ onExit, teacherName }) {
 
               <div style={{ textAlign: 'center', margin: '18px 0' }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                  <div style={{ position: 'absolute', width: 340, height: 130, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(245,197,66,0.35), transparent 70%)', animation: 'waitTimerGlow 2.4s ease-in-out infinite', pointerEvents: 'none' }}></div>
-                  <span className="heading-font" style={{ position: 'relative', fontSize: 96, fontWeight: 900, color: '#F5C542', letterSpacing: 2, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 40px rgba(245,197,66,.35)' }}>
+                  <div style={{ position: 'absolute', width: 380, height: 160, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(236,30,143,0.4), transparent 70%)', animation: 'waitTimerGlow 2.4s ease-in-out infinite', pointerEvents: 'none' }}></div>
+                  <span className="heading-font" style={{
+                    position: 'relative', fontSize: 100, fontWeight: 900, letterSpacing: 2, fontVariantNumeric: 'tabular-nums',
+                    backgroundImage: waitRunning ? 'linear-gradient(90deg, #4ADE80, #38BDF8, #9B3CE0, #EC1E8F, #4ADE80)' : 'linear-gradient(90deg, #F5C542, #FF7A45, #EC1E8F, #F5C542)',
+                    backgroundSize: '300% 100%', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', animation: 'djTimerWow 4s linear infinite',
+                    filter: 'drop-shadow(0 0 30px rgba(236,30,143,.45))',
+                  }}>
                     {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
                   </span>
                 </div>
@@ -10958,11 +11010,16 @@ function TeacherApp({ onExit, teacherName }) {
                     background: waitMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: waitMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11.5, fontWeight: 700,
                   }}>{waitMusicOn ? '🎵 Muzică pornită' : '🔇 Fără muzică'}</button>
                   {waitMusicOn && (
-                    <select value={waitMusicTrack} onChange={e => setWaitMusicTrack(Number(e.target.value))} style={{
+                    <select value={waitMusicTrack} onChange={e => setWaitMusicTrack(e.target.value)} style={{
                       padding: '6px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', fontSize: 11.5,
                     }}>
-                      {WAIT_MUSIC_TRACKS.map((t, i) => <option key={t.id} value={i}>{t.label}</option>)}
+                      {musicTracks.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                     </select>
+                  )}
+                  {waitMusicOn && (
+                    <button onClick={() => setShowMusicManager(true)} title="Gestionează lista de melodii" style={{
+                      width: 28, height: 28, borderRadius: '50%', border: '1px solid #2E2850', background: '#151225', color: '#8A86A8', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>⚙️</button>
                   )}
                   {waitMusicOn && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225' }}>
@@ -11029,6 +11086,47 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
+      <audio ref={radioAudioRef} src="https://listen-funkids.sharp-stream.com/funkids.mp3" preload="none" />
+      {showMusicManager && (
+        <div onClick={() => setShowMusicManager(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 20, padding: 24, maxWidth: 420, width: '100%', maxHeight: '80vh', overflowY: 'auto' }} className="scrollbar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>🎵 Lista de melodii</h3>
+              <button onClick={() => setShowMusicManager(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#8A86A8', marginBottom: 14 }}>Trage cu săgețile ca să reordonezi. Aceeași listă e folosită pe slide-ul de așteptare și pe DJ for a Day.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+              {musicTracks.map((t, i) => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#151225', borderRadius: 10, padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <button onClick={() => moveTrack(i, -1)} disabled={i === 0} style={{ background: 'none', border: 'none', cursor: i === 0 ? 'default' : 'pointer', color: i === 0 ? '#3A3560' : '#8A86A8', fontSize: 11, padding: 0, lineHeight: 1 }}>▲</button>
+                    <button onClick={() => moveTrack(i, 1)} disabled={i === musicTracks.length - 1} style={{ background: 'none', border: 'none', cursor: i === musicTracks.length - 1 ? 'default' : 'pointer', color: i === musicTracks.length - 1 ? '#3A3560' : '#8A86A8', fontSize: 11, padding: 0, lineHeight: 1 }}>▼</button>
+                  </div>
+                  <span style={{ flex: 1, fontSize: 12.5, color: '#C7C8E0' }}>{t.label}</span>
+                  <button onClick={() => removeTrack(i)} title="Șterge" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F87171', fontSize: 13 }}>✕</button>
+                </div>
+              ))}
+              {musicTracks.length === 0 && <div style={{ fontSize: 12, color: '#4A4666', textAlign: 'center', padding: '10px 0' }}>Nicio melodie în listă.</div>}
+            </div>
+            <div style={{ borderTop: '1px solid #2E2850', paddingTop: 14 }}>
+              <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 8 }}>➕ Adaugă o melodie nouă (link YouTube)</div>
+              <input value={newTrackUrl} onChange={e => setNewTrackUrl(e.target.value)} placeholder="https://www.youtube.com/watch?v=..." style={{
+                width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12, marginBottom: 8,
+              }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={newTrackLabel} onChange={e => setNewTrackLabel(e.target.value)} placeholder="Nume scurt (ex: Chill seara)" style={{
+                  flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12,
+                }} />
+                <button onClick={addTrack} disabled={!extractYoutubeId(newTrackUrl)} style={{
+                  padding: '8px 16px', borderRadius: 8, border: 'none', cursor: extractYoutubeId(newTrackUrl) ? 'pointer' : 'default',
+                  background: extractYoutubeId(newTrackUrl) ? 'linear-gradient(135deg,#8B5CF6,#6D28D9)' : '#221D3A', color: extractYoutubeId(newTrackUrl) ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 12,
+                }}>Adaugă</button>
+              </div>
+              {newTrackUrl && !extractYoutubeId(newTrackUrl) && <div style={{ fontSize: 10.5, color: '#F87171', marginTop: 4 }}>Link YouTube nevalid.</div>}
+            </div>
+          </div>
+        </div>
+      )}
       {showExploreSpectator && (
         <div onClick={() => setShowExploreSpectator(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 22, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto' }} className="scrollbar">
@@ -11094,6 +11192,10 @@ function TeacherApp({ onExit, teacherName }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={toggleConsoleRadio} title="Fun Kids Radio — live" style={{
+                    background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 14, width: 32, height: 32,
+                    boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
+                  }}>📻</button>
                   <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
                   <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button>
                 </div>
@@ -11188,11 +11290,16 @@ function TeacherApp({ onExit, teacherName }) {
                         background: djBgMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: djBgMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11.5, fontWeight: 700,
                       }}>{djBgMusicOn ? '🎵 Muzică pornită' : '🔇 Fără muzică'}</button>
                       {djBgMusicOn && (
-                        <select value={djBgMusicTrack} onChange={e => setDjBgMusicTrack(Number(e.target.value))} style={{
+                        <select value={djBgMusicTrack} onChange={e => setDjBgMusicTrack(e.target.value)} style={{
                           padding: '6px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', fontSize: 11.5,
                         }}>
-                          {WAIT_MUSIC_TRACKS.map((t, i) => <option key={t.id} value={i}>{t.label}</option>)}
+                          {musicTracks.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                         </select>
+                      )}
+                      {djBgMusicOn && (
+                        <button onClick={() => setShowMusicManager(true)} title="Gestionează lista de melodii" style={{
+                          width: 28, height: 28, borderRadius: '50%', border: '1px solid #2E2850', background: '#151225', color: '#8A86A8', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>⚙️</button>
                       )}
                       {djBgMusicOn && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225' }}>
@@ -11944,7 +12051,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.146';
+const APP_VERSION = 'v2.147';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

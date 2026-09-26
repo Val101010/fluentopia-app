@@ -3711,7 +3711,41 @@ function playShieldSound() {
     n.connect(lp); lp.connect(ng); ng.connect(ctx.destination); n.start(t0);
   } catch (e) {}
 }
-function playSchoolBellVideo() {                                 // clopoțelul real de școală (YouTube), redat scurt, apoi curățat automat
+function primeBellPlayer(playerRef) {                            // pregătește clopoțelul, muted, chiar la click-ul de Start — browserul permite autoplay muted oricând
+  try {
+    if (playerRef.current) return;
+    const el = document.createElement('div');
+    el.id = 'school-bell-target-' + Date.now() + Math.random().toString(36).slice(2, 6);
+    el.style.cssText = 'position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;bottom:0;right:0;';
+    document.body.appendChild(el);
+    function create() {
+      const player = new window.YT.Player(el.id, {
+        videoId: 'w0MIJnSlRyo', playerVars: { autoplay: 1, controls: 0, mute: 1 },
+        events: { onReady: e => { e.target.mute(); e.target.playVideo(); } },
+      });
+      player._el = el;
+      playerRef.current = player;
+    }
+    if (window.YT && window.YT.Player) create();
+    else {
+      const tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); create(); };
+    }
+  } catch (e) {}
+}
+function ringPrimedBell(playerRef) {                              // dă drumul la sunet pe playerul deja pregătit — asta contează ca reluare, nu ca autoplay nou
+  try {
+    const player = playerRef.current;
+    if (player && player.unMute) {
+      player.seekTo(0); player.unMute(); player.setVolume(100); player.playVideo();
+      setTimeout(() => { try { player.destroy(); } catch (e) {} try { player._el && player._el.remove(); } catch (e) {} if (playerRef.current === player) playerRef.current = null; }, 6000);
+    } else {
+      playSchoolBellVideo();                                      // n-a apucat să se pregătească — încearcă oricum direct
+    }
+  } catch (e) {}
+}
+function playSchoolBellVideo() {                                 // clopoțelul real de școală (YouTube) — variantă directă, de rezervă
   try {
     const el = document.createElement('div');
     el.id = 'school-bell-target-' + Date.now();
@@ -8516,6 +8550,8 @@ function TeacherApp({ onExit, teacherName }) {
   const [waitMusicTrack, setWaitMusicTrack] = useState(0);
   const [waitMusicVolume, setWaitMusicVolume] = useState(60);
   const waitYtPlayerRef = useRef(null);
+  const waitBellPlayerRef = useRef(null);
+  const djBellPlayerRef = useRef(null);
   useEffect(() => {                                              // creează / distruge playerul YouTube (cu control real de volum) când pornești/oprești muzica
     if (!showWaitSlide || !waitMusicOn) {
       if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} waitYtPlayerRef.current = null; }
@@ -8545,6 +8581,38 @@ function TeacherApp({ onExit, teacherName }) {
   useEffect(() => {                                              // volumul se schimbă live, fără să repornească piesa
     if (waitYtPlayerRef.current && waitYtPlayerRef.current.setVolume) { try { waitYtPlayerRef.current.setVolume(waitMusicVolume); } catch (e) {} }
   }, [waitMusicVolume]);
+  const [djBgMusicOn, setDjBgMusicOn] = useState(false);
+  const [djBgMusicTrack, setDjBgMusicTrack] = useState(0);
+  const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
+  const djBgYtPlayerRef = useRef(null);
+  useEffect(() => {                                              // muzică de fundal pe DJ for a Day, cât timp niciun elev n-a trimis o melodie
+    if (!showDjPanel || !djBgMusicOn || djQueue.length > 0) {
+      if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; }
+      return;
+    }
+    let cancelled = false;
+    function createPlayer() {
+      if (cancelled || !document.getElementById('dj-music-player-target')) return;
+      djBgYtPlayerRef.current = new window.YT.Player('dj-music-player-target', {
+        videoId: WAIT_MUSIC_TRACKS[djBgMusicTrack].id,
+        playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[djBgMusicTrack].id, controls: 0 },
+        events: {
+          onReady: e => { e.target.setVolume(djBgMusicVolume); e.target.playVideo(); },
+          onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },
+        },
+      });
+    }
+    if (window.YT && window.YT.Player) createPlayer();
+    else {
+      const tag = document.createElement('script'); tag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
+      const prevReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); createPlayer(); };
+    }
+    return () => { cancelled = true; if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; } };
+  }, [showDjPanel, djBgMusicOn, djBgMusicTrack, djQueue.length]);
+  useEffect(() => {
+    if (djBgYtPlayerRef.current && djBgYtPlayerRef.current.setVolume) { try { djBgYtPlayerRef.current.setVolume(djBgMusicVolume); } catch (e) {} }
+  }, [djBgMusicVolume]);
   const [showExploreSpectator, setShowExploreSpectator] = useState(false);
   const [exploreSpectatorMap, setExploreSpectatorMap] = useState('forest');
   const [waitMinutes, setWaitMinutes] = useState(30);
@@ -8556,7 +8624,7 @@ function TeacherApp({ onExit, teacherName }) {
       if (s === null || s <= 1) {
         setWaitRunning(false);
         if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} waitYtPlayerRef.current = null; setWaitMusicOn(false); }
-        playSchoolBellVideo();
+        ringPrimedBell(waitBellPlayerRef);
         return 0;
       }
       return s - 1;
@@ -8577,7 +8645,7 @@ function TeacherApp({ onExit, teacherName }) {
   useEffect(() => {
     if (!djRunning) return;
     const iv = setInterval(() => setDjSecondsLeft(s => {
-      if (s === null || s <= 1) { setDjRunning(false); setDjMusicStopped(true); playSchoolBellVideo(); return 0; }
+      if (s === null || s <= 1) { setDjRunning(false); setDjMusicStopped(true); ringPrimedBell(djBellPlayerRef); return 0; }
       return s - 1;
     }), 1000);
     return () => clearInterval(iv);
@@ -10740,6 +10808,13 @@ function TeacherApp({ onExit, teacherName }) {
                     <div style={{ fontSize: 11.5, fontWeight: 800, color: '#C7C8E0', marginTop: 3, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
                   </div>
                 ))}
+                {Array.from({ length: 4 }, (_, i) => (
+                  <img key={'logo' + i} src="icon-192.png" alt="" style={{
+                    position: 'absolute', left: `${20 + (i * 23) % 80}%`, bottom: -34, width: 26, height: 26, borderRadius: '50%', opacity: 0,
+                    boxShadow: '0 0 10px rgba(236,30,143,.5)',
+                    animation: `waitAvatarFloat ${15 + (i % 3) * 2}s ${i * 3.4 + 1.5}s linear infinite`,
+                  }} />
+                ))}
               </div>
               <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6, zIndex: 2 }}>
                 <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
@@ -10767,7 +10842,7 @@ function TeacherApp({ onExit, teacherName }) {
                 </div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 4 }}>
                   {!waitRunning ? (
-                    <button onClick={() => { setWaitSecondsLeft(waitSecondsLeft === null ? waitMinutes * 60 : waitSecondsLeft); setWaitRunning(true); }} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>▶ Pornește</button>
+                    <button onClick={() => { setWaitSecondsLeft(waitSecondsLeft === null ? waitMinutes * 60 : waitSecondsLeft); setWaitRunning(true); primeBellPlayer(waitBellPlayerRef); }} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>▶ Pornește</button>
                   ) : (
                     <button onClick={() => setWaitRunning(false)} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 13 }}>⏸ Pauză</button>
                   )}
@@ -10903,7 +10978,7 @@ function TeacherApp({ onExit, teacherName }) {
                   {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
                 </span>
                 {!djRunning ? (
-                  <button onClick={() => { setDjSecondsLeft(djSecondsLeft === null ? djMinutes * 60 : djSecondsLeft); setDjRunning(true); setDjMusicStopped(false); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Start pauză</button>
+                  <button onClick={() => { setDjSecondsLeft(djSecondsLeft === null ? djMinutes * 60 : djSecondsLeft); setDjRunning(true); setDjMusicStopped(false); primeBellPlayer(djBellPlayerRef); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Start pauză</button>
                 ) : (
                   <button onClick={() => setDjRunning(false)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 12.5 }}>⏸ Pauză</button>
                 )}
@@ -10967,7 +11042,28 @@ function TeacherApp({ onExit, teacherName }) {
                   <div style={{ textAlign: 'center', position: 'relative' }}>
                     <img src="icon-192.png" alt="Fluentopia" style={{ width: 96, height: 96, borderRadius: '50%', animation: 'djIdleLogoPulse 2.6s ease-in-out infinite' }} />
                     <div className="heading-font" style={{ fontSize: 15, fontWeight: 800, color: '#C7C8E0', marginTop: 14 }}>Se așteaptă o melodie…</div>
-                    <div style={{ fontSize: 11.5, color: '#6E6A8C', marginTop: 3 }}>Un elev cu „DJ for a Day" poate trimite una din tab-ul lui</div>
+                    <div style={{ fontSize: 11.5, color: '#6E6A8C', marginTop: 3, marginBottom: 14 }}>Un elev cu „DJ for a Day" poate trimite una din tab-ul lui</div>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={() => setDjBgMusicOn(v => !v)} style={{
+                        padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(139,92,246,0.4)', cursor: 'pointer',
+                        background: djBgMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: djBgMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11.5, fontWeight: 700,
+                      }}>{djBgMusicOn ? '🎵 Muzică pornită' : '🔇 Fără muzică'}</button>
+                      {djBgMusicOn && (
+                        <select value={djBgMusicTrack} onChange={e => setDjBgMusicTrack(Number(e.target.value))} style={{
+                          padding: '6px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', fontSize: 11.5,
+                        }}>
+                          {WAIT_MUSIC_TRACKS.map((t, i) => <option key={t.id} value={i}>{t.label}</option>)}
+                        </select>
+                      )}
+                      {djBgMusicOn && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225' }}>
+                          <span style={{ fontSize: 12 }}>{djBgMusicVolume === 0 ? '🔇' : djBgMusicVolume < 50 ? '🔉' : '🔊'}</span>
+                          <input type="range" min="0" max="100" value={djBgMusicVolume} onChange={e => setDjBgMusicVolume(Number(e.target.value))} style={{ width: 80, accentColor: '#8B5CF6' }} />
+                          <span style={{ fontSize: 10.5, color: '#8A86A8', width: 24, textAlign: 'right' }}>{djBgMusicVolume}</span>
+                        </div>
+                      )}
+                    </div>
+                    {djBgMusicOn && <div id="dj-music-player-target" style={{ position: 'absolute', width: 2, height: 2, opacity: 0, pointerEvents: 'none' }}></div>}
                   </div>
                 </div>
               )}
@@ -11710,7 +11806,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.137';
+const APP_VERSION = 'v2.138';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

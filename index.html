@@ -8554,13 +8554,17 @@ function TeacherApp({ onExit, teacherName }) {
   const djBellPlayerRef = useRef(null);
   useEffect(() => {                                              // creează / distruge playerul YouTube (cu control real de volum) când pornești/oprești muzica
     if (!showWaitSlide || !waitMusicOn) {
-      if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} waitYtPlayerRef.current = null; }
+      if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} try { waitYtPlayerRef.current._el && waitYtPlayerRef.current._el.remove(); } catch (e) {} waitYtPlayerRef.current = null; }
       return;
     }
     let cancelled = false;
+    const el = document.createElement('div');                    // element creat manual, în afara React — YouTube îl înlocuiește cu un iframe, iar React nu-l "vede" ca fiind al lui, deci nu se mai încurcă la curățare
+    el.id = 'wait-music-player-target-' + Date.now();
+    el.style.cssText = 'position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;bottom:0;right:0;';
+    document.body.appendChild(el);
     function createPlayer() {
-      if (cancelled || !document.getElementById('wait-music-player-target')) return;
-      waitYtPlayerRef.current = new window.YT.Player('wait-music-player-target', {
+      if (cancelled) return;
+      const player = new window.YT.Player(el.id, {
         videoId: WAIT_MUSIC_TRACKS[waitMusicTrack].id,
         playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[waitMusicTrack].id, controls: 0 },
         events: {
@@ -8568,6 +8572,8 @@ function TeacherApp({ onExit, teacherName }) {
           onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },   // plasă de siguranță — reia melodia dacă bucla nativă nu prinde
         },
       });
+      player._el = el;
+      waitYtPlayerRef.current = player;
     }
     if (window.YT && window.YT.Player) {
       createPlayer();
@@ -8576,7 +8582,7 @@ function TeacherApp({ onExit, teacherName }) {
       const prevReady = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); createPlayer(); };
     }
-    return () => { cancelled = true; if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} waitYtPlayerRef.current = null; } };
+    return () => { cancelled = true; if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} try { waitYtPlayerRef.current._el && waitYtPlayerRef.current._el.remove(); } catch (e) {} waitYtPlayerRef.current = null; } else { try { el.remove(); } catch (e) {} } };
   }, [showWaitSlide, waitMusicOn, waitMusicTrack]);
   useEffect(() => {                                              // volumul se schimbă live, fără să repornească piesa
     if (waitYtPlayerRef.current && waitYtPlayerRef.current.setVolume) { try { waitYtPlayerRef.current.setVolume(waitMusicVolume); } catch (e) {} }
@@ -8604,6 +8610,10 @@ function TeacherApp({ onExit, teacherName }) {
   const [djSecondsLeft, setDjSecondsLeft] = useState(null);
   const [djRunning, setDjRunning] = useState(false);
   const [djMusicStopped, setDjMusicStopped] = useState(false);
+  const [djBgMusicOn, setDjBgMusicOn] = useState(false);
+  const [djBgMusicTrack, setDjBgMusicTrack] = useState(0);
+  const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
+  const djBgYtPlayerRef = useRef(null);
   useEffect(() => {
     if (!showDjPanel) return;
     const today = new Date().toISOString().slice(0, 10);
@@ -8613,24 +8623,30 @@ function TeacherApp({ onExit, teacherName }) {
   useEffect(() => {
     if (!djRunning) return;
     const iv = setInterval(() => setDjSecondsLeft(s => {
-      if (s === null || s <= 1) { setDjRunning(false); setDjMusicStopped(true); ringPrimedBell(djBellPlayerRef); return 0; }
+      if (s === null || s <= 1) {
+        setDjRunning(false);
+        setDjMusicStopped(true);
+        if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} try { djBgYtPlayerRef.current._el && djBgYtPlayerRef.current._el.remove(); } catch (e) {} djBgYtPlayerRef.current = null; setDjBgMusicOn(false); }
+        ringPrimedBell(djBellPlayerRef);
+        return 0;
+      }
       return s - 1;
     }), 1000);
     return () => clearInterval(iv);
   }, [djRunning]);
-  const [djBgMusicOn, setDjBgMusicOn] = useState(false);
-  const [djBgMusicTrack, setDjBgMusicTrack] = useState(0);
-  const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
-  const djBgYtPlayerRef = useRef(null);
   useEffect(() => {                                              // muzică de fundal pe DJ for a Day, cât timp niciun elev n-a trimis o melodie
     if (!showDjPanel || !djBgMusicOn || djQueue.length > 0) {
-      if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; }
+      if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} try { djBgYtPlayerRef.current._el && djBgYtPlayerRef.current._el.remove(); } catch (e) {} djBgYtPlayerRef.current = null; }
       return;
     }
     let cancelled = false;
+    const el = document.createElement('div');                    // element creat manual, în afara React — evită conflictul de removeChild cu iframe-ul pus de YouTube
+    el.id = 'dj-music-player-target-' + Date.now();
+    el.style.cssText = 'position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;bottom:0;right:0;';
+    document.body.appendChild(el);
     function createPlayer() {
-      if (cancelled || !document.getElementById('dj-music-player-target')) return;
-      djBgYtPlayerRef.current = new window.YT.Player('dj-music-player-target', {
+      if (cancelled) return;
+      const player = new window.YT.Player(el.id, {
         videoId: WAIT_MUSIC_TRACKS[djBgMusicTrack].id,
         playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[djBgMusicTrack].id, controls: 0 },
         events: {
@@ -8638,6 +8654,8 @@ function TeacherApp({ onExit, teacherName }) {
           onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },
         },
       });
+      player._el = el;
+      djBgYtPlayerRef.current = player;
     }
     if (window.YT && window.YT.Player) createPlayer();
     else {
@@ -8645,7 +8663,7 @@ function TeacherApp({ onExit, teacherName }) {
       const prevReady = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => { if (prevReady) prevReady(); createPlayer(); };
     }
-    return () => { cancelled = true; if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} djBgYtPlayerRef.current = null; } };
+    return () => { cancelled = true; if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} try { djBgYtPlayerRef.current._el && djBgYtPlayerRef.current._el.remove(); } catch (e) {} djBgYtPlayerRef.current = null; } else { try { el.remove(); } catch (e) {} } };
   }, [showDjPanel, djBgMusicOn, djBgMusicTrack, djQueue.length]);
   useEffect(() => {
     if (djBgYtPlayerRef.current && djBgYtPlayerRef.current.setVolume) { try { djBgYtPlayerRef.current.setVolume(djBgMusicVolume); } catch (e) {} }
@@ -10870,9 +10888,6 @@ function TeacherApp({ onExit, teacherName }) {
                     </div>
                   )}
                 </div>
-                {waitMusicOn && (
-                  <div id="wait-music-player-target" style={{ position: 'absolute', width: 2, height: 2, opacity: 0, pointerEvents: 'none' }}></div>
-                )}
               </div>
 
               <div style={{ textAlign: 'center', marginBottom: 26 }}>
@@ -11063,7 +11078,6 @@ function TeacherApp({ onExit, teacherName }) {
                         </div>
                       )}
                     </div>
-                    {djBgMusicOn && <div id="dj-music-player-target" style={{ position: 'absolute', width: 2, height: 2, opacity: 0, pointerEvents: 'none' }}></div>}
                   </div>
                 </div>
               )}
@@ -11806,7 +11820,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.139';
+const APP_VERSION = 'v2.141';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

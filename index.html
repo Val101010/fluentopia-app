@@ -776,23 +776,25 @@ function PrizeWheel({ spec, rotation, spinning, popKey = 0, width = 460 }) {
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: width, aspectRatio: '1', margin: '0 auto', pointerEvents: 'none' }}>
       <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', zIndex: 3, width: 0, height: 0, borderLeft: '15px solid transparent', borderRight: '15px solid transparent', borderTop: '30px solid #fff', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.6))' }}></div>
-      <div data-wheel="1" style={{ width: '100%', height: '100%', pointerEvents: 'none', transform: `rotate(${rotation}deg)`, transition: spinning ? 'transform 5.8s cubic-bezier(0.12, 0.72, 0.13, 1)' : 'none', borderRadius: '50%', boxShadow: '0 0 0 6px #241B45, 0 0 40px rgba(155,60,224,.45)' }}>
-        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-          <defs>
-            <radialGradient id="pwShade" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#000" stopOpacity="0.35" /><stop offset="45%" stopColor="#000" stopOpacity="0" /><stop offset="100%" stopColor="#fff" stopOpacity="0.10" />
-            </radialGradient>
-          </defs>
-          {spec.chunks.map((ch, i) => {
-            const k = Math.max(1, Math.round(ch.arc / 3.5)), w = ch.arc / k;
-            return Array.from({ length: k }, (_, j) => (
-              <path key={`${i}-${j}`} d={wedge(ch.start + j * w, ch.start + (j + 1) * w, R)} fill={ch.colors[j % 2]} stroke="rgba(11,10,20,.55)" strokeWidth="0.6" />
-            ));
-          })}
-          <circle cx={c} cy={c} r={R} fill="url(#pwShade)" />
-          {Array.from({ length: 48 }, (_, i) => { const [x, y] = pt(i * 7.5, R - 5); return <circle key={i} cx={x} cy={y} r="2" fill="#fff" opacity="0.75" />; })}
-          <circle cx={c} cy={c} r={size * 0.105} fill="#151225" stroke="#F5C542" strokeWidth="4" />
-        </svg>
+      <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden' }}>
+        <div data-wheel="1" style={{ width: '100%', height: '100%', pointerEvents: 'none', transform: `rotate(${rotation}deg)`, transition: spinning ? 'transform 5.8s cubic-bezier(0.12, 0.72, 0.13, 1)' : 'none', borderRadius: '50%', boxShadow: '0 0 0 6px #241B45, 0 0 40px rgba(155,60,224,.45)' }}>
+          <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+            <defs>
+              <radialGradient id="pwShade" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#000" stopOpacity="0.35" /><stop offset="45%" stopColor="#000" stopOpacity="0" /><stop offset="100%" stopColor="#fff" stopOpacity="0.10" />
+              </radialGradient>
+            </defs>
+            {spec.chunks.map((ch, i) => {
+              const k = Math.max(1, Math.round(ch.arc / 3.5)), w = ch.arc / k;
+              return Array.from({ length: k }, (_, j) => (
+                <path key={`${i}-${j}`} d={wedge(ch.start + j * w, ch.start + (j + 1) * w, R)} fill={ch.colors[j % 2]} stroke="rgba(11,10,20,.55)" strokeWidth="0.6" />
+              ));
+            })}
+            <circle cx={c} cy={c} r={R} fill="url(#pwShade)" />
+            {Array.from({ length: 48 }, (_, i) => { const [x, y] = pt(i * 7.5, R - 5); return <circle key={i} cx={x} cy={y} r="2" fill="#fff" opacity="0.75" />; })}
+            <circle cx={c} cy={c} r={size * 0.105} fill="#151225" stroke="#F5C542" strokeWidth="4" />
+          </svg>
+        </div>
       </div>
       {/* trifoiul glassy din mijloc: singurul element animat al roții */}
       <div style={{ position: 'absolute', left: '50%', top: '50%', width: '19.5%', aspectRatio: '1', transform: 'translate(-50%, -50%)', zIndex: 2, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -3671,6 +3673,23 @@ function playShieldSound() {
     n.buffer = buf; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600;
     const ng = ctx.createGain(); ng.gain.setValueAtTime(0.22, t0);
     n.connect(lp); lp.connect(ng); ng.connect(ctx.destination); n.start(t0);
+  } catch (e) {}
+}
+function playBreakOverBell() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = ctx.currentTime;
+    [0, 0.28, 0.56].forEach((delay, i) => {                     // trei "dăng"-uri de clopoțel, ca un sunet de sonerie de școală
+      const t = t0 + delay;
+      [660, 990, 1320].forEach((freq, j) => {                   // ton fundamental + 2 armonice, ca să sune ca un clopot, nu ca un beep
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.setValueAtTime(freq, t);
+        o.connect(g); g.connect(ctx.destination);
+        const vol = [0.28, 0.12, 0.06][j];
+        g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+        o.start(t); o.stop(t + 0.9);
+      });
+    });
   } catch (e) {}
 }
 function playWarningWhistle() {
@@ -8304,7 +8323,10 @@ function TeacherApp({ onExit, teacherName }) {
       waitYtPlayerRef.current = new window.YT.Player('wait-music-player-target', {
         videoId: WAIT_MUSIC_TRACKS[waitMusicTrack].id,
         playerVars: { autoplay: 1, loop: 1, playlist: WAIT_MUSIC_TRACKS[waitMusicTrack].id, controls: 0 },
-        events: { onReady: e => { e.target.setVolume(waitMusicVolume); e.target.playVideo(); } },
+        events: {
+          onReady: e => { e.target.setVolume(waitMusicVolume); e.target.playVideo(); },
+          onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },   // plasă de siguranță — reia melodia dacă bucla nativă nu prinde
+        },
       });
     }
     if (window.YT && window.YT.Player) {
@@ -8327,7 +8349,7 @@ function TeacherApp({ onExit, teacherName }) {
   useEffect(() => {
     if (!waitRunning) return;
     const iv = setInterval(() => setWaitSecondsLeft(s => {
-      if (s === null || s <= 1) { setWaitRunning(false); return 0; }
+      if (s === null || s <= 1) { setWaitRunning(false); playBreakOverBell(); return 0; }
       return s - 1;
     }), 1000);
     return () => clearInterval(iv);
@@ -8998,37 +9020,46 @@ function TeacherApp({ onExit, teacherName }) {
             }
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-                <div style={{ fontSize: 9.5, color: '#4A4666', padding: '0 12px 2px' }}>Trage ca să reordonezi · dublu-click ca să redenumești</div>
+                <div style={{ fontSize: 9.5, color: '#4A4666', padding: '0 12px 2px' }}>Trage ca să reordonezi · ✏️ ca să redenumești</div>
                 {orderedTools.map(tool => (
                   <React.Fragment key={tool.id}>
-                    <button
+                    <div
                       draggable
                       onDragStart={() => setDragToolId(tool.id)}
                       onDragOver={e => e.preventDefault()}
                       onDrop={() => handleDrop(tool.id)}
-                      onDoubleClick={e => { e.stopPropagation(); setRenamingTool({ id: tool.id, value: toolLabels[tool.id] || tool.label }); }}
-                      onClick={() => { if (renamingTool?.id !== tool.id) tool.onClick(); }}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: dragToolId ? 'grabbing' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10,
                         background: tool.highlight ? 'linear-gradient(135deg, rgba(245,197,66,0.16), rgba(236,30,143,0.14))' : '#151225',
-                        color: tool.highlight ? '#F5C542' : '#C7C8E0', fontSize: 12.5, fontWeight: tool.highlight ? 700 : 600, textAlign: 'left',
-                        opacity: dragToolId === tool.id ? 0.4 : 1, position: 'relative',
+                        opacity: dragToolId === tool.id ? 0.4 : 1, position: 'relative', cursor: dragToolId ? 'grabbing' : 'default',
                       }}>
-                      <span>{tool.icon}</span>
-                      {renamingTool?.id === tool.id ? (
-                        <input
-                          autoFocus value={renamingTool.value}
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => setRenamingTool({ id: tool.id, value: e.target.value })}
-                          onBlur={() => { saveToolLabel(tool.id, renamingTool.value.trim() || tool.label); setRenamingTool(null); }}
-                          onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setRenamingTool(null); }}
-                          style={{ flex: 1, background: '#0F0C1C', border: '1px solid #8B5CF6', borderRadius: 6, color: '#fff', fontSize: 12, padding: '3px 6px' }}
-                        />
-                      ) : (
-                        <span>{toolLabels[tool.id] || tool.label}</span>
+                      <button
+                        onClick={() => tool.onClick()}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 6px 9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                          background: 'transparent', color: tool.highlight ? '#F5C542' : '#C7C8E0', fontSize: 12.5, fontWeight: tool.highlight ? 700 : 600, textAlign: 'left', minWidth: 0,
+                        }}>
+                        <span>{tool.icon}</span>
+                        {renamingTool?.id === tool.id ? (
+                          <input
+                            autoFocus value={renamingTool.value}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => setRenamingTool({ id: tool.id, value: e.target.value })}
+                            onBlur={() => { saveToolLabel(tool.id, renamingTool.value.trim() || tool.label); setRenamingTool(null); }}
+                            onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setRenamingTool(null); }}
+                            style={{ flex: 1, background: '#0F0C1C', border: '1px solid #8B5CF6', borderRadius: 6, color: '#fff', fontSize: 12, padding: '3px 6px', minWidth: 0 }}
+                          />
+                        ) : (
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{toolLabels[tool.id] || tool.label}</span>
+                        )}
+                        {tool.badge > 0 && <span style={{ background: '#EC1E8F', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800, marginLeft: 'auto', flexShrink: 0 }}>{tool.badge}</span>}
+                      </button>
+                      {renamingTool?.id !== tool.id && (
+                        <button onClick={() => setRenamingTool({ id: tool.id, value: toolLabels[tool.id] || tool.label })} title="Redenumește" style={{
+                          background: 'transparent', border: 'none', cursor: 'pointer', color: '#5A5570', fontSize: 12, padding: '9px 10px', flexShrink: 0,
+                        }}>✏️</button>
                       )}
-                      {tool.badge > 0 && <span style={{ background: '#EC1E8F', color: '#fff', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800, marginLeft: 'auto' }}>{tool.badge}</span>}
-                    </button>
+                    </div>
                     {tool.id === 'announcement' && editingAnnouncement && (
                       <div style={{ background: '#0F0C1C', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <textarea value={announcementDraft} onChange={e => setAnnouncementDraft(e.target.value)} placeholder="Anunț vizibil tuturor elevilor, din toate clasele..."
@@ -10486,7 +10517,7 @@ function TeacherApp({ onExit, teacherName }) {
                     animation: `waitParticleUp ${7 + (i % 5)}s ${i * 0.9}s linear infinite`,
                   }}>✦</span>
                 ))}
-                {classStudents.slice(0, 6).map((s, i) => (
+                {classStudents.map((s, i) => (
                   <div key={s.id} style={{
                     position: 'absolute', left: `${8 + (i * 15) % 88}%`, bottom: -46, textAlign: 'center', opacity: 0,
                     animation: `waitAvatarFloat ${13 + (i % 4) * 2}s ${i * 2.3}s linear infinite`,
@@ -10705,7 +10736,7 @@ function TeacherApp({ onExit, teacherName }) {
                         animation: `djIdleParticle ${5 + (i % 4)}s ${i * 0.7}s linear infinite`,
                       }}>✦</span>
                     ))}
-                    {classStudents.slice(0, 4).map((s, i) => (
+                    {classStudents.map((s, i) => (
                       <div key={s.id} style={{
                         position: 'absolute', left: `${12 + (i * 22) % 80}%`, bottom: -36, textAlign: 'center', opacity: 0,
                         animation: `djIdleAvatarFloat ${9 + (i % 3) * 2}s ${i * 1.8}s linear infinite`,
@@ -11463,7 +11494,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.128';
+const APP_VERSION = 'v2.130';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

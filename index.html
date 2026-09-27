@@ -4603,17 +4603,16 @@ function DjRequestView({ student, onConsumeDjSticker }) {
 }
 /* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
 const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!', 'Hai să ne jucăm! 🎮'];
-const DEFAULT_MUSIC_TRACKS = [                                  // set implicit — profesorul poate reordona, adăuga sau șterge din consolă. "start" = câte secunde sare peste (intro-ul propriu al videoclipului, nu o reclamă YouTube reală)
+const DEFAULT_MUSIC_TRACKS = [                                  // set implicit — profesorul poate reordona, adăuga sau șterge din consolă. "start" = câte secunde sare peste (doar la piesele YouTube, intro-ul propriu al videoclipului). "file" = fișier mp3 propriu, fără reclame — nu YouTube
   { id: 'u2qF9ZWIt3Q', label: 'Ambient exploratori', start: 0 },
   { id: 'UoxZ4403hDc', label: 'Vesel, energic', start: 0 },
   { id: 'ZzLXJUzyLzQ', label: 'Business, calm', start: 0 },
   { id: 'wsinz56ghsk', label: 'Pozitiv, ușor', start: 0 },
-  { id: 'rY12J2ZF_H8', label: 'Miss You — upbeat', start: 0 },
-  { id: 'JpuhuTkOQgw', label: 'STARTUP — chill', start: 0 },
-  { id: 'jjr3oYJ5wVo', label: 'Modern Technology', start: 10 },
-  { id: 'rFMT6DgiK0c', label: 'Digital Technology', start: 8 },
-  { id: 'KK2smasHg6w', label: 'Uplifting & Inspiring', start: 5 },
-  { id: 'bOZCnxJAq_0', label: 'Upbeat & Happy', start: 5 },
+  { id: 'startup-chill', label: 'STARTUP — chill', file: 'music/startup-chill.mp3' },
+  { id: 'modern-technology', label: 'Modern Technology', file: 'music/modern-technology.mp3' },
+  { id: 'digital-technology', label: 'Digital Technology', file: 'music/digital-technology.mp3' },
+  { id: 'uplifting-inspiring', label: 'Uplifting & Inspiring', file: 'music/uplifting-inspiring.mp3' },
+  { id: 'upbeat-happy', label: 'Upbeat & Happy', file: 'music/upbeat-happy.mp3' },
 ];
 const EXPLORE_QUESTIONS = [
   { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
@@ -8764,6 +8763,7 @@ function TeacherApp({ onExit, teacherName }) {
   });
   const [showMusicManager, setShowMusicManager] = useState(false);
   const [radioPlaying, setRadioPlaying] = useState(false);
+  const [pausedBubbleId, setPausedBubbleId] = useState(null);
   const radioAudioRef = useRef(null);
   function toggleConsoleRadio() {
     const el = radioAudioRef.current; if (!el) return;
@@ -8791,10 +8791,30 @@ function TeacherApp({ onExit, teacherName }) {
   const waitYtPlayerRef = useRef(null);
   const waitBellPlayerRef = useRef(null);
   const djBellPlayerRef = useRef(null);
-  useEffect(() => {                                              // creează / distruge playerul YouTube (cu control real de volum) când pornești/oprești muzica
+  function createAudioFilePlayer(src, volume, startSeconds) {   // "player" cu aceeași interfață ca YT.Player (setVolume/playVideo/seekTo/destroy), dar pentru fișiere mp3 proprii, fără reclame
+    const audio = new Audio(src);
+    audio.volume = Math.max(0, Math.min(1, (volume || 0) / 100));
+    audio.currentTime = startSeconds || 0;
+    audio.addEventListener('ended', () => { audio.currentTime = startSeconds || 0; audio.play().catch(() => {}); });
+    audio.play().catch(() => {});
+    return {
+      setVolume: v => { audio.volume = Math.max(0, Math.min(1, v / 100)); },
+      playVideo: () => audio.play().catch(() => {}),
+      seekTo: s => { audio.currentTime = s; },
+      destroy: () => { try { audio.pause(); audio.src = ''; } catch (e) {} },
+      _el: null,
+    };
+  }
+  useEffect(() => {                                              // creează / distruge playerul (fișier propriu sau YouTube) când pornești/oprești muzica sau schimbi piesa
+    const currentTrack = musicTracks.find(t => t.id === waitMusicTrack) || {};
     if (!showWaitSlide || !waitMusicOn) {
       if (waitYtPlayerRef.current) { try { waitYtPlayerRef.current.destroy(); } catch (e) {} try { waitYtPlayerRef.current._el && waitYtPlayerRef.current._el.remove(); } catch (e) {} waitYtPlayerRef.current = null; }
       return;
+    }
+    if (currentTrack.file) {                                     // fișier mp3 propriu, fără reclame — nu trece deloc prin YouTube
+      const player = createAudioFilePlayer(currentTrack.file, waitMusicVolume, currentTrack.start || 0);
+      waitYtPlayerRef.current = player;
+      return () => { try { player.destroy(); } catch (e) {} if (waitYtPlayerRef.current === player) waitYtPlayerRef.current = null; };
     }
     let cancelled = false;
     const el = document.createElement('div');                    // element creat manual, în afara React — YouTube îl înlocuiește cu un iframe, iar React nu-l "vede" ca fiind al lui, deci nu se mai încurcă la curățare
@@ -8803,7 +8823,7 @@ function TeacherApp({ onExit, teacherName }) {
     document.body.appendChild(el);
     function createPlayer() {
       if (cancelled) return;
-      const trackStart = (musicTracks.find(t => t.id === waitMusicTrack) || {}).start || 0;
+      const trackStart = currentTrack.start || 0;
       const player = new window.YT.Player(el.id, {
         videoId: waitMusicTrack,
         playerVars: { autoplay: 1, controls: 0, start: trackStart },   // fără loop/playlist nativ — bucla YouTube ignoră start-ul la a doua repetare, deci reluăm manual mai jos
@@ -8956,9 +8976,15 @@ function TeacherApp({ onExit, teacherName }) {
     return () => clearInterval(iv);
   }, [djRunning]);
   useEffect(() => {                                              // muzică de fundal pe DJ for a Day, cât timp niciun elev n-a trimis o melodie
+    const currentTrack = musicTracks.find(t => t.id === djBgMusicTrack) || {};
     if (!showDjPanel || !djBgMusicOn || djQueue.length > 0) {
       if (djBgYtPlayerRef.current) { try { djBgYtPlayerRef.current.destroy(); } catch (e) {} try { djBgYtPlayerRef.current._el && djBgYtPlayerRef.current._el.remove(); } catch (e) {} djBgYtPlayerRef.current = null; }
       return;
+    }
+    if (currentTrack.file) {                                     // fișier mp3 propriu, fără reclame
+      const player = createAudioFilePlayer(currentTrack.file, djBgMusicVolume, currentTrack.start || 0);
+      djBgYtPlayerRef.current = player;
+      return () => { try { player.destroy(); } catch (e) {} if (djBgYtPlayerRef.current === player) djBgYtPlayerRef.current = null; };
     }
     let cancelled = false;
     const el = document.createElement('div');                    // element creat manual, în afara React — evită conflictul de removeChild cu iframe-ul pus de YouTube
@@ -8967,7 +8993,7 @@ function TeacherApp({ onExit, teacherName }) {
     document.body.appendChild(el);
     function createPlayer() {
       if (cancelled) return;
-      const trackStart = (musicTracks.find(t => t.id === djBgMusicTrack) || {}).start || 0;
+      const trackStart = currentTrack.start || 0;
       const player = new window.YT.Player(el.id, {
         videoId: djBgMusicTrack,
         playerVars: { autoplay: 1, controls: 0, start: trackStart },   // fără loop/playlist nativ — vezi motivul la slide-ul de așteptare
@@ -11237,9 +11263,13 @@ function TeacherApp({ onExit, teacherName }) {
                   }}>✦</span>
                 ))}
                 {classStudents.map((s, i) => (
-                  <div key={s.id} style={{
-                    position: 'absolute', left: `${8 + (i * 15) % 88}%`, bottom: -46, textAlign: 'center', opacity: 0,
+                  <div key={s.id}
+                    onMouseDown={() => setPausedBubbleId(s.id)} onMouseUp={() => setPausedBubbleId(null)} onMouseLeave={() => setPausedBubbleId(cur => cur === s.id ? null : cur)}
+                    onTouchStart={() => setPausedBubbleId(s.id)} onTouchEnd={() => setPausedBubbleId(null)}
+                    style={{
+                    position: 'absolute', left: `${8 + (i * 15) % 88}%`, bottom: -46, textAlign: 'center', opacity: 0, cursor: 'pointer', touchAction: 'none',
                     animation: `waitAvatarFloat ${13 + (i % 4) * 2}s ${i * 2.3}s linear infinite`,
+                    animationPlayState: pausedBubbleId === s.id ? 'paused' : 'running',
                   }}>
                     <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 14px rgba(139,92,246,.6)', margin: '0 auto' }}>
                       <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={44} />
@@ -11287,6 +11317,11 @@ function TeacherApp({ onExit, teacherName }) {
                     }}>
                       {musicTracks.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                     </select>
+                  )}
+                  {waitMusicOn && musicTracks.length > 1 && (
+                    <button onClick={() => { const i = musicTracks.findIndex(t => t.id === waitMusicTrack); setWaitMusicTrack(musicTracks[(i + 1) % musicTracks.length].id); }} title="Melodia următoare" style={{
+                      width: 26, height: 26, borderRadius: '50%', border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>⏭</button>
                   )}
                   {waitMusicOn && (
                     <button onClick={() => setShowMusicManager(true)} title="Gestionează lista de melodii" style={{
@@ -11687,6 +11722,11 @@ function TeacherApp({ onExit, teacherName }) {
                         }}>
                           {musicTracks.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                         </select>
+                      )}
+                      {djBgMusicOn && musicTracks.length > 1 && (
+                        <button onClick={() => { const i = musicTracks.findIndex(t => t.id === djBgMusicTrack); setDjBgMusicTrack(musicTracks[(i + 1) % musicTracks.length].id); }} title="Melodia următoare" style={{
+                          width: 28, height: 28, borderRadius: '50%', border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        }}>⏭</button>
                       )}
                       {djBgMusicOn && (
                         <button onClick={() => setShowMusicManager(true)} title="Gestionează lista de melodii" style={{
@@ -12443,7 +12483,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.155';
+const APP_VERSION = 'v2.161';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

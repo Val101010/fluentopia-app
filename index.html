@@ -2186,6 +2186,23 @@ async function saveGBA(classId, data) {
   const db = getDb(); if (!db) return;
   await db.collection('fluentopia_gba').doc(classId).set(data).catch(() => {});
 }
+/* ---------- Vânătoarea de comori — 7+7 fragmente ascunse (elev + părinte), primul complet din fiecare mod ia 5000 puncte ---------- */
+const TREASURE_FRAGMENTS = ['explore', 'dj', 'pet', 'radio', 'wheel', 'stickers', 'bank'];
+const TREASURE_FRAGMENTS_PARENT = ['p-overview', 'p-wall', 'p-messages', 'p-wheel', 'p-stickers', 'p-bank', 'p-leaderboard'];
+function listenTreasureWinner(track, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_treasure').doc(track === 'parent' ? 'winner-parent' : 'winner').onSnapshot(doc => cb(doc.data() || null), err => console.error('treasure winner listen error', err));
+}
+async function claimTreasureWin(track, studentId, studentName) {
+  const db = getDb(); if (!db) return false;
+  const ref = db.collection('fluentopia_treasure').doc(track === 'parent' ? 'winner-parent' : 'winner');
+  try {
+    const snap = await ref.get();
+    if (snap.exists && snap.data()) return false;                // deja există un câștigător — prea târziu
+    await ref.set({ winnerId: studentId, winnerName: studentName, wonAt: new Date().toISOString() });
+    return true;
+  } catch (e) { return false; }
+}
 /* ---------- Harta Exploratorilor — cameră partajată (Pasul 2, live): UN document per hartă, comun întregii școli — jucătorii ca sub-câmpuri ---------- */
 function listenExplorePlayers(mapId, cb) {
   const db = getDb(); if (!db) return () => {};
@@ -2276,18 +2293,11 @@ async function resolvePendingCard(cardId, status) {
   const db = getDb(); if (!db) return;
   try { await db.collection('fluentopia_pending_cards').doc(cardId).update({ status }); } catch (e) { console.error('resolvePendingCard error', e); }
 }
-function listenTodayLoginCounts(cb) {
+function listenTodayLoginEvents(cb) {
   const db = getDb(); if (!db) return () => {};
   const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
   return db.collection('fluentopia_login_events').where('date', '>=', startOfDay.toISOString())
-    .onSnapshot(snap => {
-      const students = new Set(), parents = new Set();
-      snap.docs.forEach(d => {
-        const data = d.data();
-        if (data.mode === 'parent') parents.add(data.studentId); else students.add(data.studentId);
-      });
-      cb({ students: students.size, parents: parents.size });
-    }, err => console.error('login events listen error', err));
+    .onSnapshot(snap => cb(snap.docs.map(d => d.data())), err => console.error('login events listen error', err));
 }
 function listenPresence(cb) {
   const db = getDb(); if (!db) return () => {};
@@ -5623,6 +5633,47 @@ function SpellingPractice({ word }) {
   );
 }
 
+function TreasureSparkle({ fragmentId, found, corner = 'top-right', onCollect }) {
+  const pos = {
+    'top-right': { top: 10, right: 10 }, 'top-left': { top: 10, left: 10 },
+    'bottom-right': { bottom: 10, right: 10 }, 'bottom-left': { bottom: 10, left: 10 },
+  }[corner] || { top: 10, right: 10 };
+  if (found) return null;                                        // odată găsit, dispare — nu mai are rost să rămână
+  return (
+    <button onClick={onCollect} title="✨" style={{
+      position: 'absolute', ...pos, zIndex: 6, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'transparent',
+      cursor: 'pointer', fontSize: 15, animation: 'treasureSparklePulse 2.4s ease-in-out infinite', padding: 0,
+    }}>
+      <style>{`@keyframes treasureSparklePulse { 0%,100% { opacity: .35; transform: scale(0.9); } 50% { opacity: .9; transform: scale(1.15); } }`}</style>
+      ✨
+    </button>
+  );
+}
+function TreasureWinModal({ isWinner, winnerName, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '2px solid #F5C542', borderRadius: 24, padding: 32, maxWidth: 380, width: '100%', textAlign: 'center',
+        boxShadow: '0 0 60px rgba(245,197,66,.4)',
+      }}>
+        <div style={{ fontSize: 56, marginBottom: 10 }}>{isWinner ? '👑' : '🗺️'}</div>
+        {isWinner ? (
+          <>
+            <div className="heading-font" style={{ fontSize: 22, fontWeight: 900, color: '#F5C542', marginBottom: 8 }}>Ai găsit toată comoara!</div>
+            <div style={{ fontSize: 14, color: '#C7C8E0', marginBottom: 4 }}>Ești primul din toată școala — felicitări!</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: '#4ADE80', margin: '14px 0' }}>+5000 puncte</div>
+          </>
+        ) : (
+          <>
+            <div className="heading-font" style={{ fontSize: 20, fontWeight: 900, color: '#fff', marginBottom: 8 }}>Ai găsit toate cele 7 fragmente!</div>
+            <div style={{ fontSize: 13.5, color: '#C7C8E0' }}>Din păcate, <b>{winnerName}</b> a fost primul — comoara a fost deja găsită. Bravo oricum, ai explorat tot!</div>
+          </>
+        )}
+        <button onClick={onClose} style={{ marginTop: 16, padding: '9px 24px', borderRadius: 20, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: '#fff', fontWeight: 700, fontSize: 13 }}>Închide</button>
+      </div>
+    </div>
+  );
+}
 function RadioPlayer() {
   const RADIO_URL = 'https://listen-funkids.sharp-stream.com/funkids.mp3';
   const audioRef = useRef(null);
@@ -6136,7 +6187,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   const [newParentPin, setNewParentPin] = useState('');
   const [expandedArticle, setExpandedArticle] = useState(null);
@@ -6513,6 +6564,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           </div>
         )}
       </div>
+      {treasureWinResult && <TreasureWinModal isWinner={treasureWinResult.isWinner} winnerName={treasureWinResult.winnerName} onClose={onCloseTreasureWinResult} />}
       {student.onPause && (
         <div style={{
           position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 14,
@@ -6587,7 +6639,8 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         );
       })()}
       {tab === 'overview' && isParentView && (
-        <div style={{ background: 'rgba(21,18,37,0.6)', border: '1px solid #221D3A', borderRadius: 14, padding: '16px 18px', marginBottom: 20, textAlign: 'left' }}>
+        <div style={{ background: 'rgba(21,18,37,0.6)', border: '1px solid #221D3A', borderRadius: 14, padding: '16px 18px', marginBottom: 20, textAlign: 'left', position: 'relative' }}>
+          <TreasureSparkle fragmentId="p-overview" corner="top-right" found={(student.treasureFragments || []).includes('p-overview')} onCollect={() => onCollectTreasureFragment('p-overview')} />
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>🔑 Acces cont</div>
           <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 4 }}>Parola curentă a copilului:</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#F5C542', letterSpacing: 1, marginBottom: 16 }}>{student.pin}</div>
@@ -6647,7 +6700,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         })()}
         <div style={{ flex: 1, minWidth: 0 }}>
 
-      {tab === 'wall' && <WallView student={student} classmates={classmates} isParentView={isParentView} />}
+      {tab === 'wall' && <div style={{ position: 'relative' }}><WallView student={student} classmates={classmates} isParentView={isParentView} />{isParentView && <TreasureSparkle fragmentId="p-wall" corner="top-right" found={(student.treasureFragments || []).includes('p-wall')} onCollect={() => onCollectTreasureFragment('p-wall')} />}</div>}
       {tab === 'parentwall' && isParentView && <ParentWallView student={student} />}
       {tab === 'parentjourney' && isParentView && <AcademicJourneyView student={student} />}
       {tab === 'parentacademic' && isParentView && (() => {
@@ -6701,10 +6754,10 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           </div>
         );
       })()}
-      {tab === 'messages' && <MessagesView student={student} classmates={classmates} isParentView={isParentView} />}
+      {tab === 'messages' && <div style={{ position: 'relative' }}><MessagesView student={student} classmates={classmates} isParentView={isParentView} />{isParentView && <TreasureSparkle fragmentId="p-messages" corner="top-right" found={(student.treasureFragments || []).includes('p-messages')} onCollect={() => onCollectTreasureFragment('p-messages')} />}</div>}
       {tab === 'board' && !isParentView && <BoardView student={student} classmates={classmates} isParentView={isParentView} />}
-      {tab === 'dj' && !isParentView && <DjRequestView student={student} onConsumeDjSticker={onConsumeDjSticker} />}
-      {tab === 'explore' && !isParentView && <MapExploreView student={student} onEarnReward={onEarnStudentTestReward} onOpenChest={onOpenExploreChest} onThrowChair={onThrowChair} />}
+      {tab === 'dj' && !isParentView && <div style={{ position: 'relative' }}><DjRequestView student={student} onConsumeDjSticker={onConsumeDjSticker} /><TreasureSparkle fragmentId="dj" found={(student.treasureFragments || []).includes('dj')} onCollect={() => onCollectTreasureFragment('dj')} /></div>}
+      {tab === 'explore' && !isParentView && <div style={{ position: 'relative' }}><MapExploreView student={student} onEarnReward={onEarnStudentTestReward} onOpenChest={onOpenExploreChest} onThrowChair={onThrowChair} /><TreasureSparkle fragmentId="explore" corner="top-left" found={(student.treasureFragments || []).includes('explore')} onCollect={() => onCollectTreasureFragment('explore')} /></div>}
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
@@ -6981,7 +7034,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       {zoomItem && <ImageZoom item={zoomItem} onClose={() => setZoomItem(null)} />}
 
       {tab === 'stickers' && (
-        <div>
+        <div style={{ position: 'relative' }}>
+          {!isParentView && <TreasureSparkle fragmentId="stickers" corner="top-right" found={(student.treasureFragments || []).includes('stickers')} onCollect={() => onCollectTreasureFragment('stickers')} />}
+          {isParentView && <TreasureSparkle fragmentId="p-stickers" corner="top-right" found={(student.treasureFragments || []).includes('p-stickers')} onCollect={() => onCollectTreasureFragment('p-stickers')} />}
           {isParentView ? (
             (student.parentStickers || []).length === 0 ? <div style={{ color: '#4A4666', fontSize: 13 }}>Abțibildele câștigate de tine (din recomandări, spin săptămânal) vor apărea aici — separat de ale copilului.</div> : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: 10 }}>
@@ -7042,7 +7097,8 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         const slots = 1 + (student.extraPetSlot ? 1 : 0);
         const hasEmptySlot = pets.length < slots;
         return (
-          <div>
+          <div style={{ position: 'relative' }}>
+            {!isParentView && <TreasureSparkle fragmentId="pet" corner="top-right" found={(student.treasureFragments || []).includes('pet')} onCollect={() => onCollectTreasureFragment('pet')} />}
             <SectionHeader icon="🐣" title="Aura Buddy" color="#4ADE80" />
             {pets.map(pet => {
               const species = PET_SPECIES.find(sp => sp.id === pet.species);
@@ -7354,7 +7410,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         if (!wheelSession) return <div style={{ padding: 24, textAlign: 'center' }}><ISpin size={24}/></div>;
         const { hasFreeSpin, spinStickerCount, canSpin } = wheelSession;
         return (
-          <div style={{ background: '#151225', borderRadius: 18, padding: 24, textAlign: 'center' }}>
+          <div style={{ background: '#151225', borderRadius: 18, padding: 24, textAlign: 'center', position: 'relative' }}>
+            {!isParentView && <TreasureSparkle fragmentId="wheel" corner="top-right" found={(student.treasureFragments || []).includes('wheel')} onCollect={() => onCollectTreasureFragment('wheel')} />}
+            {isParentView && <TreasureSparkle fragmentId="p-wheel" corner="top-right" found={(student.treasureFragments || []).includes('p-wheel')} onCollect={() => onCollectTreasureFragment('p-wheel')} />}
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>🎡 Roata Norocului{isParentView ? ' — a ta' : ''}</div>
             <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 18 }}>
               {hasFreeSpin ? '🎟️ Ai un spin gratuit disponibil săptămâna asta!' : spinStickerCount > 0 ? `Ai ${spinStickerCount} bilet(e) „1x Spin" în inventar.` : isParentView ? 'Niciun spin disponibil — revino săptămâna viitoare.' : 'Niciun spin disponibil — revino săptămâna viitoare sau cumpără „1x Spin" din Catalog.'}
@@ -7368,14 +7426,15 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
         );
       })()}
 
-      <div style={{ display: tab === 'radio' ? 'block' : 'none' }}><RadioPlayer /></div>
+      <div style={{ display: tab === 'radio' ? 'block' : 'none', position: 'relative' }}><RadioPlayer />{!isParentView && <TreasureSparkle fragmentId="radio" corner="top-right" found={(student.treasureFragments || []).includes('radio')} onCollect={() => onCollectTreasureFragment('radio')} />}</div>
 
       {tab === 'leaderboard' && (() => {
         const list = (classmates || []).map(c => ({ ...c, weekly: (c.pointsLog || []).filter(e => e.delta > 0 && weekId(new Date(e.date)) === weekId()).reduce((s,e) => s+e.delta, 0) }))
           .sort((a, b) => b.weekly - a.weekly);
         const myIndex = list.findIndex(c => c.id === student.id);
         return (
-          <div>
+          <div style={{ position: 'relative' }}>
+            {isParentView && <TreasureSparkle fragmentId="p-leaderboard" corner="top-right" found={(student.treasureFragments || []).includes('p-leaderboard')} onCollect={() => onCollectTreasureFragment('p-leaderboard')} />}
             <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 14 }}>Clasament săptămânal — se resetează în fiecare luni</div>
             {myIndex !== -1 && list.length > 1 && (
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
@@ -7480,8 +7539,10 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           <div style={{
             background: 'radial-gradient(ellipse at top, rgba(245,197,66,0.14), transparent 60%), #151225',
             border: '1px solid rgba(245,197,66,0.35)', borderRadius: 22, padding: '28px 20px', textAlign: 'center',
-            boxShadow: '0 10px 34px rgba(245,197,66,0.10)',
+            boxShadow: '0 10px 34px rgba(245,197,66,0.10)', position: 'relative',
           }}>
+            {!isParentView && <TreasureSparkle fragmentId="bank" corner="top-right" found={(student.treasureFragments || []).includes('bank')} onCollect={() => onCollectTreasureFragment('bank')} />}
+            {isParentView && <TreasureSparkle fragmentId="p-bank" corner="top-right" found={(student.treasureFragments || []).includes('p-bank')} onCollect={() => onCollectTreasureFragment('p-bank')} />}
             <div style={{ fontSize: 40, marginBottom: 8 }}>🏦</div>
             <h2 className="heading-font" style={{ fontSize: 19, fontWeight: 700, letterSpacing: 0.6, background: 'linear-gradient(135deg, #F5C542, #FFE9A8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 6px' }}>Banca Fluentopia</h2>
             <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 20 }}>Împrumuturi până la {LOAN_MAX} puncte · dobândă 1%/zi</div>
@@ -8627,8 +8688,8 @@ function TeacherApp({ onExit, teacherName }) {
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState(DEFAULT_CLASSES);
   const [students, setStudents] = useState([]);
-  const [todayLoginCounts, setTodayLoginCounts] = useState({ students: 0, parents: 0 });
-  useEffect(() => { const unsub = listenTodayLoginCounts(setTodayLoginCounts); return unsub; }, []);
+  const [todayLoginEvents, setTodayLoginEvents] = useState([]);
+  useEffect(() => { const unsub = listenTodayLoginEvents(setTodayLoginEvents); return unsub; }, []);
   const [heroDownloads, setHeroDownloads] = useState([]);
   useEffect(() => { const unsub = listenHeroDownloads(setHeroDownloads); return unsub; }, []);
   const [parentShareClicks, setParentShareClicks] = useState({ whatsapp: 0, facebook: 0 });
@@ -10867,10 +10928,42 @@ function TeacherApp({ onExit, teacherName }) {
               </Section>
 
               <Section icon="🔵" title="Conectări în aplicația reală, azi" color="#38BDF8" onReset={async () => { if (window.confirm('Ștergi istoricul de conectări?')) { await resetLoginEvents(); } }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                  <StatBox value={todayLoginCounts.students} label="Elevi conectați azi" color="#38BDF8" />
-                  <StatBox value={todayLoginCounts.parents} label="Părinți conectați azi" color="#38BDF8" />
-                </div>
+                {(() => {
+                  const testClassIds = classes.filter(c => c.name === 'Test').map(c => c.id);
+                  const filtered = todayLoginEvents.filter(e => {
+                    const st = students.find(s => s.id === e.studentId);
+                    return !st || !testClassIds.includes(st.classId);            // elevii din clasa "Test" nu mai intră la statistici
+                  });
+                  const studentEvents = filtered.filter(e => e.mode !== 'parent');
+                  const parentEvents = filtered.filter(e => e.mode === 'parent');
+                  function latestByStudent(events) {
+                    const map = {};
+                    events.forEach(e => { if (!map[e.studentId] || new Date(e.date) > new Date(map[e.studentId].date)) map[e.studentId] = e; });
+                    return Object.values(map);
+                  }
+                  const studentList = latestByStudent(studentEvents);
+                  const parentList = latestByStudent(parentEvents);
+                  const combined = [...studentList.map(e => ({ ...e, kind: 'elev' })), ...parentList.map(e => ({ ...e, kind: 'părinte' }))]
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+                  return (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: combined.length ? 14 : 0 }}>
+                        <StatBox value={studentList.length} label="Elevi conectați azi" color="#38BDF8" />
+                        <StatBox value={parentList.length} label="Părinți conectați azi" color="#38BDF8" />
+                      </div>
+                      {combined.length > 0 && (
+                        <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }} className="scrollbar">
+                          {combined.map((e, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#151225', borderRadius: 8, fontSize: 11.5 }}>
+                              <span style={{ color: '#C7C8E0' }}>{e.kind === 'părinte' ? '🔵' : '🟢'} {e.studentName}{e.kind === 'părinte' ? ' (părinte)' : ''}</span>
+                              <span style={{ color: '#6E6A8C' }}>{new Date(e.date).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </Section>
 
               <Section icon="💰" title="Puncte & bani" color="#4ADE80">
@@ -11159,26 +11252,60 @@ function TeacherApp({ onExit, teacherName }) {
                 <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
                 <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}><IX size={16}/></button>
               </div>
-              <button onClick={toggleConsoleRadio} title="Fun Kids Radio — live" style={{
-                position: 'absolute', top: 20, left: 20, zIndex: 2, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : 'rgba(255,255,255,0.08)', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 14,
-                boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
-              }}>📻</button>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 46, height: 46, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-                    boxShadow: '0 4px 18px rgba(155,60,224,.5)',
-                  }}>
-                    <img src="icon-192.png" alt="Fluentopia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: '14px 18px', boxShadow: '0 8px 24px rgba(0,0,0,.2), 0 1px 0 rgba(255,255,255,.05) inset', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button onClick={toggleConsoleRadio} title="Fun Kids Radio — live" style={{
+                      width: 30, height: 30, borderRadius: '50%', border: 'none', cursor: 'pointer', flexShrink: 0,
+                      background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : 'rgba(255,255,255,0.08)', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 13,
+                      boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
+                    }}>📻</button>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', boxShadow: '0 4px 18px rgba(155,60,224,.5)' }}>
+                      <img src="icon-192.png" alt="Fluentopia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <span className="heading-font" style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>FLUENTOPIA</span>
                   </div>
-                  <span className="heading-font" style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>FLUENTOPIA</span>
+                  {clsName && <span style={{ fontSize: 12, fontWeight: 800, color: '#C7C8E0', letterSpacing: 1.2, padding: '5px 12px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>CLASS {clsName.toUpperCase()}</span>}
                 </div>
-                {clsName && <span style={{ fontSize: 13, fontWeight: 800, color: '#C7C8E0', letterSpacing: 1.5, padding: '6px 14px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(6px)' }}>CLASS {clsName.toUpperCase()}</span>}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                  {!waitRunning ? (
+                    <button onClick={() => { setWaitSecondsLeft(waitSecondsLeft === null ? waitMinutes * 60 : waitSecondsLeft); setWaitRunning(true); primeBellPlayer(waitBellPlayerRef); }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Pornește</button>
+                  ) : (
+                    <button onClick={() => setWaitRunning(false)} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 12.5 }}>⏸ Pauză</button>
+                  )}
+                  <button onClick={() => { setWaitRunning(false); setWaitSecondsLeft(null); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12.5 }}>↺ Reset</button>
+                  <input type="number" min="1" max="90" value={waitMinutes} onChange={e => setWaitMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={waitRunning} style={{ width: 50, padding: '7px 8px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12.5 }} />
+                  <span style={{ fontSize: 11.5, color: '#6E6A8C' }}>min</span>
+                  <span style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,0.08)', margin: '0 2px' }}></span>
+                  <button onClick={() => setWaitMusicOn(v => !v)} style={{
+                    padding: '6px 12px', borderRadius: 20, border: '1px solid rgba(139,92,246,0.4)', cursor: 'pointer',
+                    background: waitMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: waitMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11, fontWeight: 700,
+                  }}>{waitMusicOn ? '🎵 Muzică' : '🔇 Muzică'}</button>
+                  {waitMusicOn && (
+                    <select value={waitMusicTrack} onChange={e => setWaitMusicTrack(e.target.value)} style={{
+                      padding: '6px 8px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', fontSize: 11,
+                    }}>
+                      {musicTracks.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    </select>
+                  )}
+                  {waitMusicOn && (
+                    <button onClick={() => setShowMusicManager(true)} title="Gestionează lista de melodii" style={{
+                      width: 26, height: 26, borderRadius: '50%', border: '1px solid #2E2850', background: '#151225', color: '#8A86A8', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>⚙️</button>
+                  )}
+                  {waitMusicOn && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225' }}>
+                      <span style={{ fontSize: 11 }}>{waitMusicVolume === 0 ? '🔇' : waitMusicVolume < 50 ? '🔉' : '🔊'}</span>
+                      <input type="range" min="0" max="100" value={waitMusicVolume} onChange={e => setWaitMusicVolume(Number(e.target.value))} style={{ width: 64, accentColor: '#8B5CF6' }} />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div style={{ textAlign: 'center', margin: '18px 0' }}>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+              <div style={{ textAlign: 'center', margin: '22px 0' }}>
+                <div className="heading-font" style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Următoarea lecție începe în</div>
+                <div style={{ fontSize: 14, fontStyle: 'italic', color: '#8A86A8', marginBottom: 16 }}>Next lesson starting in</div>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <div style={{ position: 'absolute', width: 380, height: 160, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(236,30,143,0.4), transparent 70%)', animation: 'waitTimerGlow 2.4s ease-in-out infinite', pointerEvents: 'none' }}></div>
                   <span className="heading-font" style={{
                     position: 'relative', fontSize: 100, fontWeight: 900, letterSpacing: 2, fontVariantNumeric: 'tabular-nums',
@@ -11188,41 +11315,6 @@ function TeacherApp({ onExit, teacherName }) {
                   }}>
                     {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
                   </span>
-                </div>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 4, background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '12px 18px', boxShadow: '0 8px 24px rgba(0,0,0,.2), 0 1px 0 rgba(255,255,255,.05) inset' }}>
-                  {!waitRunning ? (
-                    <button onClick={() => { setWaitSecondsLeft(waitSecondsLeft === null ? waitMinutes * 60 : waitSecondsLeft); setWaitRunning(true); primeBellPlayer(waitBellPlayerRef); }} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>▶ Pornește</button>
-                  ) : (
-                    <button onClick={() => setWaitRunning(false)} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 13 }}>⏸ Pauză</button>
-                  )}
-                  <button onClick={() => { setWaitRunning(false); setWaitSecondsLeft(null); }} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 13 }}>↺ Reset</button>
-                  <input type="number" min="1" max="90" value={waitMinutes} onChange={e => setWaitMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={waitRunning} style={{ width: 56, padding: '8px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 13 }} />
-                  <span style={{ fontSize: 12, color: '#6E6A8C', alignSelf: 'center' }}>min</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
-                  <button onClick={() => setWaitMusicOn(v => !v)} style={{
-                    padding: '6px 14px', borderRadius: 20, border: '1px solid rgba(139,92,246,0.4)', cursor: 'pointer',
-                    background: waitMusicOn ? 'rgba(139,92,246,0.25)' : 'transparent', color: waitMusicOn ? '#C4B5FD' : '#8A86A8', fontSize: 11.5, fontWeight: 700,
-                  }}>{waitMusicOn ? '🎵 Muzică pornită' : '🔇 Fără muzică'}</button>
-                  {waitMusicOn && (
-                    <select value={waitMusicTrack} onChange={e => setWaitMusicTrack(e.target.value)} style={{
-                      padding: '6px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225', color: '#C7C8E0', fontSize: 11.5,
-                    }}>
-                      {musicTracks.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                  )}
-                  {waitMusicOn && (
-                    <button onClick={() => setShowMusicManager(true)} title="Gestionează lista de melodii" style={{
-                      width: 28, height: 28, borderRadius: '50%', border: '1px solid #2E2850', background: '#151225', color: '#8A86A8', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>⚙️</button>
-                  )}
-                  {waitMusicOn && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, border: '1px solid #2E2850', background: '#151225' }}>
-                      <span style={{ fontSize: 12 }}>{waitMusicVolume === 0 ? '🔇' : waitMusicVolume < 50 ? '🔉' : '🔊'}</span>
-                      <input type="range" min="0" max="100" value={waitMusicVolume} onChange={e => setWaitMusicVolume(Number(e.target.value))} style={{ width: 80, accentColor: '#8B5CF6' }} />
-                      <span style={{ fontSize: 10.5, color: '#8A86A8', width: 24, textAlign: 'right' }}>{waitMusicVolume}</span>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -11247,11 +11339,6 @@ function TeacherApp({ onExit, teacherName }) {
                 </div>
               )}
 
-              <div style={{ textAlign: 'center', marginBottom: 26 }}>
-                <div className="heading-font" style={{ fontSize: 26, fontWeight: 800, color: '#fff' }}>Următoarea lecție începe în</div>
-                <div style={{ fontSize: 16, fontStyle: 'italic', color: '#8A86A8', marginTop: 2 }}>Next lesson starting in</div>
-              </div>
-
               <div style={{ display: 'flex', justifyContent: 'center', gap: 26, marginBottom: (announcement && announcement.trim()) || (clsAnnouncement && clsAnnouncement.trim()) ? 22 : 0 }}>
                 {PET_SPECIES.map((sp, i) => (
                   <div key={sp.id} style={{ position: 'relative', animation: `waitPetFloat ${2.6 + i * 0.3}s ${i * 0.25}s ease-in-out infinite` }}>
@@ -11262,7 +11349,7 @@ function TeacherApp({ onExit, teacherName }) {
               </div>
 
               {announcement && announcement.trim() && (
-                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #EC1E8F, #9B3CE0)', borderRadius: 10, padding: '9px 0', marginBottom: (clsAnnouncement && clsAnnouncement.trim()) ? 10 : 0 }}>
+                <div style={{ position: 'relative', zIndex: 3, overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #EC1E8F, #9B3CE0)', borderRadius: 10, padding: '9px 0', marginBottom: (clsAnnouncement && clsAnnouncement.trim()) ? 10 : 0 }}>
                   <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
                     <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
                     <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
@@ -11270,7 +11357,7 @@ function TeacherApp({ onExit, teacherName }) {
                 </div>
               )}
               {clsAnnouncement && clsAnnouncement.trim() && (
-                <div style={{ overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #38BDF8, #4ADE80)', borderRadius: 10, padding: '9px 0' }}>
+                <div style={{ position: 'relative', zIndex: 3, overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #38BDF8, #4ADE80)', borderRadius: 10, padding: '9px 0' }}>
                   <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
                     <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
                     <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
@@ -11479,33 +11566,42 @@ function TeacherApp({ onExit, teacherName }) {
               <div style={{ position: 'absolute', bottom: -140, left: -100, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(236,30,143,0.20), transparent 70%)', pointerEvents: 'none' }}></div>
               <div style={{ position: 'absolute', top: '40%', left: -60, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(56,189,248,0.14), transparent 70%)', pointerEvents: 'none' }}></div>
 
-              <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-                    boxShadow: '0 4px 16px rgba(155,60,224,.5)',
-                  }}>
-                    <img src="icon-192.png" alt="Fluentopia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ position: 'relative', background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, padding: '14px 18px', boxShadow: '0 8px 24px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06) inset', display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', boxShadow: '0 4px 16px rgba(155,60,224,.5)' }}>
+                      <img src="icon-192.png" alt="Fluentopia" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div>
+                      <div className="heading-font" style={{ fontSize: 15, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(90deg,#fff,#C7C8E0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>FLUENTOPIA™</div>
+                      <div style={{ fontSize: 11, color: '#8B5CF6', fontWeight: 700, letterSpacing: 0.5 }}>🎧 DJ FOR A DAY</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="heading-font" style={{ fontSize: 18, fontWeight: 900, letterSpacing: 0.5, background: 'linear-gradient(90deg,#fff,#C7C8E0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>FLUENTOPIA™</div>
-                    <div style={{ fontSize: 12.5, color: '#8B5CF6', fontWeight: 700, letterSpacing: 0.5 }}>🎧 DJ FOR A DAY</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={toggleConsoleRadio} title="Fun Kids Radio — live" style={{
+                      background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 13, width: 30, height: 30,
+                      boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
+                    }}>📻</button>
+                    <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 13, width: 30, height: 30 }}>⛶</button>
+                    <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={toggleConsoleRadio} title="Fun Kids Radio — live" style={{
-                    background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 14, width: 32, height: 32,
-                    boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
-                  }}>📻</button>
-                  <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
-                  <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={20}/></button>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                  {!djRunning ? (
+                    <button onClick={() => { setDjSecondsLeft(djSecondsLeft === null ? djMinutes * 60 : djSecondsLeft); setDjRunning(true); setDjMusicStopped(false); primeBellPlayer(djBellPlayerRef); }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Start pauză</button>
+                  ) : (
+                    <button onClick={() => setDjRunning(false)} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 12.5 }}>⏸ Pauză</button>
+                  )}
+                  <button onClick={() => { setDjRunning(false); setDjSecondsLeft(null); setDjMusicStopped(false); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12.5 }}>↺</button>
+                  <input type="number" min="1" max="30" value={djMinutes} onChange={e => setDjMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={djRunning} style={{ width: 46, padding: '7px 8px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12.5 }} />
+                  <span style={{ fontSize: 11, color: '#6E6A8C' }}>min</span>
                 </div>
               </div>
 
               <style>{`
                 @keyframes djTimerWow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
               `}</style>
-              <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <div style={{ textAlign: 'center', marginBottom: 20 }}>
                 <div style={{ position: 'relative', display: 'inline-block' }}>
                   <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(236,30,143,0.3), transparent 70%)', animation: 'djGlowPulse 2.4s ease-in-out infinite', pointerEvents: 'none' }}></div>
                   <span className="heading-font" style={{
@@ -11517,16 +11613,6 @@ function TeacherApp({ onExit, teacherName }) {
                     {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
                   </span>
                 </div>
-              </div>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '11px 20px', marginBottom: 18, boxShadow: '0 8px 24px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.06) inset' }}>
-                {!djRunning ? (
-                  <button onClick={() => { setDjSecondsLeft(djSecondsLeft === null ? djMinutes * 60 : djSecondsLeft); setDjRunning(true); setDjMusicStopped(false); primeBellPlayer(djBellPlayerRef); }} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Start pauză</button>
-                ) : (
-                  <button onClick={() => setDjRunning(false)} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontWeight: 700, fontSize: 12.5 }}>⏸ Pauză</button>
-                )}
-                <button onClick={() => { setDjRunning(false); setDjSecondsLeft(null); setDjMusicStopped(false); }} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12.5 }}>↺</button>
-                <input type="number" min="1" max="30" value={djMinutes} onChange={e => setDjMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={djRunning} style={{ width: 50, padding: '7px 8px', borderRadius: 8, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 12.5 }} />
-                <span style={{ fontSize: 11.5, color: '#6E6A8C' }}>min</span>
               </div>
 
               {current ? (
@@ -12352,7 +12438,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.152';
+const APP_VERSION = 'v2.153';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -13541,6 +13627,11 @@ function Root() {
   const [mode, setMode] = useState(() => { try { return localStorage.getItem('fluentopia-session-mode') || null; } catch (e) { return null; } });
   const [teacherName, setTeacherName] = useState(() => { try { return localStorage.getItem('fluentopia-session-teacher') || null; } catch (e) { return null; } });
   const [loggedInStudentId, setLoggedInStudentId] = useState(() => { try { return localStorage.getItem('fluentopia-session-student') || null; } catch (e) { return null; } });
+  const [treasureWinnerInfo, setTreasureWinnerInfo] = useState(null);
+  const [treasureWinnerInfoParent, setTreasureWinnerInfoParent] = useState(null);
+  const [treasureWinResult, setTreasureWinResult] = useState(null);   // { isWinner, winnerName } — arătat o singură dată, când elevul chiar completează
+  useEffect(() => { const unsub = listenTreasureWinner('student', setTreasureWinnerInfo); return unsub; }, []);
+  useEffect(() => { const unsub = listenTreasureWinner('parent', setTreasureWinnerInfoParent); return unsub; }, []);
   const [uiLang, setUiLang] = useState(() => { try { return localStorage.getItem('fluentopia-ui-lang') || 'ro'; } catch (e) { return 'ro'; } });
   function setUiLangPersist(v) { setUiLang(v); try { localStorage.setItem('fluentopia-ui-lang', v); } catch (e) {} }
   const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('fluentopia-session-viewmode') || 'student'; } catch (e) { return 'student'; } });
@@ -14376,6 +14467,29 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
+  async function handleCollectTreasureFragment(fragmentId) {
+    const cur = students.find(s => s.id === loggedInStudentId);
+    if (!cur || (cur.treasureFragments || []).includes(fragmentId)) return;
+    const track = viewMode === 'parent' ? 'parent' : 'student';
+    const trackList = track === 'parent' ? TREASURE_FRAGMENTS_PARENT : TREASURE_FRAGMENTS;
+    const fragments = [...(cur.treasureFragments || []), fragmentId];
+    const isComplete = trackList.every(f => fragments.includes(f));
+    let next = students.map(s => s.id !== loggedInStudentId ? s : { ...s, treasureFragments: fragments });
+    if (isComplete) {
+      const won = await claimTreasureWin(track, cur.id, cur.name);
+      if (won) {
+        next = next.map(s => s.id !== loggedInStudentId ? s : {
+          ...s, points: s.points + 5000,
+          pointsLog: [{ id: uid(), delta: 5000, reason: track === 'parent' ? '🏆 Comoara părinților — primul din școală!' : '🏆 Comoara ascunsă — primul din școală!', date: new Date().toISOString() }, ...(s.pointsLog || [])],
+        });
+        setTreasureWinResult({ isWinner: true, winnerName: cur.name });
+      } else {
+        const info = track === 'parent' ? treasureWinnerInfoParent : treasureWinnerInfo;
+        setTreasureWinResult({ isWinner: false, winnerName: (info && info.winnerName) || '' });
+      }
+    }
+    persistStudentsLocal(next, students);
+  }
   function handleThrowChair(targetName) {
     const cur = students.find(s => s.id === loggedInStudentId);
     if (!cur || (cur.chairsCount || 0) < 1) return;
@@ -14428,7 +14542,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

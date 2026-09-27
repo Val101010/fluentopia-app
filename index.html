@@ -8578,6 +8578,11 @@ function TeacherApp({ onExit, teacherName }) {
   const [pinInput, setPinInput] = useState('');
   const [pauseNoteInput, setPauseNoteInput] = useState('');
   const [pauseUntilInput, setPauseUntilInput] = useState('');
+  const [skillOrder, setSkillOrder] = useState(() => {
+    try { const saved = localStorage.getItem(`fluentopia-skill-order-${teacherName}`); return saved ? JSON.parse(saved) : null; } catch (e) { return null; }
+  });
+  const [dragSkillId, setDragSkillId] = useState(null);
+  function saveSkillOrder(next) { setSkillOrder(next); try { localStorage.setItem(`fluentopia-skill-order-${teacherName}`, JSON.stringify(next)); } catch (e) {} }
   const [birthdayMonth, setBirthdayMonth] = useState('');
   const [birthdayDay, setBirthdayDay] = useState('');
   const [showTestManager, setShowTestManager] = useState(false);
@@ -9831,10 +9836,21 @@ function TeacherApp({ onExit, teacherName }) {
                   ) : null;
                 })()}
                 <div style={{ background: '#151225', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Skill-uri (click pentru a acorda instant)</div>
+                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Skill-uri (click pentru a acorda instant · trage pentru a reordona)</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 6, maxHeight: 260, overflowY: 'auto' }} className="scrollbar">
-                    {SKILLS.map(sk => {
-                      const skId = skillIdOf(sk);
+                    {(() => {
+                      const bySkillId = Object.fromEntries(SKILLS.map(sk => [skillIdOf(sk), sk]));
+                      const orderedIds = skillOrder
+                        ? [...skillOrder.filter(id => bySkillId[id]), ...Object.keys(bySkillId).filter(id => !skillOrder.includes(id))]
+                        : Object.keys(bySkillId);
+                      function handleSkillDrop(targetId) {
+                        if (!dragSkillId || dragSkillId === targetId) { setDragSkillId(null); return; }
+                        const from = orderedIds.indexOf(dragSkillId), to = orderedIds.indexOf(targetId);
+                        const next = [...orderedIds]; next.splice(from, 1); next.splice(to, 0, dragSkillId);
+                        saveSkillOrder(next); setDragSkillId(null);
+                      }
+                      return orderedIds.map(id => ({ sk: bySkillId[id], skId: id, handleSkillDrop }));
+                    })().map(({ sk, skId, handleSkillDrop }) => {
                       const effectivePts = skillPoints[skId] ?? sk.pts;
                       const effLabel = skillLabels[skId] || { en: sk.en, ro: sk.ro };
                       const isEditing = editingSkillId === skId;
@@ -9855,21 +9871,27 @@ function TeacherApp({ onExit, teacherName }) {
                         );
                       }
                       const SKILL_PALETTE = [
-                        ['#EC1E8F', '#9B3CE0'], ['#9B3CE0', '#38BDF8'], ['#38BDF8', '#22D3EE'], ['#4ADE80', '#14B8A6'],
-                        ['#F5C542', '#FF7A45'], ['#FF7A45', '#F87171'], ['#8B5CF6', '#6366F1'], ['#F87171', '#EC1E8F'],
+                        ['#FF4757', '#C0392B'], ['#FF7A45', '#E8590C'], ['#F5C542', '#D97706'], ['#A3E635', '#65A30D'],
+                        ['#4ADE80', '#16A34A'], ['#2DD4BF', '#0D9488'], ['#22D3EE', '#0891B2'], ['#38BDF8', '#2563EB'],
+                        ['#818CF8', '#4F46E5'], ['#A78BFA', '#7C3AED'], ['#EC1E8F', '#BE185D'], ['#FB7185', '#E11D48'],
                       ];
                       const [skColor, skColor2] = SKILL_PALETTE[Math.abs(skId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % SKILL_PALETTE.length];
                       return (
-                        <button key={skId} onClick={() => { playDing(); adjustPoints(effectivePts, `${effLabel.en} | ${effLabel.ro}`); }} style={{
-                          padding: '9px 10px 9px 12px', borderRadius: 10, border: 'none', borderLeft: `3px solid ${skColor}`, cursor: 'pointer', position: 'relative',
-                          background: `linear-gradient(135deg, ${skColor}28, ${skColor2}16)`, color: '#DCDCE8', fontSize: 11.5, textAlign: 'left', lineHeight: 1.3,
-                          boxShadow: `0 3px 12px ${skColor}30`,
+                        <button key={skId}
+                          draggable
+                          onDragStart={() => setDragSkillId(skId)}
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={() => handleSkillDrop(skId)}
+                          onClick={() => { playDing(); adjustPoints(effectivePts, `${effLabel.en} | ${effLabel.ro}`); }} style={{
+                          padding: '10px 12px', borderRadius: 12, border: 'none', cursor: dragSkillId ? 'grabbing' : 'pointer', position: 'relative',
+                          background: `linear-gradient(135deg, ${skColor}, ${skColor2})`, color: '#fff', fontSize: 11.5, textAlign: 'left', lineHeight: 1.3,
+                          boxShadow: `0 4px 14px ${skColor}55, 0 1px 0 rgba(255,255,255,.25) inset`, opacity: dragSkillId === skId ? 0.35 : 1,
                         }}>
                           <span onClick={e => { e.stopPropagation(); setEditingSkillId(skId); setEditSkillValue(String(effectivePts)); setEditSkillEn(effLabel.en); setEditSkillRo(effLabel.ro); }} style={{
-                            position: 'absolute', top: 4, right: 4, color: '#6E6A8C', fontSize: 11, padding: 2, cursor: 'pointer',
+                            position: 'absolute', top: 4, right: 4, color: 'rgba(255,255,255,.75)', fontSize: 11, padding: 2, cursor: 'pointer',
                           }}><IPencil size={10}/></span>
-                          <span style={{ backgroundImage: `linear-gradient(90deg, ${skColor}, ${skColor2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 900 }}>+{effectivePts}</span> {effLabel.en}
-                          <div style={{ color: '#8A86A8', fontSize: 10 }}>{effLabel.ro}</div>
+                          <span style={{ color: '#fff', fontWeight: 900, textShadow: '0 1px 3px rgba(0,0,0,.35)' }}>+{effectivePts}</span> <span style={{ fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,.3)' }}>{effLabel.en}</span>
+                          <div style={{ color: 'rgba(255,255,255,.8)', fontSize: 10 }}>{effLabel.ro}</div>
                         </button>
                       );
                     })}
@@ -12051,7 +12073,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.147';
+const APP_VERSION = 'v2.149';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

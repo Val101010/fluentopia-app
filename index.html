@@ -8806,10 +8806,10 @@ function TeacherApp({ onExit, teacherName }) {
       const trackStart = (musicTracks.find(t => t.id === waitMusicTrack) || {}).start || 0;
       const player = new window.YT.Player(el.id, {
         videoId: waitMusicTrack,
-        playerVars: { autoplay: 1, loop: 1, playlist: waitMusicTrack, controls: 0, start: trackStart },
+        playerVars: { autoplay: 1, controls: 0, start: trackStart },   // fără loop/playlist nativ — bucla YouTube ignoră start-ul la a doua repetare, deci reluăm manual mai jos
         events: {
           onReady: e => { e.target.setVolume(waitMusicVolume); e.target.playVideo(); },
-          onStateChange: e => { if (e.data === 0) { e.target.seekTo(trackStart); e.target.playVideo(); } },   // plasă de siguranță — reia melodia (de la finalul intro-ului, nu de la 0) dacă bucla nativă nu prinde
+          onStateChange: e => { if (e.data === 0) { e.target.seekTo(trackStart); e.target.playVideo(); } },   // reia mereu de la finalul intro-ului, nu de la 0 — la fiecare buclă, nu doar prima dată
         },
       });
       player._el = el;
@@ -8970,7 +8970,7 @@ function TeacherApp({ onExit, teacherName }) {
       const trackStart = (musicTracks.find(t => t.id === djBgMusicTrack) || {}).start || 0;
       const player = new window.YT.Player(el.id, {
         videoId: djBgMusicTrack,
-        playerVars: { autoplay: 1, loop: 1, playlist: djBgMusicTrack, controls: 0, start: trackStart },
+        playerVars: { autoplay: 1, controls: 0, start: trackStart },   // fără loop/playlist nativ — vezi motivul la slide-ul de așteptare
         events: {
           onReady: e => { e.target.setVolume(djBgMusicVolume); e.target.playVideo(); },
           onStateChange: e => { if (e.data === 0) { e.target.seekTo(trackStart); e.target.playVideo(); } },
@@ -11205,7 +11205,7 @@ function TeacherApp({ onExit, teacherName }) {
         return (
           <div onClick={() => setShowWaitSlide(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <PresentationBox id="wait-slide-box" onClick={e => e.stopPropagation()} baseW={1100} baseH={700} style={{
-              position: 'relative', overflow: 'hidden',
+              position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column',
               backgroundImage: 'linear-gradient(#0D0B18, #0D0B18), linear-gradient(115deg, #EC1E8F, #9B3CE0, #38BDF8, #4ADE80, #F5C542, #EC1E8F)',
               backgroundSize: '100% 100%, 300% 300%', backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box', border: '1px solid transparent',
               borderRadius: 26, padding: 44, boxShadow: '0 30px 90px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.03) inset',
@@ -11267,7 +11267,7 @@ function TeacherApp({ onExit, teacherName }) {
                     <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, flexShrink: 0 }}><IX size={15}/></button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap', overflowX: 'auto', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                   {!waitRunning ? (
                     <button onClick={() => { setWaitSecondsLeft(waitSecondsLeft === null ? waitMinutes * 60 : waitSecondsLeft); setWaitRunning(true); primeBellPlayer(waitBellPlayerRef); }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Pornește</button>
                   ) : (
@@ -11348,22 +11348,24 @@ function TeacherApp({ onExit, teacherName }) {
                 ))}
               </div>
 
-              {announcement && announcement.trim() && (
-                <div style={{ position: 'relative', zIndex: 3, overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #EC1E8F, #9B3CE0)', borderRadius: 10, padding: '9px 0', marginBottom: (clsAnnouncement && clsAnnouncement.trim()) ? 10 : 0 }}>
-                  <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
-                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
-                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
+              <div style={{ marginTop: 'auto', paddingTop: 24 }}>
+                {announcement && announcement.trim() && (
+                  <div style={{ position: 'relative', zIndex: 3, overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #EC1E8F, #9B3CE0)', borderRadius: 10, padding: '9px 0', marginBottom: (clsAnnouncement && clsAnnouncement.trim()) ? 10 : 0 }}>
+                    <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
+                      <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
+                      <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#fff', fontSize: 14, fontWeight: 700 }}>📢 {announcement}</span>
+                    </div>
                   </div>
-                </div>
-              )}
-              {clsAnnouncement && clsAnnouncement.trim() && (
-                <div style={{ position: 'relative', zIndex: 3, overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #38BDF8, #4ADE80)', borderRadius: 10, padding: '9px 0' }}>
-                  <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
-                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
-                    <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
+                )}
+                {clsAnnouncement && clsAnnouncement.trim() && (
+                  <div style={{ position: 'relative', zIndex: 3, overflow: 'hidden', whiteSpace: 'nowrap', background: 'linear-gradient(90deg, #38BDF8, #4ADE80)', borderRadius: 10, padding: '9px 0' }}>
+                    <div style={{ display: 'inline-block', animation: 'ticker-scroll 22s linear infinite' }}>
+                      <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
+                      <span style={{ display: 'inline-block', paddingLeft: '2em', color: '#0B0A14', fontSize: 14, fontWeight: 800 }}>📣 {clsAnnouncement}</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </PresentationBox>
           </div>
         );
@@ -11557,8 +11559,8 @@ function TeacherApp({ onExit, teacherName }) {
                 @keyframes djGlowPulse { 0%,100% { opacity: .5; transform: scale(1); } 50% { opacity: .85; transform: scale(1.06); } }
                 @keyframes djEq { 0%,100% { height: 30%; } 50% { height: 100%; } }
                 @keyframes djIdleLogoPulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(139,92,246,.4)); } 50% { transform: scale(1.06); filter: drop-shadow(0 0 40px rgba(139,92,246,.7)); } }
-                @keyframes djIdleParticle { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .8; } 85% { opacity: .5; } 100% { transform: translateY(-180px); opacity: 0; } }
-                @keyframes djIdleAvatarFloat { 0% { transform: translateY(0) scale(0.7); opacity: 0; } 15% { opacity: 1; transform: scale(1); } 85% { opacity: 1; } 100% { transform: translateY(-220px) scale(0.7); opacity: 0; } }
+                @keyframes djIdleParticle { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: .8; } 92% { opacity: .5; } 100% { transform: translateY(-620px); opacity: 0; } }
+                @keyframes djIdleAvatarFloat { 0% { transform: translateY(0) scale(0.7); opacity: 0; } 8% { opacity: 1; transform: scale(1); } 92% { opacity: 1; } 100% { transform: translateY(-680px) scale(0.7); opacity: 0; } }
                 @keyframes djBorderShift { 0% { background-position: 0% 50%, 0% 50%; } 50% { background-position: 0% 50%, 100% 50%; } 100% { background-position: 0% 50%, 0% 50%; } }
               `}</style>
               <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.035, pointerEvents: 'none', mixBlendMode: 'overlay' }}>
@@ -11589,7 +11591,7 @@ function TeacherApp({ onExit, teacherName }) {
                     <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap', overflowX: 'auto', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                   {!djRunning ? (
                     <button onClick={() => { setDjSecondsLeft(djSecondsLeft === null ? djMinutes * 60 : djSecondsLeft); setDjRunning(true); setDjMusicStopped(false); primeBellPlayer(djBellPlayerRef); }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>▶ Start pauză</button>
                   ) : (
@@ -11655,13 +11657,13 @@ function TeacherApp({ onExit, teacherName }) {
                       <span key={i} style={{
                         position: 'absolute', left: `${(i * 43) % 100}%`, bottom: -10, fontSize: 9 + (i % 3) * 5,
                         color: ['#8B5CF6', '#EC1E8F', '#38BDF8', '#F5C542'][i % 4],
-                        animation: `djIdleParticle ${5 + (i % 4)}s ${i * 0.7}s linear infinite`,
+                        animation: `djIdleParticle ${14 + (i % 4) * 2}s ${i * 1.4}s linear infinite`,
                       }}>✦</span>
                     ))}
                     {classStudents.map((s, i) => (
                       <div key={s.id} style={{
                         position: 'absolute', left: `${12 + (i * 22) % 80}%`, bottom: -36, textAlign: 'center', opacity: 0,
-                        animation: `djIdleAvatarFloat ${9 + (i % 3) * 2}s ${i * 1.8}s linear infinite`,
+                        animation: `djIdleAvatarFloat ${16 + (i % 3) * 2}s ${i * 3.2}s linear infinite`,
                       }}>
                         <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 10px rgba(139,92,246,.6)', margin: '0 auto' }}>
                           <Avatar name={s.name} avatar={s.avatar} frame={s.avatarFrame} size={36} />
@@ -12441,7 +12443,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.154';
+const APP_VERSION = 'v2.155';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

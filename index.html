@@ -660,10 +660,14 @@ function ArticleVisual({ id, lang }) {
   return null;
 }
 /* ---------- Panou mare pentru share screen: se scalează automat ca să umple ecranul ---------- */
-function toggleFullscreen() {
-  try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
+function toggleFullscreen(targetId) {
+  try {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    const el = (targetId && document.getElementById(targetId)) || document.documentElement;
+    el.requestFullscreen();
+  } catch (e) {}
 }
-function PresentationBox({ baseW = 520, baseH = 460, style, children, onClick }) {
+function PresentationBox({ id, baseW = 520, baseH = 460, style, children, onClick }) {
   const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
   useEffect(() => {
     const on = () => setVp({ w: window.innerWidth, h: window.innerHeight });
@@ -675,7 +679,7 @@ function PresentationBox({ baseW = 520, baseH = 460, style, children, onClick })
   const width = Math.min(baseW, (vp.w * 0.94) / scale);
   const maxHeight = (vp.h * 0.94) / scale;
   return (
-    <div className="scrollbar" onClick={onClick} style={{ ...style, zoom: scale, width, maxHeight, overflowY: 'auto', boxSizing: 'border-box' }}>
+    <div id={id} className="scrollbar" onClick={onClick} style={{ ...style, zoom: scale, width, maxHeight, overflowY: 'auto', boxSizing: 'border-box' }}>
       <style>{`
         @keyframes rpRoll { 0% { transform: translateY(70%); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
         @keyframes rpPop { 0% { transform: scale(.55); } 55% { transform: scale(1.22); } 80% { transform: scale(.96); } 100% { transform: scale(1); } }
@@ -4599,17 +4603,17 @@ function DjRequestView({ student, onConsumeDjSticker }) {
 }
 /* ---------- Harta Exploratorilor (joc, Pasul 1): mișcare pas cu pas, cufere cu întrebări, ușă spre a doua hartă ---------- */
 const EXPLORE_QUICK_MESSAGES = ['👋', '❤️', '😂', '😮', '👍', 'Salut!', 'Ce faci?', 'Uau!', 'Hai încoace!', 'Bravo!', 'Ajutor!', 'Am găsit ceva!', 'Hai să ne jucăm! 🎮'];
-const DEFAULT_MUSIC_TRACKS = [                                  // set implicit — profesorul poate reordona, adăuga sau șterge din consolă
-  { id: 'u2qF9ZWIt3Q', label: 'Ambient exploratori' },
-  { id: 'UoxZ4403hDc', label: 'Vesel, energic' },
-  { id: 'ZzLXJUzyLzQ', label: 'Business, calm' },
-  { id: 'wsinz56ghsk', label: 'Pozitiv, ușor' },
-  { id: 'rY12J2ZF_H8', label: 'Miss You — upbeat' },
-  { id: 'JpuhuTkOQgw', label: 'STARTUP — chill' },
-  { id: 'jjr3oYJ5wVo', label: 'Modern Technology' },
-  { id: 'rFMT6DgiK0c', label: 'Digital Technology' },
-  { id: 'KK2smasHg6w', label: 'Uplifting & Inspiring' },
-  { id: 'bOZCnxJAq_0', label: 'Upbeat & Happy' },
+const DEFAULT_MUSIC_TRACKS = [                                  // set implicit — profesorul poate reordona, adăuga sau șterge din consolă. "start" = câte secunde sare peste (intro-ul propriu al videoclipului, nu o reclamă YouTube reală)
+  { id: 'u2qF9ZWIt3Q', label: 'Ambient exploratori', start: 0 },
+  { id: 'UoxZ4403hDc', label: 'Vesel, energic', start: 0 },
+  { id: 'ZzLXJUzyLzQ', label: 'Business, calm', start: 0 },
+  { id: 'wsinz56ghsk', label: 'Pozitiv, ușor', start: 0 },
+  { id: 'rY12J2ZF_H8', label: 'Miss You — upbeat', start: 0 },
+  { id: 'JpuhuTkOQgw', label: 'STARTUP — chill', start: 0 },
+  { id: 'jjr3oYJ5wVo', label: 'Modern Technology', start: 10 },
+  { id: 'rFMT6DgiK0c', label: 'Digital Technology', start: 8 },
+  { id: 'KK2smasHg6w', label: 'Uplifting & Inspiring', start: 5 },
+  { id: 'bOZCnxJAq_0', label: 'Upbeat & Happy', start: 5 },
 ];
 const EXPLORE_QUESTIONS = [
   { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
@@ -8774,10 +8778,11 @@ function TeacherApp({ onExit, teacherName }) {
     [next[idx], next[j]] = [next[j], next[idx]]; saveMusicTracks(next);
   }
   function removeTrack(idx) { saveMusicTracks(musicTracks.filter((_, i) => i !== idx)); }
+  function setTrackStart(idx, seconds) { saveMusicTracks(musicTracks.map((t, i) => i === idx ? { ...t, start: Math.max(0, seconds) } : t)); }
   function addTrack() {
     const id = extractYoutubeId(newTrackUrl);
     if (!id) return;
-    saveMusicTracks([...musicTracks, { id, label: newTrackLabel.trim() || 'Melodie nouă' }]);
+    saveMusicTracks([...musicTracks, { id, label: newTrackLabel.trim() || 'Melodie nouă', start: 0 }]);
     setNewTrackUrl(''); setNewTrackLabel('');
   }
   const [waitMusicOn, setWaitMusicOn] = useState(false);
@@ -8798,12 +8803,13 @@ function TeacherApp({ onExit, teacherName }) {
     document.body.appendChild(el);
     function createPlayer() {
       if (cancelled) return;
+      const trackStart = (musicTracks.find(t => t.id === waitMusicTrack) || {}).start || 0;
       const player = new window.YT.Player(el.id, {
         videoId: waitMusicTrack,
-        playerVars: { autoplay: 1, loop: 1, playlist: waitMusicTrack, controls: 0 },
+        playerVars: { autoplay: 1, loop: 1, playlist: waitMusicTrack, controls: 0, start: trackStart },
         events: {
           onReady: e => { e.target.setVolume(waitMusicVolume); e.target.playVideo(); },
-          onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },   // plasă de siguranță — reia melodia dacă bucla nativă nu prinde
+          onStateChange: e => { if (e.data === 0) { e.target.seekTo(trackStart); e.target.playVideo(); } },   // plasă de siguranță — reia melodia (de la finalul intro-ului, nu de la 0) dacă bucla nativă nu prinde
         },
       });
       player._el = el;
@@ -8961,12 +8967,13 @@ function TeacherApp({ onExit, teacherName }) {
     document.body.appendChild(el);
     function createPlayer() {
       if (cancelled) return;
+      const trackStart = (musicTracks.find(t => t.id === djBgMusicTrack) || {}).start || 0;
       const player = new window.YT.Player(el.id, {
         videoId: djBgMusicTrack,
-        playerVars: { autoplay: 1, loop: 1, playlist: djBgMusicTrack, controls: 0 },
+        playerVars: { autoplay: 1, loop: 1, playlist: djBgMusicTrack, controls: 0, start: trackStart },
         events: {
           onReady: e => { e.target.setVolume(djBgMusicVolume); e.target.playVideo(); },
-          onStateChange: e => { if (e.data === 0) { e.target.seekTo(0); e.target.playVideo(); } },
+          onStateChange: e => { if (e.data === 0) { e.target.seekTo(trackStart); e.target.playVideo(); } },
         },
       });
       player._el = el;
@@ -11197,7 +11204,7 @@ function TeacherApp({ onExit, teacherName }) {
         const onlineNow = classStudents.filter(s => isOnline(sidebarPresence, s.id));
         return (
           <div onClick={() => setShowWaitSlide(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <PresentationBox onClick={e => e.stopPropagation()} baseW={1100} baseH={700} style={{
+            <PresentationBox id="wait-slide-box" onClick={e => e.stopPropagation()} baseW={1100} baseH={700} style={{
               position: 'relative', overflow: 'hidden',
               backgroundImage: 'linear-gradient(#0D0B18, #0D0B18), linear-gradient(115deg, #EC1E8F, #9B3CE0, #38BDF8, #4ADE80, #F5C542, #EC1E8F)',
               backgroundSize: '100% 100%, 300% 300%', backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box', border: '1px solid transparent',
@@ -11240,17 +11247,6 @@ function TeacherApp({ onExit, teacherName }) {
                     <div style={{ fontSize: 11.5, fontWeight: 800, color: '#C7C8E0', marginTop: 3, textShadow: '0 1px 3px rgba(0,0,0,.9)' }}>{s.name}</div>
                   </div>
                 ))}
-                {Array.from({ length: 4 }, (_, i) => (
-                  <img key={'logo' + i} src="icon-192.png" alt="" style={{
-                    position: 'absolute', left: `${20 + (i * 23) % 80}%`, bottom: -34, width: 26, height: 26, borderRadius: '50%', opacity: 0,
-                    boxShadow: '0 0 10px rgba(236,30,143,.5)',
-                    animation: `waitAvatarFloat ${15 + (i % 3) * 2}s ${i * 3.4 + 1.5}s linear infinite`,
-                  }} />
-                ))}
-              </div>
-              <div style={{ position: 'absolute', top: 20, right: 20, display: 'flex', gap: 6, zIndex: 2 }}>
-                <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 14, width: 32, height: 32 }}>⛶</button>
-                <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}><IX size={16}/></button>
               </div>
               <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015))', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: '14px 18px', boxShadow: '0 8px 24px rgba(0,0,0,.2), 0 1px 0 rgba(255,255,255,.05) inset', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
@@ -11265,7 +11261,11 @@ function TeacherApp({ onExit, teacherName }) {
                     </div>
                     <span className="heading-font" style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>FLUENTOPIA</span>
                   </div>
-                  {clsName && <span style={{ fontSize: 12, fontWeight: 800, color: '#C7C8E0', letterSpacing: 1.2, padding: '5px 12px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>CLASS {clsName.toUpperCase()}</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {clsName && <span style={{ fontSize: 12, fontWeight: 800, color: '#C7C8E0', letterSpacing: 1.2, padding: '5px 12px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>CLASS {clsName.toUpperCase()}</span>}
+                    <button onClick={() => toggleFullscreen('wait-slide-box')} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 13, width: 30, height: 30, flexShrink: 0 }}>⛶</button>
+                    <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, flexShrink: 0 }}><IX size={15}/></button>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                   {!waitRunning ? (
@@ -11385,6 +11385,9 @@ function TeacherApp({ onExit, teacherName }) {
                     <button onClick={() => moveTrack(i, 1)} disabled={i === musicTracks.length - 1} style={{ background: 'none', border: 'none', cursor: i === musicTracks.length - 1 ? 'default' : 'pointer', color: i === musicTracks.length - 1 ? '#3A3560' : '#8A86A8', fontSize: 11, padding: 0, lineHeight: 1 }}>▼</button>
                   </div>
                   <span style={{ flex: 1, fontSize: 12.5, color: '#C7C8E0' }}>{t.label}</span>
+                  <span title="Sari peste primele X secunde (intro-ul propriu al videoclipului)" style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10.5, color: '#6E6A8C' }}>
+                    ⏩<input type="number" min="0" max="60" value={t.start || 0} onChange={e => setTrackStart(i, Number(e.target.value) || 0)} style={{ width: 34, padding: '2px 4px', borderRadius: 5, border: '1px solid #2E2850', background: '#0F0C1C', color: '#C7C8E0', fontSize: 10.5 }} />s
+                  </span>
                   <button onClick={() => removeTrack(i)} title="Șterge" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#F87171', fontSize: 13 }}>✕</button>
                 </div>
               ))}
@@ -11543,7 +11546,7 @@ function TeacherApp({ onExit, teacherName }) {
         const currentStudent = current ? classStudents.find(s => s.id === current.studentId) : null;
         return (
           <div onClick={() => setShowDjPanel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <PresentationBox onClick={e => e.stopPropagation()} baseW={800} baseH={800} style={{
+            <PresentationBox id="dj-panel-box" onClick={e => e.stopPropagation()} baseW={800} baseH={800} style={{
               position: 'relative', overflow: 'hidden',
               backgroundImage: 'linear-gradient(#12101F, #0D0B18), linear-gradient(115deg, #EC1E8F, #9B3CE0, #8B5CF6, #38BDF8, #F5C542, #EC1E8F)',
               backgroundSize: '100% 100%, 300% 300%', backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box', border: '1px solid transparent',
@@ -11582,7 +11585,7 @@ function TeacherApp({ onExit, teacherName }) {
                       background: radioPlaying ? 'linear-gradient(135deg,#EC1E8F,#9B3CE0)' : '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: radioPlaying ? '#fff' : '#C7C8E0', fontSize: 13, width: 30, height: 30,
                       boxShadow: radioPlaying ? '0 0 12px rgba(236,30,143,.6)' : 'none',
                     }}>📻</button>
-                    <button onClick={toggleFullscreen} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 13, width: 30, height: 30 }}>⛶</button>
+                    <button onClick={() => toggleFullscreen('dj-panel-box')} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 13, width: 30, height: 30 }}>⛶</button>
                     <button onClick={() => setShowDjPanel(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex' }}><IX size={18}/></button>
                   </div>
                 </div>
@@ -12438,7 +12441,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.153';
+const APP_VERSION = 'v2.154';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

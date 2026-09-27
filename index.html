@@ -2095,6 +2095,97 @@ async function removeDjRequest(classId, date, currentQueue, entryId) {
   await db.collection('fluentopia_dj_queue').doc(`${classId}_${date}`)
     .set({ queue: (currentQueue || []).filter(q => q.id !== entryId) }).catch(() => {});
 }
+/* ---------- Îngeri, Tunuri și Bombe — grilă live, sincronizată cu clasa ---------- */
+const GBA_QUESTIONS = {                                          // bancă de întrebări vocabular + gramatică, pe 7 niveluri (progresie tipică English World 1-7)
+  1: [
+    { q: 'What color is a banana?', a: 'Yellow' }, { q: 'What color is grass?', a: 'Green' }, { q: 'How many fingers on one hand?', a: 'Five' },
+    { q: 'Count from 1 to 5 in English.', a: 'One, two, three, four, five' }, { q: 'What is this? 🐶', a: 'A dog' }, { q: 'What is this? 🐱', a: 'A cat' },
+    { q: 'Say the word for "mamă" in English.', a: 'Mother / Mum' }, { q: 'Say the word for "tată" in English.', a: 'Father / Dad' },
+    { q: 'Is it "I is happy" or "I am happy"?', a: 'I am happy' }, { q: 'What is this? 🍎', a: 'An apple' }, { q: 'What color is the sky?', a: 'Blue' },
+    { q: 'How many eyes do you have?', a: 'Two' }, { q: 'What is this? ☀️', a: 'The sun' }, { q: 'Say "This is a book" — is "this" correct for something near or far?', a: 'Near' },
+    { q: 'What is this? 🐟', a: 'A fish' }, { q: 'What is the plural of "cat"?', a: 'Cats' }, { q: 'Point to your nose and say the word.', a: 'Nose' },
+    { q: 'What is this? 🏠', a: 'A house' },
+  ],
+  2: [
+    { q: 'What is the plural of "box"?', a: 'Boxes' }, { q: 'The cat is ___ the table. (under/in)', a: 'Depends on picture — accept either with reason' },
+    { q: 'She ___ (like) pizza. Fill the gap.', a: 'Likes' }, { q: 'Name the days of the week — start with Monday.', a: 'Monday, Tuesday, Wednesday...' },
+    { q: 'What is the plural of "child"?', a: 'Children' }, { q: 'He ___ (play) football every day.', a: 'Plays' },
+    { q: 'Name three fruits in English.', a: 'e.g. Apple, banana, orange' }, { q: 'What do you wear on your feet?', a: 'Shoes' },
+    { q: '"I have got a dog." — what does "have got" mean here?', a: 'Possession — I own a dog' }, { q: 'Name three colors.', a: 'e.g. Red, blue, green' },
+    { q: 'The book is ___ the bag. (in/on)', a: 'In' }, { q: 'What is the opposite of "big"?', a: 'Small' },
+    { q: 'Say the months of the year — start with January.', a: 'January, February, March...' }, { q: 'What do you wear when it is cold?', a: 'A coat / jacket' },
+    { q: 'Is it "She go to school" or "She goes to school"?', a: 'She goes to school' }, { q: 'Name three animals that live on a farm.', a: 'e.g. Cow, sheep, pig' },
+  ],
+  3: [
+    { q: 'What is he doing? (mime eating) — use present continuous.', a: 'He is eating' }, { q: 'Can a fish walk? Answer with "can" or "can\'t".', a: "A fish can't walk" },
+    { q: 'There ___ a cat in the garden. (is/are)', a: 'is' }, { q: 'There ___ five books on the shelf. (is/are)', a: 'are' },
+    { q: 'Name a job that starts with the letter "T".', a: 'e.g. Teacher' }, { q: 'What is your favourite hobby? Answer in a full sentence.', a: 'e.g. My favourite hobby is reading.' },
+    { q: 'What is the comparative of "big"?', a: 'Bigger' }, { q: 'What is the comparative of "good"?', a: 'Better' },
+    { q: 'She is ___ (read) a book right now.', a: 'reading' }, { q: 'Can birds swim? Answer with "can" or "can\'t".', a: "Birds can't swim (most can't)" },
+    { q: 'Name three jobs in English.', a: 'e.g. Doctor, teacher, chef' }, { q: 'What are you doing right now? Answer using present continuous.', a: 'e.g. I am playing a game.' },
+    { q: 'Is a mouse bigger or smaller than an elephant?', a: 'Smaller' }, { q: 'What is the plural of "mouse"?', a: 'Mice' },
+    { q: 'Can you swim? Answer with "can" or "can\'t".', a: 'I can swim / I can\'t swim' }, { q: 'There ___ some milk in the fridge. (is/are)', a: 'is' },
+  ],
+  4: [
+    { q: 'What is the past simple of "go"?', a: 'Went' }, { q: 'What is the past simple of "play"?', a: 'Played' },
+    { q: 'What is the past simple of "eat"?', a: 'Ate' }, { q: 'Ask a question with "Where" about someone\'s holiday.', a: 'e.g. Where did you go on holiday?' },
+    { q: 'What is the past simple of "have"?', a: 'Had' }, { q: 'I ___ (go) to the cinema yesterday.', a: 'went' },
+    { q: 'What are we going to do tomorrow? Answer using "going to".', a: 'e.g. We are going to visit the museum.' }, { q: 'Name three rooms in a house.', a: 'e.g. Kitchen, bathroom, bedroom' },
+    { q: 'What is the weather like today? Answer in English.', a: 'e.g. It is sunny / rainy / cloudy.' }, { q: 'What is the 3rd month of the year?', a: 'March' },
+    { q: 'What is the ordinal number for 5? (5th)', a: 'Fifth' }, { q: 'She ___ (not/go) to school yesterday — it was Sunday.', a: "didn't go" },
+    { q: 'Ask a question with "Why" about being late.', a: 'e.g. Why were you late?' }, { q: 'What is the past simple of "see"?', a: 'Saw' },
+    { q: 'Name two things you can see in the sky.', a: 'e.g. Clouds, the sun, the moon' }, { q: 'What are you going to do this weekend?', a: 'e.g. I am going to visit my grandparents.' },
+  ],
+  5: [
+    { q: 'What is the superlative of "tall"?', a: 'The tallest' }, { q: 'What is the superlative of "good"?', a: 'The best' },
+    { q: 'Compare a car and a bicycle — which is faster?', a: 'A car is faster than a bicycle.' }, { q: 'Use "always/usually/sometimes/never" to say how often you eat breakfast.', a: 'e.g. I usually eat breakfast.' },
+    { q: 'Say "I would like..." to order food at a restaurant.', a: 'e.g. I would like a pizza, please.' }, { q: 'Name three school subjects.', a: 'e.g. Maths, Science, Art' },
+    { q: 'Have you ever been to another country? Answer using present perfect.', a: 'e.g. Yes, I have been to Italy.' }, { q: 'What is the comparative of "expensive"?', a: 'More expensive' },
+    { q: 'What is the superlative of "expensive"?', a: 'The most expensive' }, { q: 'Which is bigger — an elephant or a mouse? Use a comparative sentence.', a: 'An elephant is bigger than a mouse.' },
+    { q: 'Have you ever eaten sushi? Answer using present perfect.', a: 'e.g. Yes, I have eaten sushi. / No, I haven\'t.' }, { q: 'How often do you play sports? Use a frequency adverb.', a: 'e.g. I sometimes play sports.' },
+    { q: 'What subject do you like the most at school?', a: 'e.g. I like Science the most.' }, { q: 'What is the opposite of "difficult"?', a: 'Easy' },
+    { q: 'Name three adverbs of frequency.', a: 'e.g. Always, usually, never' }, { q: 'I would like ___ (visit) Paris one day.', a: 'to visit' },
+  ],
+  6: [
+    { q: 'What were you doing at 8pm yesterday? Use past continuous.', a: 'e.g. I was watching TV.' }, { q: 'If it rains tomorrow, what will you do? (first conditional)', a: 'e.g. If it rains, I will stay home.' },
+    { q: 'What is the difference between "must" and "should"?', a: 'Must = strong obligation, should = advice' }, { q: 'Complete: You ___ wear a seatbelt in a car. (must/should)', a: 'must' },
+    { q: 'What does the phrasal verb "give up" mean?', a: 'To stop trying / quit' }, { q: 'What does the phrasal verb "look after" mean?', a: 'To take care of' },
+    { q: 'While I ___ (cook), the phone rang. (past continuous)', a: 'was cooking' }, { q: 'If you study hard, what will happen? (first conditional)', a: 'e.g. If you study hard, you will pass the exam.' },
+    { q: 'Name one thing that is bad for the environment.', a: 'e.g. Plastic pollution, cutting down trees' }, { q: 'What does "have to" mean?', a: 'It expresses obligation/necessity' },
+    { q: 'What was happening when you arrived home? Use past continuous.', a: 'e.g. My family was having dinner.' }, { q: 'What does the phrasal verb "turn off" mean?', a: 'To switch something off' },
+    { q: 'Complete: If I have time, I ___ (help) you. (first conditional)', a: 'will help' }, { q: 'Name two pieces of modern technology.', a: 'e.g. Smartphone, laptop' },
+    { q: 'You ___ eat in the library. (mustn\'t/don\'t have to)', a: "mustn't" }, { q: 'What does the phrasal verb "find out" mean?', a: 'To discover information' },
+  ],
+  7: [
+    { q: 'Change to passive voice: "They built this house in 1990."', a: 'This house was built in 1990.' }, { q: 'Change to passive voice: "Someone stole my bike."', a: 'My bike was stolen.' },
+    { q: 'Report this: She said, "I am tired." (reported speech)', a: 'She said (that) she was tired.' }, { q: 'If you won the lottery, what would you do? (second conditional)', a: 'e.g. If I won the lottery, I would travel the world.' },
+    { q: 'Combine using a relative pronoun: "This is the book. I told you about it."', a: 'This is the book that/which I told you about.' }, { q: 'What does "environmentally friendly" mean?', a: 'Not harmful to the environment' },
+    { q: 'Report this: He said, "I will call you tomorrow."', a: 'He said (that) he would call me the next day.' }, { q: 'Change to passive voice: "Chefs cook the food in the kitchen."', a: 'The food is cooked in the kitchen.' },
+    { q: 'If you could live anywhere, where would you live? (second conditional)', a: 'e.g. If I could live anywhere, I would live in Japan.' }, { q: 'Combine: "The girl is my sister. She is wearing a red dress."', a: 'The girl who is wearing a red dress is my sister.' },
+    { q: 'What is a synonym for "important"?', a: 'e.g. Significant, essential' }, { q: 'What does "global warming" mean?', a: 'The gradual rise in Earth\'s temperature' },
+    { q: 'Report this: "Where do you live?" she asked me. (reported speech)', a: 'She asked me where I lived.' }, { q: 'What is an antonym for "generous"?', a: 'Selfish / stingy' },
+    { q: 'What do you think is the biggest problem in the world today? Give your opinion.', a: 'Open answer — accept any well-reasoned opinion' }, { q: 'Change to passive voice: "People speak English all over the world."', a: 'English is spoken all over the world.' },
+  ],
+};
+function buildGBAGrid(rows, cols) {
+  const total = rows * cols;
+  const pool = [];
+  const nAngel = Math.round(total * 0.28), nBomb = Math.round(total * 0.28), nGun = Math.round(total * 0.22);
+  for (let i = 0; i < nAngel; i++) pool.push('angel');
+  for (let i = 0; i < nBomb; i++) pool.push('bomb');
+  for (let i = 0; i < nGun; i++) pool.push('gun');
+  while (pool.length < total) pool.push('empty');
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  return pool.slice(0, total);
+}
+function listenGBA(classId, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_gba').doc(classId).onSnapshot(doc => cb(doc.data() || null), err => console.error('gba listen error', err));
+}
+async function saveGBA(classId, data) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_gba').doc(classId).set(data).catch(() => {});
+}
 /* ---------- Harta Exploratorilor — cameră partajată (Pasul 2, live): UN document per hartă, comun întregii școli — jucătorii ca sub-câmpuri ---------- */
 function listenExplorePlayers(mapId, cb) {
   const db = getDb(); if (!db) return () => {};
@@ -8670,6 +8761,87 @@ function TeacherApp({ onExit, teacherName }) {
     if (waitYtPlayerRef.current && waitYtPlayerRef.current.setVolume) { try { waitYtPlayerRef.current.setVolume(waitMusicVolume); } catch (e) {} }
   }, [waitMusicVolume]);
   const [showExploreSpectator, setShowExploreSpectator] = useState(false);
+  const [showGBA, setShowGBA] = useState(false);
+  const [gbaState, setGbaState] = useState(null);
+  const [gbaRows, setGbaRows] = useState(5);
+  const [gbaCols, setGbaCols] = useState(7);
+  const [gbaLevel, setGbaLevel] = useState(3);
+  const [gbaPendingCell, setGbaPendingCell] = useState(null);   // { cellIdx, teamIdx, question } — celula aleasă, așteaptă verdictul profesorului
+  const [gbaGunReveal, setGbaGunReveal] = useState(null);   // { cellIdx, teamIdx } — a fost dezvăluit un tun, așteptăm alegerea țintei
+  const [newGbaTeamName, setNewGbaTeamName] = useState('');
+  const [renamingGbaTeam, setRenamingGbaTeam] = useState(null);   // { idx, value }
+  useEffect(() => {
+    if (!showGBA) return;
+    const unsub = listenGBA(activeClassId, setGbaState);
+    return unsub;
+  }, [showGBA, activeClassId]);
+  function gbaCellLabel(cellIdx, cols) {
+    const row = Math.floor(cellIdx / cols), col = cellIdx % cols;
+    return `${row + 1}${String.fromCharCode(65 + col)}`;
+  }
+  function gbaNewGrid() {
+    const grid = buildGBAGrid(gbaRows, gbaCols);
+    saveGBA(activeClassId, {
+      rows: gbaRows, cols: gbaCols, grid, revealed: grid.map(() => false),
+      teams: (gbaState && gbaState.teams) || [], turnIdx: 0, log: [],
+    });
+    setGbaPendingCell(null); setGbaGunReveal(null);
+  }
+  function gbaAddTeam() {
+    if (!newGbaTeamName.trim() || !gbaState) return;
+    saveGBA(activeClassId, { ...gbaState, teams: [...gbaState.teams, { name: newGbaTeamName.trim(), lives: 3 }] });
+    setNewGbaTeamName('');
+  }
+  function gbaRemoveTeam(idx) {
+    if (!gbaState) return;
+    saveGBA(activeClassId, { ...gbaState, teams: gbaState.teams.filter((_, i) => i !== idx), turnIdx: 0 });
+  }
+  function gbaRenameTeam(idx, newName) {
+    if (!gbaState || !newName.trim()) { setRenamingGbaTeam(null); return; }
+    const teams = gbaState.teams.map((t, i) => i === idx ? { ...t, name: newName.trim() } : t);
+    saveGBA(activeClassId, { ...gbaState, teams });
+    setRenamingGbaTeam(null);
+  }
+  function gbaClickCell(cellIdx) {
+    if (!gbaState || gbaState.revealed[cellIdx] || gbaState.teams.length === 0 || gbaPendingCell || gbaGunReveal) return;
+    const teamIdx = gbaState.turnIdx % gbaState.teams.length;
+    const bank = GBA_QUESTIONS[gbaLevel] || GBA_QUESTIONS[3];
+    const question = bank[Math.floor(Math.random() * bank.length)];
+    setGbaPendingCell({ cellIdx, teamIdx, question });
+  }
+  function gbaJudgeAnswer(correct) {
+    if (!gbaState || !gbaPendingCell) return;
+    const { cellIdx, teamIdx } = gbaPendingCell;
+    const teamName = gbaState.teams[teamIdx].name;
+    if (!correct) {
+      saveGBA(activeClassId, { ...gbaState, turnIdx: gbaState.turnIdx + 1, log: [`❌ ${teamName} a răspuns greșit — trece rândul.`, ...(gbaState.log || [])] });
+      setGbaPendingCell(null);
+      return;
+    }
+    const type = gbaState.grid[cellIdx];
+    const revealed = [...gbaState.revealed]; revealed[cellIdx] = true;
+    const teams = gbaState.teams.map(t => ({ ...t }));
+    let logLine = '';
+    if (type === 'angel') { teams[teamIdx].lives += 1; logLine = `😇 ${teamName} a răspuns corect și a găsit un înger — +1 viață!`; }
+    else if (type === 'bomb') { teams[teamIdx].lives = Math.max(0, teams[teamIdx].lives - 1); logLine = `💣 ${teamName} a răspuns corect dar a găsit o bombă — -1 viață!`; }
+    else if (type === 'empty') { logLine = `⬜ ${teamName} a răspuns corect, dar căsuța era goală.`; }
+    if (type === 'gun') {
+      saveGBA(activeClassId, { ...gbaState, revealed, teams, log: [`🔫 ${teamName} a găsit un tun — alege o echipă căreia să-i ia o viață!`, ...(gbaState.log || [])] });
+      setGbaGunReveal({ cellIdx, teamIdx });
+      setGbaPendingCell(null);
+      return;
+    }
+    saveGBA(activeClassId, { ...gbaState, revealed, teams, turnIdx: gbaState.turnIdx + 1, log: [logLine, ...(gbaState.log || [])] });
+    setGbaPendingCell(null);
+  }
+  function gbaGunTakeLife(targetIdx) {
+    if (!gbaState || !gbaGunReveal) return;
+    const teams = gbaState.teams.map(t => ({ ...t }));
+    teams[targetIdx].lives = Math.max(0, teams[targetIdx].lives - 1);
+    const shooter = teams[gbaGunReveal.teamIdx].name, target = teams[targetIdx].name;
+    saveGBA(activeClassId, { ...gbaState, teams, turnIdx: gbaState.turnIdx + 1, log: [`🔫 ${shooter} i-a luat o viață lui ${target}!`, ...(gbaState.log || [])] });
+    setGbaGunReveal(null);
+  }
   const [exploreSpectatorMap, setExploreSpectatorMap] = useState('forest');
   const [waitMinutes, setWaitMinutes] = useState(30);
   const [waitSecondsLeft, setWaitSecondsLeft] = useState(null);
@@ -9394,6 +9566,7 @@ function TeacherApp({ onExit, teacherName }) {
               { id: 'dj', icon: '🎧', label: 'DJ for a Day', onClick: () => setShowDjPanel(true) },
               { id: 'wait', icon: '⏳', label: 'Slide de așteptare', onClick: () => setShowWaitSlide(true) },
               { id: 'explore', icon: '🗺️', label: 'Worldcraft (privește)', onClick: () => setShowExploreSpectator(true) },
+              { id: 'gba', icon: '🎯', label: 'Îngeri, Tunuri & Bombe', onClick: () => setShowGBA(true) },
             ];
             const orderedTools = toolOrder
               ? toolOrder.map(id => TEACHER_TOOLS_DEFAULT.find(t => t.id === id)).filter(Boolean).concat(TEACHER_TOOLS_DEFAULT.filter(t => !toolOrder.includes(t.id)))
@@ -9871,11 +10044,11 @@ function TeacherApp({ onExit, teacherName }) {
                         );
                       }
                       const SKILL_PALETTE = [
-                        ['#FF4757', '#C0392B'], ['#FF7A45', '#E8590C'], ['#F5C542', '#D97706'], ['#A3E635', '#65A30D'],
-                        ['#4ADE80', '#16A34A'], ['#2DD4BF', '#0D9488'], ['#22D3EE', '#0891B2'], ['#38BDF8', '#2563EB'],
-                        ['#818CF8', '#4F46E5'], ['#A78BFA', '#7C3AED'], ['#EC1E8F', '#BE185D'], ['#FB7185', '#E11D48'],
+                        ['#EF4444', '#B91C1C'], ['#FF7A45', '#C2410C'], ['#F5C542', '#B45309'], ['#A3E635', '#4D7C0F'],
+                        ['#4ADE80', '#15803D'], ['#2DD4BF', '#0F766E'], ['#22D3EE', '#0E7490'], ['#38BDF8', '#1D4ED8'],
+                        ['#818CF8', '#4338CA'], ['#A78BFA', '#6D28D9'], ['#E879F9', '#A21CAF'], ['#FB7185', '#BE185D'],
                       ];
-                      const [skColor, skColor2] = SKILL_PALETTE[Math.abs(skId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % SKILL_PALETTE.length];
+                      const [skColor, skColor2] = SKILL_PALETTE[(() => { let h = 0x811c9dc5; for (let i = 0; i < skId.length; i++) { h ^= skId.charCodeAt(i); h = (h * 0x01000193) >>> 0; } return Math.floor((h / 4294967296) * SKILL_PALETTE.length); })()];
                       return (
                         <button key={skId}
                           draggable
@@ -11149,6 +11322,112 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         </div>
       )}
+      {showGBA && (
+        <div onClick={() => setShowGBA(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div id="gba-box" onClick={e => e.stopPropagation()} style={{
+            background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 20, padding: 24,
+            maxWidth: 820, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+          }} className="scrollbar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🎯 Îngeri, Tunuri &amp; Bombe</h3>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => toggleFullscreen('gba-box')} title="Ecran complet" style={{ background: '#221D3A', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 13, width: 30, height: 30 }}>⛶</button>
+                <button onClick={() => setShowGBA(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
+              </div>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#8A86A8', marginBottom: 12 }}>Elevii spun coordonata (ex: „3C"), tu apeși pe căsuța respectivă. Apare întrebarea — o citești, ei răspund verbal, tu apeși Corect sau Greșit.</p>
+
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11.5, color: '#8A86A8' }}>Nivel (English World):</span>
+              {[1, 2, 3, 4, 5, 6, 7].map(lvl => (
+                <button key={lvl} onClick={() => setGbaLevel(lvl)} style={{
+                  width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 800,
+                  background: gbaLevel === lvl ? 'linear-gradient(135deg,#F5C542,#FF7A45)' : '#221D3A', color: gbaLevel === lvl ? '#2A1400' : '#8A86A8',
+                }}>{lvl}</button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11.5, color: '#8A86A8' }}>Grilă:</span>
+              <input type="number" min="2" max="10" value={gbaRows} onChange={e => setGbaRows(Math.max(2, Math.min(10, Number(e.target.value) || 2)))} style={{ width: 44, padding: '5px 6px', borderRadius: 6, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12 }} />
+              <span style={{ color: '#6E6A8C' }}>×</span>
+              <input type="number" min="2" max="10" value={gbaCols} onChange={e => setGbaCols(Math.max(2, Math.min(10, Number(e.target.value) || 2)))} style={{ width: 44, padding: '5px 6px', borderRadius: 6, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12 }} />
+              <button onClick={gbaNewGrid} style={{ padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: '#fff', fontWeight: 700, fontSize: 12 }}>🔀 Grilă nouă</button>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {(gbaState?.teams || []).map((t, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 20,
+                  background: gbaState && i === gbaState.turnIdx % Math.max(1, gbaState.teams.length) ? 'linear-gradient(135deg, rgba(245,197,66,0.3), rgba(255,122,69,0.2))' : '#151225',
+                  border: gbaState && i === gbaState.turnIdx % Math.max(1, gbaState.teams.length) ? '1px solid #F5C542' : '1px solid #2E2850',
+                }}>
+                  {renamingGbaTeam?.idx === i ? (
+                    <input autoFocus value={renamingGbaTeam.value} onChange={e => setRenamingGbaTeam({ idx: i, value: e.target.value })}
+                      onBlur={() => gbaRenameTeam(i, renamingGbaTeam.value)} onKeyDown={e => e.key === 'Enter' && gbaRenameTeam(i, renamingGbaTeam.value)}
+                      style={{ width: 90, padding: '2px 6px', borderRadius: 6, border: '1px solid #8B5CF6', background: '#0F0C1C', color: '#fff', fontSize: 12 }} />
+                  ) : (
+                    <span onClick={() => setRenamingGbaTeam({ idx: i, value: t.name })} style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', cursor: 'pointer' }} title="Apasă ca să redenumești">{t.name} ✎</span>
+                  )}
+                  <span style={{ fontSize: 12 }}>{'❤️'.repeat(Math.min(t.lives, 8))}{t.lives > 8 ? ` +${t.lives - 8}` : ''}{t.lives === 0 ? '💀' : ''}</span>
+                  <button onClick={() => gbaRemoveTeam(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6E6A8C', fontSize: 11 }}>✕</button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input value={newGbaTeamName} onChange={e => setNewGbaTeamName(e.target.value)} onKeyDown={e => e.key === 'Enter' && gbaAddTeam()} placeholder="Echipă nouă" style={{ padding: '6px 10px', borderRadius: 20, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12, width: 110 }} />
+                <button onClick={gbaAddTeam} style={{ padding: '6px 12px', borderRadius: 20, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontSize: 12 }}>+ Adaugă</button>
+              </div>
+            </div>
+
+            {!gbaState ? (
+              <div style={{ textAlign: 'center', color: '#4A4666', fontSize: 12.5, padding: '30px 0' }}>Apasă „🔀 Grilă nouă" ca să începi.</div>
+            ) : (
+              <>
+                {gbaPendingCell && (
+                  <div style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.18), rgba(56,189,248,0.1))', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 14, padding: 16, marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, color: '#C4B5FD', fontWeight: 700, marginBottom: 6 }}>Căsuța {gbaCellLabel(gbaPendingCell.cellIdx, gbaState.cols)} · Nivel {gbaLevel} · Rândul lui {gbaState.teams[gbaPendingCell.teamIdx].name}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{gbaPendingCell.question.q}</div>
+                    <div style={{ fontSize: 11.5, color: '#6E6A8C', marginBottom: 12, fontStyle: 'italic' }}>Răspuns orientativ (doar pentru tine): {gbaPendingCell.question.a}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => gbaJudgeAnswer(true)} style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>✓ Corect</button>
+                      <button onClick={() => gbaJudgeAnswer(false)} style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#F87171', color: '#2A0A0A', fontWeight: 800, fontSize: 13 }}>✕ Greșit</button>
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${gbaState.cols}, 1fr)`, gap: 5, marginBottom: 14 }}>
+                  {gbaState.grid.map((type, i) => {
+                    const isRevealed = gbaState.revealed[i];
+                    const icon = { angel: '😇', bomb: '💣', gun: '🔫', empty: '⬜' }[type];
+                    const isPending = gbaPendingCell && gbaPendingCell.cellIdx === i;
+                    return (
+                      <button key={i} onClick={() => gbaClickCell(i)} disabled={isRevealed || gbaState.teams.length === 0 || !!gbaGunReveal || !!gbaPendingCell} style={{
+                        aspectRatio: '1', borderRadius: 8, border: isPending ? '2px solid #8B5CF6' : '1px solid #2E2850', cursor: (isRevealed || !!gbaGunReveal || !!gbaPendingCell) ? 'default' : 'pointer',
+                        background: isRevealed ? '#151225' : 'linear-gradient(135deg, #2E2850, #1A1730)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        color: '#6E6A8C', opacity: isRevealed ? 0.7 : 1, position: 'relative',
+                      }}>
+                        {isRevealed ? <span style={{ fontSize: 18 }}>{icon}</span> : <span style={{ fontSize: 11, fontWeight: 700 }}>{gbaCellLabel(i, gbaState.cols)}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {gbaGunReveal && (
+                  <div style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.4)', borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#F87171', marginBottom: 8 }}>🔫 Alege echipa căreia îi iei o viață:</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {gbaState.teams.map((t, i) => i !== gbaGunReveal.teamIdx && (
+                        <button key={i} onClick={() => gbaGunTakeLife(i)} style={{ padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', background: '#F87171', color: '#2A0A0A', fontWeight: 700, fontSize: 12 }}>{t.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#6E6A8C', maxHeight: 90, overflowY: 'auto' }} className="scrollbar">
+                  {(gbaState.log || []).map((l, i) => <div key={i} style={{ padding: '2px 0' }}>{l}</div>)}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {showExploreSpectator && (
         <div onClick={() => setShowExploreSpectator(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#151225', border: '1px solid #2E2850', borderRadius: 22, padding: 24, maxWidth: 620, width: '100%', maxHeight: '85vh', overflowY: 'auto' }} className="scrollbar">
@@ -12073,7 +12352,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.149';
+const APP_VERSION = 'v2.152';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

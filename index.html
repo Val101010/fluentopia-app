@@ -479,6 +479,45 @@ const STICKER_DESC = {
   shield6: 'Anulează UN cartonaș pentru Communicate in English (doar acea regulă).',
   shield7: 'Anulează UN cartonaș pentru Believe in Yourself (doar acea regulă).',
   absence: 'Primit automat când lipsești de la lecție (-10 puncte).',
+  headphones: 'Alegi o melodie de pe YouTube și o trimiți din tab-ul „DJ for a Day" — se aude în clasă, la pauză, pe ecranul profesorului.',
+  spin: 'O învârtire în plus la Roata Norocului.',
+  ticket: 'O lecție gratuită. Se poate doar cumpăra — nu se vinde colegilor.',
+  ticket2: 'Două lecții gratuite. Se poate doar cumpăra — nu se vinde colegilor.',
+  ticket3: 'Trei lecții gratuite. Se poate doar cumpăra — nu se vinde colegilor.',
+  referral5: 'Reducere de 5 lei, primită când un părinte recomandă Fluentopia mai departe.',
+  birthday: 'O mică petrecere în lecție. O primești de ziua ta, sau o poți câștiga la Roata Norocului.',
+  homework: 'Wildcard pentru tema de acasă: îl arăți profesorului și scapi de o temă.',
+  mothertongue: 'Îți dă voie să folosești româna în lecție, o dată, fără să pierzi la regula „Communicate in English".',
+  sharescreen: 'Poți partaja ecranul tău 5 minute în lecție, ca să arăți ceva colegilor.',
+  musicbreak: 'O pauză cu muzică în timpul lecției.',
+  breaktime: 'O pauză în plus în timpul lecției.',
+  funpass: 'O activitate distractivă, în lecție.',
+  exercise: 'O pauză de mișcare (exerciții) în timpul lecției.',
+  burger: 'Un burger! Recompensă simbolică, de colecție — o poți păstra sau vinde.',
+  postcard: 'Primești o carte poștală de la profesor.',
+  gamelesson: 'O lecție întreagă construită din jocuri.',
+  movienight: 'O lecție de film: ne uităm împreună la un film sau la un episod în engleză.',
+  pyjama: 'O lecție în pijamale — lecție relaxată, la alegerea ta.',
+  diploma: 'Primești o diplomă personalizată, care apare în profilul tău.',
+  certificate: 'Un certificat de excelență pentru rezultatele tale deosebite.',
+  bingotime: 'O rundă de Bingo în lecție.',
+  spellingbee: 'O rundă de Spelling Bee: concurs de scris corect cuvinte în engleză.',
+  hiddenblocks: 'Un joc „Hidden Blocks" în lecție.',
+  squashfun: 'Jocul „Squash Classmates" în lecție.',
+  tonguetwister: 'Exersăm împreună tongue twisters — frământări de limbă în engleză.',
+  sushisong: 'Cântăm împreună „Japanese Sushi Song" în lecție.',
+  drawingcontest: 'Un concurs de desen în lecție.',
+  findkey: 'Jocul „Find the Key" în lecție.',
+  vractivity: 'O activitate în realitate virtuală (VR), în lecție.',
+  minecraftlesson: 'O lecție cu tema Minecraft.',
+  comictime: 'O activitate cu benzile desenate Fluentopia, în lecție.',
+  sitcom: 'Ne uităm împreună la un episod dintr-un sitcom britanic, în lecție.',
+  miner10: 'Primit când ai intrat în aplicație 10 zile la rând (împreună cu un bonus de 100 puncte). Valoare de colecție.',
+  miner15: 'Primit când ai intrat în aplicație 15 zile la rând (împreună cu un bonus de 150 puncte). Valoare de colecție.',
+  miner20: 'Primit când ai intrat în aplicație 20 de zile la rând (împreună cu un bonus de 200 puncte). Valoare de colecție.',
+  miner25: 'Primit când ai intrat în aplicație 25 de zile la rând (împreună cu un bonus de 250 puncte). Valoare de colecție.',
+  miner30: 'Primit când ai intrat în aplicație 30 de zile la rând (împreună cu un bonus de 300 puncte). Valoare de colecție.',
+  minersupreme: 'Se primește o singură dată, când aduni toate cele 5 abțibilduri de Miner — vine cu un bonus de 1000 puncte.',
 };
 function canPayDebtWithSticker(stickerId, debt) {
   if (!debt) return false;
@@ -1816,6 +1855,79 @@ function CircleStat({ pct, count, label, color, size = 76 }) {
         <text x={cx} y={cx + size * 0.18} textAnchor="middle" fontSize={fontSmall} fill="#8A86A8">{count}</text>
       </svg>
       <div style={{ fontSize: fontLabel, color: '#C7C8E0', textAlign: 'center', fontWeight: 600, lineHeight: 1.2 }}>{label}</div>
+    </div>
+  );
+}
+const SKILL_PALETTE = [
+  ['#EF4444', '#B91C1C'], ['#FF7A45', '#C2410C'], ['#F5C542', '#B45309'], ['#A3E635', '#4D7C0F'],
+  ['#4ADE80', '#15803D'], ['#2DD4BF', '#0F766E'], ['#22D3EE', '#0E7490'], ['#38BDF8', '#1D4ED8'],
+  ['#818CF8', '#4338CA'], ['#A78BFA', '#6D28D9'], ['#E879F9', '#A21CAF'], ['#FB7185', '#BE185D'],
+];
+function darkenHex(hex, f) {                                     // închide o culoare hex cu fracția f (0..1) — pentru gradientul casetelor cu culoare aleasă
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return hex;
+  const n = parseInt(m[1], 16), k = 1 - f;
+  return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => Math.round(v * k).toString(16).padStart(2, '0')).join('');
+}
+function skillPairFor(skId, customColor) {                        // culoarea unei casete: aleasă de profesor, sau automată din nume
+  if (customColor) return [customColor, darkenHex(customColor, 0.35)];
+  let h = 0x811c9dc5; for (let i = 0; i < skId.length; i++) { h ^= skId.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
+  return SKILL_PALETTE[Math.floor((h / 4294967296) * SKILL_PALETTE.length)];
+}
+const BADGE_DESIGNS = [
+  { id: 'star', icon: '🌟', name: 'Stea', colors: ['#F5C542', '#FF7A45'] },
+  { id: 'medal', icon: '🏅', name: 'Medalie', colors: ['#FFD966', '#C98A00'] },
+  { id: 'trophy', icon: '🏆', name: 'Trofeu', colors: ['#FFC93C', '#E07A00'] },
+  { id: 'crown', icon: '👑', name: 'Coroană', colors: ['#F5C542', '#9B3CE0'] },
+  { id: 'gem', icon: '💎', name: 'Diamant', colors: ['#38BDF8', '#2563EB'] },
+  { id: 'fire', icon: '🔥', name: 'Foc', colors: ['#FF7A45', '#DC2626'] },
+  { id: 'book', icon: '📖', name: 'Carte', colors: ['#4ADE80', '#15803D'] },
+  { id: 'mic', icon: '🎤', name: 'Microfon', colors: ['#EC1E8F', '#BE185D'] },
+  { id: 'heart', icon: '🤝', name: 'Prietenie', colors: ['#A78BFA', '#7C3AED'] },
+  { id: 'clock', icon: '⏰', name: 'Punctual', colors: ['#22D3EE', '#0891B2'] },
+  { id: 'target', icon: '🎯', name: 'Țintă', colors: ['#F87171', '#B91C1C'] },
+  { id: 'gift', icon: '🎁', name: 'Cadou', colors: ['#F472B6', '#DB2777'] },
+];
+const BADGE_EMOJI_TO_DESIGN = { '💯': 'medal', '🏅': 'medal', '🏆': 'trophy', '🌟': 'star', '⭐': 'star', '🔥': 'fire', '🎁': 'gift', '🤝': 'heart', '📚': 'book', '📖': 'book', '🎤': 'mic', '⏰': 'clock', '🎯': 'target', '👑': 'crown', '💎': 'gem' };
+function badgeDesignOf(designId) { return BADGE_DESIGNS.find(d => d.id === designId) || BADGE_DESIGNS[0]; }
+function badgeView(b) {                                        // { design, label } — merge și cu insignele vechi (emoji în text, fără designId) și cu cele noi
+  if (b.designId) return { design: badgeDesignOf(b.designId), label: b.label };
+  const lab = (b.label || '').trim();
+  for (const emoji of Object.keys(BADGE_EMOJI_TO_DESIGN)) {
+    if (lab.startsWith(emoji)) return { design: badgeDesignOf(BADGE_EMOJI_TO_DESIGN[emoji]), label: lab.slice(emoji.length).trim() || lab };
+  }
+  return { design: BADGE_DESIGNS[0], label: lab };
+}
+function BadgeRosette({ design, label, size = 64 }) {              // cocardă: margine ondulată, panglici, luciu sticlos
+  const gid = 'bgrad-' + design.id + '-' + size, gl = 'bgloss-' + design.id + '-' + size, rb = 'brib-' + design.id + '-' + size;
+  const scallops = Array.from({ length: 16 }, (_, i) => { const a = (i * 22.5) * Math.PI / 180; return [40 + 30 * Math.cos(a), 38 + 30 * Math.sin(a)]; });
+  return (
+    <div title={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: label ? Math.max(size * 1.3, 74) : size }}>
+      <svg viewBox="0 0 80 104" width={size} height={size * 1.3} style={{ filter: 'drop-shadow(0 5px 10px rgba(0,0,0,.45))', overflow: 'visible' }}>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={design.colors[0]} />
+            <stop offset="100%" stopColor={design.colors[1]} />
+          </linearGradient>
+          <linearGradient id={rb} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={design.colors[1]} />
+            <stop offset="100%" stopColor={design.colors[0]} stopOpacity="0.85" />
+          </linearGradient>
+          <linearGradient id={gl} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points="27,60 11,102 25,93 35,103 40,62" fill={`url(#${rb})`} />
+        <polygon points="53,60 69,102 55,93 45,103 40,62" fill={`url(#${rb})`} />
+        <polygon points="27,60 11,102 25,93 35,103 40,62" fill="rgba(0,0,0,0.12)" />
+        {scallops.map(([cx, cy], i) => <circle key={i} cx={cx} cy={cy} r="7" fill={design.colors[1]} />)}
+        <circle cx="40" cy="38" r="29" fill={`url(#${gid})`} stroke="rgba(255,255,255,0.7)" strokeWidth="1.6" />
+        <circle cx="40" cy="38" r="23" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" strokeDasharray="2.2 3.2" />
+        <ellipse cx="40" cy="24" rx="22" ry="13" fill={`url(#${gl})`} />
+        <text x="40" y="47" fontSize="25" textAnchor="middle">{design.icon}</text>
+        <path d="M18 18 l2 4 4 2 -4 2 -2 4 -2 -4 -4 -2 4 -2 z" fill="#fff" opacity="0.9" transform="translate(-4,-4) scale(0.7)" />
+      </svg>
+      {label && <div style={{ fontSize: 10.5, fontWeight: 800, color: '#E4E4F0', textAlign: 'center', marginTop: 3, lineHeight: 1.2, wordBreak: 'break-word' }}>{label}</div>}
     </div>
   );
 }
@@ -4626,6 +4738,38 @@ function seededRandom(seed) {
   let s = seed % 2147483647; if (s <= 0) s += 2147483646;
   return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 }
+function parseVocabText(text) {                                  // "forest - pădure" (sau "forest = pădure", "forest: pădure", tab) -> [{en, ro}] ; liniile neînțelese sunt raportate separat
+  const ok = [], bad = [];
+  (text || '').split('\n').map(l => l.trim()).filter(Boolean).forEach(l => {
+    const m = /^(.+?)\s+[-–—]\s+(.+)$/.exec(l) || /^(.+?)\s*(?:=|:|->|\t)\s*(.+)$/.exec(l);
+    if (m && m[1].trim() && m[2].trim()) ok.push({ en: m[1].trim(), ro: m[2].trim() }); else bad.push(l);
+  });
+  return { ok, bad };
+}
+const CHEST_VOCAB_LEVELS = {                                     // liste gata făcute, pe progresia tipică English World 1-7 — se încarcă în editorul de vocabular și se pot modifica
+  1: ['red - roșu', 'blue - albastru', 'green - verde', 'yellow - galben', 'one - unu', 'two - doi', 'three - trei', 'four - patru', 'five - cinci', 'mother - mamă', 'father - tată', 'sister - soră', 'brother - frate', 'dog - câine', 'cat - pisică', 'fish - pește', 'bird - pasăre', 'apple - măr', 'book - carte', 'house - casă', 'sun - soare', 'nose - nas', 'eye - ochi', 'hand - mână'],
+  2: ['banana - banană', 'milk - lapte', 'bread - pâine', 'egg - ou', 'cheese - brânză', 'water - apă', 'shoes - pantofi', 'coat - haină', 'hat - pălărie', 'socks - șosete', 'Monday - luni', 'Tuesday - marți', 'Sunday - duminică', 'cow - vacă', 'pig - porc', 'sheep - oaie', 'horse - cal', 'big - mare', 'small - mic', 'hot - fierbinte', 'cold - rece', 'table - masă', 'chair - scaun', 'bag - geantă'],
+  3: ['teacher - profesor', 'doctor - doctor', 'chef - bucătar', 'driver - șofer', 'farmer - fermier', 'swim - a înota', 'sing - a cânta', 'dance - a dansa', 'read - a citi', 'draw - a desena', 'kitchen - bucătărie', 'garden - grădină', 'window - fereastră', 'door - ușă', 'happy - fericit', 'sad - trist', 'fast - rapid', 'slow - lent', 'tall - înalt', 'young - tânăr', 'friend - prieten', 'music - muzică', 'ball - minge', 'bicycle - bicicletă'],
+  4: ['bedroom - dormitor', 'bathroom - baie', 'living room - sufragerie', 'yesterday - ieri', 'tomorrow - mâine', 'today - astăzi', 'sunny - însorit', 'rainy - ploios', 'windy - cu vânt', 'cloudy - noros', 'January - ianuarie', 'March - martie', 'July - iulie', 'December - decembrie', 'airport - aeroport', 'station - gară', 'museum - muzeu', 'shop - magazin', 'hospital - spital', 'holiday - vacanță', 'suitcase - valiză', 'ticket - bilet', 'beach - plajă', 'mountain - munte'],
+  5: ['mathematics - matematică', 'science - științe', 'history - istorie', 'geography - geografie', 'art - artă', 'homework - temă', 'exam - examen', 'dangerous - periculos', 'expensive - scump', 'cheap - ieftin', 'delicious - delicios', 'healthy - sănătos', 'tired - obosit', 'hungry - flămând', 'thirsty - însetat', 'headache - durere de cap', 'medicine - medicament', 'ambulance - ambulanță', 'quiet - liniștit', 'difficult - dificil', 'easy - ușor', 'usually - de obicei', 'never - niciodată', 'always - mereu'],
+  6: ['environment - mediu', 'pollution - poluare', 'recycle - a recicla', 'rubbish - gunoi', 'energy - energie', 'electricity - electricitate', 'computer - calculator', 'screen - ecran', 'keyboard - tastatură', 'password - parolă', 'website - site web', 'download - a descărca', 'battery - baterie', 'invent - a inventa', 'discover - a descoperi', 'explore - a explora', 'journey - călătorie', 'adventure - aventură', 'neighbour - vecin', 'community - comunitate', 'volunteer - voluntar', 'planet - planetă', 'wildlife - viață sălbatică', 'forest - pădure'],
+  7: ['opinion - părere', 'agree - a fi de acord', 'disagree - a nu fi de acord', 'advantage - avantaj', 'disadvantage - dezavantaj', 'improve - a îmbunătăți', 'achieve - a realiza', 'challenge - provocare', 'society - societate', 'government - guvern', 'freedom - libertate', 'equality - egalitate', 'poverty - sărăcie', 'global warming - încălzire globală', 'health - sănătate', 'education - educație', 'culture - cultură', 'tradition - tradiție', 'generous - generos', 'selfish - egoist', 'honest - sincer', 'ambition - ambiție', 'success - succes', 'failure - eșec'],
+};
+function vocabToText(vocab) { return (vocab || []).map(v => `${v.en} - ${v.ro}`).join('\n'); }
+function buildVocabQuestion(vocab, key, slot, rev) {              // întrebare cu 4 variante din vocabularul modulului, stabilă pentru un anumit cufăr (aceeași cheie => aceeași întrebare); null dacă sunt prea puține cuvinte. slot = numărul de ordine al cufărului: cuferele diferite iau cuvinte diferite (pe cât permite lista)
+  if (!Array.isArray(vocab) || vocab.length < 4) return null;
+  let h = 7; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 2147483000;
+  const rnd = seededRandom(h + 11);
+  const idx = slot == null ? Math.floor(rnd() * vocab.length) : ((slot + (rev || 0) * 5) % vocab.length + vocab.length) % vocab.length, item = vocab[idx];
+  const toRo = rnd() < 0.5;
+  const correct = toRo ? item.ro : item.en;
+  const pool = [...new Set(vocab.filter((_, i) => i !== idx).map(v => toRo ? v.ro : v.en).filter(t => t.toLowerCase() !== correct.toLowerCase()))];
+  if (pool.length < 3) return null;
+  const picks = []; while (picks.length < 3) picks.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+  const options = [...picks, correct];
+  for (let i = options.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [options[i], options[j]] = [options[j], options[i]]; }
+  return { q: toRo ? `Ce înseamnă „${item.en}" în română?` : `Cum se spune „${item.ro}" în engleză?`, options, correctIdx: options.indexOf(correct), fromVocab: true };
+}
 const MAP_ORDER = ['forest', 'sandbox', 'ice', 'desert', 'mario'];
 const MAP_THEMES = {
   forest:  { name: 'Pădure',              groundBg: 'linear-gradient(160deg,#1B3B22,#132A19)', obstacleEmoji: '🌲', obstacleBg: 'linear-gradient(160deg,#12301A,#0D2213)', waterEmoji: '🌊', waterBg: 'linear-gradient(160deg,#153A5C,#0F2A44)', doorEmoji: '🚪' },
@@ -4691,7 +4835,9 @@ function buildExploreMap(mapId) {
   };
   const traps = trapSets[mapId] || trapSets.forest;
   traps.forEach(tr => { tiles[tr.y][tr.x] = 'grass'; });
-  return { tiles, chests, door, start, npc, traps };
+  const goal = { sandbox: { x: 8, y: 1 } }[mapId] || null;        // poarta de fotbal — doar pe Insula Nisipurilor
+  if (goal) tiles[goal.y][goal.x] = 'grass';
+  return { tiles, chests, door, start, npc, traps, goal };
 }
 function trapState(seed) {                                       // ciclu de 8s: 5s liber, 2s avertisment, 1s activ (blochează) — sincronizat pe ceasul real, la fel pentru toți
   const t = (Math.floor(Date.now() / 1000) + seed * 3) % 8;
@@ -4735,9 +4881,74 @@ function TicTacToeModal({ gameId, myMark, myName, onClose }) {
     </div>
   );
 }
+function PenaltyGame({ rewardedToday, onFinish, onClose }) {
+  const TOTAL = 5, SIDES = ['left', 'center', 'right'];
+  const [shots, setShots] = useState(0);
+  const [goals, setGoals] = useState(0);
+  const [phase, setPhase] = useState('aim');                       // aim | flying | done
+  const [ball, setBall] = useState('center');
+  const [keeper, setKeeper] = useState('center');
+  const [flash, setFlash] = useState(null);
+  const [rewardMsg, setRewardMsg] = useState(null);
+  const xOf = side => ({ left: '18%', center: '50%', right: '82%' }[side]);
+  function shoot(side) {
+    if (phase !== 'aim') return;
+    const k = SIDES[Math.floor(Math.random() * 3)];              // portarul alege la întâmplare o parte — dacă alegi aceeași parte, e parat
+    setBall(side); setKeeper(k); setPhase('flying');
+    const scored = k !== side;
+    setTimeout(() => {
+      setFlash(scored ? { text: 'GOOOL! ⚽', good: true } : { text: 'Parat! 🧤', good: false });
+      const g = goals + (scored ? 1 : 0), n = shots + 1;
+      setGoals(g); setShots(n);
+      setTimeout(() => {
+        setFlash(null); setBall('center'); setKeeper('center');
+        if (n >= TOTAL) { setPhase('done'); if (g >= 4) setRewardMsg(onFinish() ? 'won' : 'already'); else setRewardMsg('none'); }
+        else setPhase('aim');
+      }, 1100);
+    }, 650);
+  }
+  function again() { setShots(0); setGoals(0); setPhase('aim'); setRewardMsg(null); setFlash(null); }
+  const flying = phase === 'flying' || flash;
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 62, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'linear-gradient(160deg, #14301C, #0E1F14)', border: '1px solid rgba(74,222,128,0.5)', borderRadius: 20, padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.55)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div className="heading-font" style={{ fontSize: 17, fontWeight: 800, color: '#4ADE80' }}>⚽ Penalty</div>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: '#DCFCE7' }}>Șuturi {shots}/{TOTAL} · Goluri {goals}</div>
+        </div>
+        <div style={{ fontSize: 11, color: '#86B99A', marginBottom: 12 }}>Alege în ce parte șuți. Portarul alege și el — dacă alegeți aceeași parte, e parat! {rewardedToday ? 'Bonusul de azi l-ai primit deja.' : '4+ goluri din 5 = +3 puncte (o dată pe zi).'}</div>
+        <div style={{ position: 'relative', height: 190, borderRadius: 14, overflow: 'hidden', background: 'linear-gradient(180deg,#1B4D2A 0%,#2A6B3B 55%,#245C33 100%)', marginBottom: 12 }}>
+          <div style={{ position: 'absolute', top: 14, left: '7%', right: '7%', height: 92, border: '4px solid #F1F5F9', borderBottom: 'none', borderRadius: '6px 6px 0 0', background: 'repeating-linear-gradient(45deg, rgba(255,255,255,.16) 0 2px, transparent 2px 10px), repeating-linear-gradient(-45deg, rgba(255,255,255,.16) 0 2px, transparent 2px 10px)' }} />
+          <div style={{ position: 'absolute', top: 44, left: xOf(keeper), transform: 'translateX(-50%)', fontSize: 40, transition: 'left .35s ease-out', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.5))' }}>🧤</div>
+          <div style={{ position: 'absolute', left: xOf(ball), top: flying ? 70 : 148, transform: 'translateX(-50%)', fontSize: 30, transition: 'left .55s ease-out, top .55s ease-out', filter: 'drop-shadow(0 3px 3px rgba(0,0,0,.5))' }}>⚽</div>
+          {flash && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="heading-font" style={{ fontSize: 26, fontWeight: 900, color: flash.good ? '#4ADE80' : '#F87171', textShadow: '0 3px 12px rgba(0,0,0,.7)', background: 'rgba(0,0,0,0.35)', padding: '6px 18px', borderRadius: 14 }}>{flash.text}</div></div>}
+        </div>
+        {phase !== 'done' ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[['left', '⬅️ Stânga'], ['center', '⬆️ Centru'], ['right', 'Dreapta ➡️']].map(([side, label]) => (
+              <button key={side} disabled={phase !== 'aim'} onClick={() => shoot(side)} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', cursor: phase === 'aim' ? 'pointer' : 'default', background: phase === 'aim' ? 'linear-gradient(135deg,#4ADE80,#22C55E)' : '#1E3A28', color: phase === 'aim' ? '#0B2A16' : '#5E8A70', fontWeight: 800, fontSize: 12.5 }}>{label}</button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div className="heading-font" style={{ fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Ai marcat {goals} din {TOTAL}!</div>
+            <div style={{ fontSize: 12, color: rewardMsg === 'won' ? '#4ADE80' : '#A7C8B3', marginBottom: 12 }}>
+              {rewardMsg === 'won' ? '+3 puncte pentru tine! 🎉' : rewardMsg === 'already' ? 'Foarte bine! Bonusul de puncte de azi l-ai primit deja — mâine poți din nou.' : goals >= 4 ? '' : 'Încă o rundă? Cu 4 goluri din 5 iei puncte.'}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={again} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 12.5 }}>🔁 Din nou</button>
+              <button onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #2E5A3E', cursor: 'pointer', background: 'transparent', color: '#A7C8B3', fontWeight: 700, fontSize: 12.5 }}>Închide</button>
+            </div>
+          </div>
+        )}
+        {phase !== 'done' && <button onClick={onClose} style={{ width: '100%', marginTop: 8, padding: '6px 0', border: 'none', background: 'transparent', color: '#6E9A80', fontSize: 11.5, cursor: 'pointer' }}>Ieși din joc</button>}
+      </div>
+    </div>
+  );
+}
 function ExploreChestModal({ question, onAnswer, onClose }) {
   const [picked, setPicked] = useState(null);
-  const q = EXPLORE_QUESTIONS[question.qIdx];
+  const q = question.quiz || EXPLORE_QUESTIONS[question.qIdx];
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{
@@ -4745,7 +4956,8 @@ function ExploreChestModal({ question, onAnswer, onClose }) {
         boxShadow: '0 20px 60px rgba(0,0,0,.5)',
       }}>
         <div style={{ textAlign: 'center', fontSize: 34, marginBottom: 6 }}>📦</div>
-        <div className="heading-font" style={{ textAlign: 'center', fontSize: 16, fontWeight: 800, color: '#F5C542', marginBottom: 16 }}>Cufăr găsit!</div>
+        <div className="heading-font" style={{ textAlign: 'center', fontSize: 16, fontWeight: 800, color: '#F5C542', marginBottom: q.fromVocab ? 4 : 16 }}>Cufăr găsit!</div>
+        {q.fromVocab && <div style={{ textAlign: 'center', fontSize: 10.5, color: '#B8A46A', marginBottom: 12 }}>📚 din vocabularul modulului tău</div>}
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, textAlign: 'center' }}>{q.q}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {q.options.map((o, oi) => {
@@ -4764,12 +4976,16 @@ function ExploreChestModal({ question, onAnswer, onClose }) {
     </div>
   );
 }
-function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
+function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair, onPenaltyReward, vocab, vocabRev }) {
+  const [penaltyOpen, setPenaltyOpen] = useState(false);
+  const penaltyCooldownRef = useRef(false);                      // după ce închizi jocul cât ești încă pe poartă, nu se redeschide până nu pleci de pe ea
+  const chestsRev = vocabRev || 0;
+  const validOpenedList = (student.exploreChestsRev || 0) === chestsRev ? (student.exploreOpenedChests || []) : [];   // modul nou (rev schimbat de profesor) => cuferele se redeschid
   const [mapId, setMapId] = useState('forest');
   const [pos, setPos] = useState(() => buildExploreMap('forest').start);
   const [activeChest, setActiveChest] = useState(null);
   const [openedChests, setOpenedChests] = useState(() => {
-    const obj = {}; (student.exploreOpenedChests || []).forEach(k => { obj[k] = true; }); return obj;
+    const obj = {}; validOpenedList.forEach(k => { obj[k] = true; }); return obj;
   });
   const [otherPlayers, setOtherPlayers] = useState({});
   const [myRoomData, setMyRoomData] = useState(null);            // propria intrare din cameră — ca să văd dacă altcineva m-a "înghețat"
@@ -4846,7 +5062,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
     setTimeout(() => setMyBubble(null), 4000);
   }
   function tryMove(dx, dy) {
-    if (activeChest || isFrozen) return;
+    if (activeChest || isFrozen || penaltyOpen) return;
     setPos(prev => {
       const nx = prev.x + dx, ny = prev.y + dy;
       if (nx < 0 || ny < 0 || nx >= EXPLORE_COLS || ny >= EXPLORE_ROWS) return prev;
@@ -4859,7 +5075,13 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   useEffect(() => {                                              // verifică cufăr/ușă după FIECARE schimbare reală de poziție — nu se pierde la apăsări rapide
     const chest = map.chests.find(c => c.x === pos.x && c.y === pos.y);
     const chestKey = `${mapId}_${pos.x}_${pos.y}`;
-    if (chest && !openedChests[chestKey] && !activeChest) setActiveChest({ ...chest, key: chestKey });
+    if (chest && !openedChests[chestKey] && !activeChest) {
+      let ordinal = 0, found = false;                            // al câtelea cufăr din tot Worldcraft e acesta (0..12), ca fiecare să primească alt cuvânt
+      for (const m of MAP_ORDER) { const list = buildExploreMap(m).chests; if (m === mapId) { ordinal += Math.max(0, list.findIndex(c => c.x === chest.x && c.y === chest.y)); found = true; break; } ordinal += list.length; }
+      setActiveChest({ ...chest, key: chestKey, quiz: buildVocabQuestion(vocab, chestKey + ':' + chestsRev, found ? ordinal : null, chestsRev) });
+    }
+    if (map.goal && map.goal.x === pos.x && map.goal.y === pos.y) { if (!penaltyCooldownRef.current) setPenaltyOpen(true); }
+    else penaltyCooldownRef.current = false;
     if (map.door.x === pos.x && map.door.y === pos.y) {
       const nextMap = MAP_ORDER[(MAP_ORDER.indexOf(mapId) + 1) % MAP_ORDER.length];
       const nextStart = buildExploreMap(nextMap).start;
@@ -4879,12 +5101,12 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
   });
   function onAnswerChest(correct) {
     setOpenedChests(o => ({ ...o, [activeChest.key]: true }));
-    onOpenChest(activeChest.key);
+    onOpenChest(activeChest.key, chestsRev);
     if (correct) onEarnReward(5, 'Cufăr — Worldcraft');
     setActiveChest(null);
   }
   const totalChests = React.useMemo(() => MAP_ORDER.reduce((sum, m) => sum + buildExploreMap(m).chests.length, 0), []);
-  const openedCount = (student.exploreOpenedChests || []).length;
+  const openedCount = validOpenedList.length;
   return (
     <div>
       <style>{`
@@ -4944,16 +5166,18 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
             const isChest = map.chests.some(c => c.x === x && c.y === y) && !openedChests[`${mapId}_${x}_${y}`];
             const isDoor = map.door.x === x && map.door.y === y;
             const isNpc = map.npc.x === x && map.npc.y === y;
+            const isGoal = !!map.goal && map.goal.x === x && map.goal.y === y;
             const trap = map.traps.find(tr => tr.x === x && tr.y === y);
             const trState = trap ? trapState(trap.seed) : null;
             const theme = MAP_THEMES[mapId] || MAP_THEMES.forest;
             const npcInfo = MAP_NPCS[mapId] || MAP_NPCS.forest;
-            const emoji = isDoor ? theme.doorEmoji : isChest ? '📦' : isNpc ? npcInfo.emoji : trap ? (trState === 'active' ? '💥' : '⚠️') : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
+            const emoji = isDoor ? theme.doorEmoji : isGoal ? '🥅' : isChest ? '📦' : isNpc ? npcInfo.emoji : trap ? (trState === 'active' ? '💥' : '⚠️') : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
             const swaySeed = (x * 7 + y * 13) % 5;
             return (
               <div key={`${x}_${y}`} onClick={() => { if (isNpc) { setNpcTipText(npcInfo.tips[Math.floor(Math.random() * npcInfo.tips.length)]); setTimeout(() => setNpcTipText(null), 5000); } }} style={{
                 aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, position: 'relative', cursor: isNpc ? 'pointer' : 'default',
                 background: isDoor ? `radial-gradient(circle, rgba(74,222,128,.3), transparent 70%), ${theme.groundBg}`
+                  : isGoal ? `radial-gradient(circle, rgba(255,255,255,.35), transparent 70%), ${theme.groundBg}`
                   : isChest ? 'radial-gradient(circle, rgba(245,197,66,.35), transparent 70%), linear-gradient(160deg,#3A3020,#2A2318)'
                   : isNpc ? `radial-gradient(circle, rgba(139,92,246,.3), transparent 70%), ${theme.groundBg}`
                   : trap ? theme.groundBg
@@ -5026,6 +5250,7 @@ function MapExploreView({ student, onEarnReward, onOpenChest, onThrowChair }) {
         </div>
       </div>
       {activeChest && <ExploreChestModal question={activeChest} onAnswer={onAnswerChest} onClose={() => {}} />}
+      {penaltyOpen && <PenaltyGame rewardedToday={student.penaltyRewardDate === new Date().toISOString().slice(0, 10)} onFinish={() => onPenaltyReward ? onPenaltyReward() : false} onClose={() => { penaltyCooldownRef.current = true; setPenaltyOpen(false); }} />}
       {myGame && <TicTacToeModal gameId={myGame.gameId} myMark={myGame.myMark} myName={student.name} onClose={() => setMyGame(null)} />}
     </div>
   );
@@ -5046,8 +5271,9 @@ function MapSpectatorView({ mapId }) {                          // consola profe
           {map.tiles.map((row, y) => row.map((t, x) => {
             const isChest = map.chests.some(c => c.x === x && c.y === y);
             const isDoor = map.door.x === x && map.door.y === y;
+            const isGoal = !!map.goal && map.goal.x === x && map.goal.y === y;
             const theme = MAP_THEMES[mapId] || MAP_THEMES.forest;
-            const emoji = isDoor ? theme.doorEmoji : isChest ? '📦' : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
+            const emoji = isDoor ? theme.doorEmoji : isGoal ? '🥅' : isChest ? '📦' : t === 'forest' ? theme.obstacleEmoji : t === 'water' ? theme.waterEmoji : '';
             return (
               <div key={`${x}_${y}`} style={{
                 aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, position: 'relative',
@@ -6190,7 +6416,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   const [newParentPin, setNewParentPin] = useState('');
   const [expandedArticle, setExpandedArticle] = useState(null);
@@ -6359,6 +6585,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
   const [zoomItem, setZoomItem] = useState(null);
   const isDesktop = useMediaQuery('(min-width: 1000px)');
   const [listingPrice, setListingPrice] = useState('');
+  const [listingError, setListingError] = useState('');
 
   useEffect(() => { if (tab === 'bank' && student.loan) onBankSync(); }, [tab]);
   useEffect(() => { onCheckStreak(); }, []);
@@ -6760,7 +6987,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       {tab === 'messages' && <div style={{ position: 'relative' }}><MessagesView student={student} classmates={classmates} isParentView={isParentView} />{isParentView && <TreasureSparkle fragmentId="p-messages" corner="top-right" found={(student.treasureFragments || []).includes('p-messages')} onCollect={() => onCollectTreasureFragment('p-messages')} />}</div>}
       {tab === 'board' && !isParentView && <BoardView student={student} classmates={classmates} isParentView={isParentView} />}
       {tab === 'dj' && !isParentView && <div style={{ position: 'relative' }}><DjRequestView student={student} onConsumeDjSticker={onConsumeDjSticker} /><TreasureSparkle fragmentId="dj" found={(student.treasureFragments || []).includes('dj')} onCollect={() => onCollectTreasureFragment('dj')} /></div>}
-      {tab === 'explore' && !isParentView && <div style={{ position: 'relative' }}><MapExploreView student={student} onEarnReward={onEarnStudentTestReward} onOpenChest={onOpenExploreChest} onThrowChair={onThrowChair} /><TreasureSparkle fragmentId="explore" corner="top-left" found={(student.treasureFragments || []).includes('explore')} onCollect={() => onCollectTreasureFragment('explore')} /></div>}
+      {tab === 'explore' && !isParentView && <div style={{ position: 'relative' }}><MapExploreView student={student} vocab={((classes || []).find(c => c.id === student.classId) || {}).vocab} vocabRev={((classes || []).find(c => c.id === student.classId) || {}).vocabRev} onEarnReward={onEarnStudentTestReward} onOpenChest={onOpenExploreChest} onThrowChair={onThrowChair} onPenaltyReward={onPenaltyReward} /><TreasureSparkle fragmentId="explore" corner="top-left" found={(student.treasureFragments || []).includes('explore')} onCollect={() => onCollectTreasureFragment('explore')} /></div>}
       {tab === 'duel' && <DuelView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimDuelReward} isParentView={isParentView} />}
       {tab === 'aurabattle' && <AuraBattleView student={student} allStudents={allStudents} classes={classes} onClaimReward={onClaimBattleReward} isParentView={isParentView} />}
       {tab === 'parentcatalog' && isParentView && (() => {
@@ -6950,13 +7177,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'linear-gradient(135deg, #9B3CE0, #B368F5)' }}></span>
                 Badge-urile tale
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {student.badges.map(b => (
-                  <span key={b.id} style={{ padding: '6px 12px', borderRadius: 20, background: 'rgba(155, 60, 224, 0.18)', color: '#C9A6EE', fontSize: 12 }}>{b.label}</span>
-                ))}
-                {autoBadges.map(b => (
-                  <span key={b.id} style={{ padding: '6px 12px', borderRadius: 20, background: 'rgba(245, 197, 66, 0.18)', color: '#F5C542', fontSize: 12 }}>{b.label}</span>
-                ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+                {student.badges.map(b => { const v = badgeView(b); return <BadgeRosette key={b.id} design={v.design} label={v.label} size={64} />; })}
+                {autoBadges.map(b => { const v = badgeView(b); return <BadgeRosette key={b.id} design={v.design} label={v.label} size={56} />; })}
               </div>
             </div>
           )}
@@ -7067,13 +7290,28 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><IconBadge sticker={sticker} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: (entry.date ? `Primit pe ${new Date(entry.date).toLocaleDateString('ro-RO')}` : '') + (STICKER_DESC[sticker.id] ? `${entry.date ? ' — ' : ''}${STICKER_DESC[sticker.id]}` : ''), mono: sticker.mono, color: sticker.color })} /></div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: '#C7C8E0', lineHeight: 1.3, marginBottom: 6 }}>{sticker.label}</div>
                     {isListing ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <input type="number" autoFocus min="1" max={maxPrice} value={listingPrice} onChange={e => setListingPrice(e.target.value)} placeholder={`max ${maxPrice}`}
-                          style={{ width: '100%', padding: '3px 4px', borderRadius: 6, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 10, textAlign: 'center' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#C7C8E0' }}>Preț de vânzare (puncte)</div>
+                        <input type="number" inputMode="numeric" autoFocus min="1" max={maxPrice} value={listingPrice} onChange={e => { setListingPrice(e.target.value); setListingError(''); }} placeholder={`1 – ${maxPrice}`}
+                          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 8px', borderRadius: 8, border: '2px solid #8B5CF6', background: '#0F0C1C', color: '#fff', fontSize: 16, fontWeight: 800, textAlign: 'center' }} />
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {[['Max', maxPrice], ['75%', Math.round(maxPrice * 0.75)], ['50%', Math.round(maxPrice * 0.5)]].map(([lbl, val]) => (
+                            <button key={lbl} onClick={() => { setListingPrice(String(Math.max(1, val))); setListingError(''); }} style={{
+                              flex: 1, padding: '4px 0', borderRadius: 6, border: '1px solid #2E2850', background: '#1B1732', color: '#C7C8E0', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                            }}>{lbl}</button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 9.5, color: '#6E6A8C' }}>Preț maxim permis: {maxPrice} pct</div>
+                        {listingError && <div style={{ fontSize: 10, color: '#F87171', fontWeight: 700 }}>{listingError}</div>}
                         <button onClick={() => {
-                          const p = Math.min(maxPrice, Math.max(1, Number(listingPrice) || 0));
-                          if (p > 0) { onListSticker(entry.id, sticker.id, p); setListingEntryId(null); setListingPrice(''); }
-                        }} style={{ width: '100%', padding: '4px 0', borderRadius: 6, border: 'none', background: '#4ADE80', color: '#0B0A14', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>Listează</button>
+                          const raw = Number(listingPrice);
+                          if (!listingPrice || !Number.isFinite(raw) || raw < 1) { setListingError(`Scrie un preț între 1 și ${maxPrice}.`); return; }
+                          if (raw > maxPrice) { setListingError(`Prețul maxim este ${maxPrice} pct.`); return; }
+                          const p = Math.round(raw);
+                          if (maxPrice >= 8 && p < maxPrice * 0.25 && !window.confirm(`Sigur vrei să vinzi la doar ${p} pct? Prețul maxim ar fi ${maxPrice} pct.`)) return;
+                          onListSticker(entry.id, sticker.id, p); setListingEntryId(null); setListingPrice(''); setListingError('');
+                        }} style={{ width: '100%', padding: '7px 0', borderRadius: 8, border: 'none', background: '#4ADE80', color: '#0B0A14', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Listează</button>
+                        <button onClick={() => { setListingEntryId(null); setListingPrice(''); setListingError(''); }} style={{ width: '100%', padding: '3px 0', borderRadius: 6, border: 'none', background: 'transparent', color: '#8A86A8', fontSize: 10.5, cursor: 'pointer' }}>Renunță</button>
                       </div>
                     ) : ['ticket', 'ticket2', 'ticket3'].includes(sticker.id) ? (
                       <div style={{ fontSize: 10, color: '#4A4666', fontStyle: 'italic' }}>Doar cumpărat — nu se vinde</div>
@@ -7787,7 +8025,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                 <div key={s.id} style={{ background: '#151225', border: '1px solid #221D3A', borderRadius: 14, padding: 12, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><IconBadge sticker={s} size={76} onClick={() => setZoomItem({ src: STICKER_IMG[s.id], label: s.label, sub: `${STICKER_PRICE[s.id] || 0} puncte${STICKER_DESC[s.id] ? ' — ' + STICKER_DESC[s.id] : ''}`, mono: s.mono, color: s.color })} /></div>
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: '#C7C8E0', lineHeight: 1.3, marginBottom: 6 }}>{s.label}</div>
-                  {STICKER_DESC[s.id] && <div style={{ fontSize: 10.5, color: '#8A86A8', lineHeight: 1.35, margin: '-2px 0 8px' }}>{STICKER_DESC[s.id]}</div>}
+                  {STICKER_DESC[s.id] && <div style={{ fontSize: 11, color: '#A9A5C4', lineHeight: 1.4, margin: '-2px 0 8px' }}>{STICKER_DESC[s.id]}</div>}
                   <div style={{ fontSize: 12, color: '#F5C542', fontWeight: 700, marginBottom: 8 }}>{price} pts</div>
                   <button disabled={!canBuy} onClick={() => onBuySticker(s.id, price)} style={{
                     width: '100%', padding: '7px 0', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 600,
@@ -7888,10 +8126,12 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                   const canBuy = student.points >= o.price;
                   return (
                     <div key={o.id} style={{ background: '#151225', borderRadius: 12, padding: 12, textAlign: 'center' }}>
-                      {sticker && <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><IconBadge sticker={sticker} size={64} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: `${o.price} puncte · de la ${o.sellerName}`, mono: sticker.mono, color: sticker.color })} /></div>}
+                      {sticker && <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><IconBadge sticker={sticker} size={64} onClick={() => setZoomItem({ src: STICKER_IMG[sticker.id], label: sticker.label, sub: `${o.price} puncte · de la ${o.sellerName}${STICKER_DESC[sticker.id] ? ' — ' + STICKER_DESC[sticker.id] : ''}`, mono: sticker.mono, color: sticker.color })} /></div>}
                       <div style={{ fontSize: 11, color: '#C7C8E0', marginBottom: 2 }}>{sticker ? sticker.label : o.stickerId}</div>
-                      <div style={{ fontSize: 10, color: '#6E6A8C', marginBottom: 6 }}>de la {o.sellerName}{o.sellerClass ? ` · ${o.sellerClass}` : ''}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F5C542', marginBottom: 8 }}>{o.price} pts</div>
+                      <div style={{ fontSize: 10, color: '#6E6A8C', marginBottom: 4 }}>de la {o.sellerName}{o.sellerClass ? ` · ${o.sellerClass}` : ''}</div>
+                      {sticker && STICKER_DESC[sticker.id] && <div style={{ fontSize: 10, color: '#8A86A8', lineHeight: 1.35, marginBottom: 6 }}>{STICKER_DESC[sticker.id]}</div>}
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#F5C542', marginBottom: STICKER_PRICE[o.stickerId] ? 2 : 8 }}>{o.price} pts</div>
+                      {STICKER_PRICE[o.stickerId] ? <div style={{ fontSize: 9.5, color: '#6E6A8C', marginBottom: 8 }}>preț în catalog: {STICKER_PRICE[o.stickerId]} pts</div> : null}
                       <button onClick={() => onMarketBuy(o.sellerId, o.id, o.stickerId, o.price)} disabled={!canBuy} style={{
                         width: '100%', padding: '6px 0', borderRadius: 8, border: 'none', cursor: canBuy ? 'pointer' : 'not-allowed',
                         background: canBuy ? 'linear-gradient(135deg, #EC1E8F, #9B3CE0)' : '#221D3A', color: canBuy ? '#fff' : '#5A5570', fontSize: 11, fontWeight: 700,
@@ -8730,6 +8970,7 @@ function TeacherApp({ onExit, teacherName }) {
   const [testNotes, setTestNotes] = useState('');
   const [feedbackText, setFeedbackText] = useState('');
   const [badgeText, setBadgeText] = useState('');
+  const [badgeDesignId, setBadgeDesignId] = useState('star');
   const [pinInput, setPinInput] = useState('');
   const [pauseNoteInput, setPauseNoteInput] = useState('');
   const [pauseUntilInput, setPauseUntilInput] = useState('');
@@ -9199,6 +9440,12 @@ function TeacherApp({ onExit, teacherName }) {
   const [editSkillValue, setEditSkillValue] = useState('');
   const [editSkillEn, setEditSkillEn] = useState('');
   const [editSkillRo, setEditSkillRo] = useState('');
+  const [showVocabEditor, setShowVocabEditor] = useState(false);
+  const [vocabDraft, setVocabDraft] = useState('');
+  const [vocabResetChests, setVocabResetChests] = useState(false);
+  const [skillEditor, setSkillEditor] = useState(null);      // { mode:'add'|'edit', id, en, ro, pts, color, custom } — editorul de casetă (nouă sau existentă)
+  const [skillsExpanded, setSkillsExpanded] = useState(() => { try { return localStorage.getItem(`fluentopia-skills-expanded-${teacherName}`) === '1'; } catch (e) { return false; } });
+  function toggleSkillsExpanded() { const n = !skillsExpanded; setSkillsExpanded(n); try { localStorage.setItem(`fluentopia-skills-expanded-${teacherName}`, n ? '1' : '0'); } catch (e) {} }
   const [announcement, setAnnouncement] = useState('');
   const [announcementDraft, setAnnouncementDraft] = useState('');
   const [editingAnnouncement, setEditingAnnouncement] = useState(false);
@@ -9252,10 +9499,38 @@ function TeacherApp({ onExit, teacherName }) {
     setSkillPoints(next);
     storageSet('fluentopia-skill-points', JSON.stringify(next));
   }
-  function saveSkillLabel(skillId, en, ro) {
-    const next = { ...skillLabels, [skillId]: { en: en.trim(), ro: ro.trim() } };
+  function saveSkillLabel(skillId, en, ro, color) {
+    const prev = skillLabels[skillId] || {};
+    const next = { ...skillLabels, [skillId]: { ...prev, en: en.trim(), ro: ro.trim(), ...(color !== undefined ? { color } : {}) } };
     setSkillLabels(next);
     storageSet('fluentopia-skill-labels', JSON.stringify(next));
+  }
+  function saveSkillFromEditor() {                               // salvează editorul: casetă nouă (custom) sau modificarea uneia existente (nume, puncte, culoare)
+    const e = skillEditor; if (!e) return;
+    const en = (e.en || '').trim(), ro = (e.ro || '').trim();
+    if (!en && !ro) return;
+    const pts = Math.max(0, Math.round(Number(e.pts) || 0));
+    if (e.mode === 'add') {
+      const id = 'custom-' + uid();
+      const nextLabels = { ...skillLabels, [id]: { en: en || ro, ro: ro || en, color: e.color || null, custom: true } };
+      const nextPts = { ...skillPoints, [id]: pts };
+      setSkillLabels(nextLabels); setSkillPoints(nextPts);
+      storageSet('fluentopia-skill-labels', JSON.stringify(nextLabels));
+      storageSet('fluentopia-skill-points', JSON.stringify(nextPts));
+    } else {
+      saveSkillPoints(e.id, pts);
+      saveSkillLabel(e.id, en || ro, ro || en, e.color || null);
+    }
+    setSkillEditor(null);
+  }
+  function deleteCustomSkill(id) {                               // doar casetele adăugate de tine se pot șterge; cele originale doar se editează
+    const restLabels = { ...skillLabels }; delete restLabels[id];
+    const restPts = { ...skillPoints }; delete restPts[id];
+    setSkillLabels(restLabels); setSkillPoints(restPts);
+    storageSet('fluentopia-skill-labels', JSON.stringify(restLabels));
+    storageSet('fluentopia-skill-points', JSON.stringify(restPts));
+    if (skillOrder) saveSkillOrder(skillOrder.filter(x => x !== id));
+    setSkillEditor(null);
   }
 
   const persistStudents = useCallback(async (next, prev) => {
@@ -9308,6 +9583,19 @@ function TeacherApp({ onExit, teacherName }) {
       persistClasses(next);
       return next;
     });
+  }
+  function openVocabEditor() {
+    const c = classes.find(x => x.id === activeClassId) || {};
+    setVocabDraft(vocabToText(c.vocab)); setVocabResetChests(false); setShowVocabEditor(true);
+  }
+  function saveVocab() {                                         // salvează vocabularul modulului pe clasa activă; opțional redeschide cuferele din Worldcraft (modul nou)
+    const { ok } = parseVocabText(vocabDraft);
+    setClasses(prev => {
+      const next = prev.map(c => c.id !== activeClassId ? c : { ...c, vocab: ok, vocabRev: (c.vocabRev || 0) + (vocabResetChests ? 1 : 0) });
+      persistClasses(next);
+      return next;
+    });
+    setShowVocabEditor(false);
   }
 
   async function persistTests(next) {
@@ -9453,9 +9741,11 @@ function TeacherApp({ onExit, teacherName }) {
       return { ...s, avatarFramesOwned: owned, avatarFrame: equipped };
     }));
   }
-  function addBadge() {
-    if (!selectedStudent || !badgeText.trim()) return;
-    updateStudents(prev => prev.map(s => s.id !== selectedStudent.id ? s : { ...s, badges: [...s.badges, { id: uid(), label: badgeText.trim(), date: new Date().toISOString() }] }));
+  function addBadge(label, designId) {                          // acordă o insignă (cocardă) — cu numele scris de tine și modelul ales
+    const lbl = (typeof label === 'string' ? label : badgeText).trim();
+    if (!selectedStudent || !lbl) return;
+    const dId = (typeof designId === 'string' ? designId : badgeDesignId) || 'star';
+    updateStudents(prev => prev.map(s => s.id !== selectedStudent.id ? s : { ...s, badges: [...s.badges, { id: uid(), label: lbl, designId: dId, date: new Date().toISOString() }] }));
     setBadgeText('');
   }
   function removeBadge(id) {
@@ -9661,6 +9951,7 @@ function TeacherApp({ onExit, teacherName }) {
               { id: 'wait', icon: '⏳', label: 'Slide de așteptare', onClick: () => setShowWaitSlide(true) },
               { id: 'explore', icon: '🗺️', label: 'Worldcraft (privește)', onClick: () => setShowExploreSpectator(true) },
               { id: 'gba', icon: '🎯', label: 'Îngeri, Tunuri & Bombe', onClick: () => setShowGBA(true) },
+              { id: 'vocab', icon: '📚', label: 'Vocabular clasă (cufere Worldcraft)', onClick: openVocabEditor },
             ];
             const orderedTools = toolOrder
               ? toolOrder.map(id => TEACHER_TOOLS_DEFAULT.find(t => t.id === id)).filter(Boolean).concat(TEACHER_TOOLS_DEFAULT.filter(t => !toolOrder.includes(t.id)))
@@ -10103,10 +10394,17 @@ function TeacherApp({ onExit, teacherName }) {
                   ) : null;
                 })()}
                 <div style={{ background: '#151225', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Skill-uri (click pentru a acorda instant · trage pentru a reordona)</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 6, maxHeight: 260, overflowY: 'auto' }} className="scrollbar">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, color: '#8A86A8' }}>Skill-uri (click pentru a acorda instant · trage pentru a reordona)</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => setSkillEditor({ mode: 'add', id: null, en: '', ro: '', pts: '5', color: null, custom: true })} style={{ padding: '5px 12px', borderRadius: 16, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: '#fff', fontSize: 11, fontWeight: 700 }}>＋ Casetă nouă</button>
+                      <button onClick={toggleSkillsExpanded} title="Arată toate casetele, fără scroll. Pe calculator poți și trage de colțul din dreapta-jos al zonei ca s-o lungești." style={{ padding: '5px 12px', borderRadius: 16, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#C7C8E0', fontSize: 11, fontWeight: 700 }}>{skillsExpanded ? '▴ Restrânge' : '▾ Arată toate'}</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 6, ...(skillsExpanded ? {} : { height: 260, minHeight: 110, overflowY: 'auto', resize: 'vertical' }) }} className="scrollbar">
                     {(() => {
-                      const bySkillId = Object.fromEntries(SKILLS.map(sk => [skillIdOf(sk), sk]));
+                      const customList = Object.entries(skillLabels).filter(([id, v]) => v && v.custom).map(([id, v]) => [id, { en: v.en, ro: v.ro, pts: skillPoints[id] ?? 0 }]);
+                      const bySkillId = Object.fromEntries([...SKILLS.map(sk => [skillIdOf(sk), sk]), ...customList]);
                       const orderedIds = skillOrder
                         ? [...skillOrder.filter(id => bySkillId[id]), ...Object.keys(bySkillId).filter(id => !skillOrder.includes(id))]
                         : Object.keys(bySkillId);
@@ -10120,29 +10418,7 @@ function TeacherApp({ onExit, teacherName }) {
                     })().map(({ sk, skId, handleSkillDrop }) => {
                       const effectivePts = skillPoints[skId] ?? sk.pts;
                       const effLabel = skillLabels[skId] || { en: sk.en, ro: sk.ro };
-                      const isEditing = editingSkillId === skId;
-                      if (isEditing) {
-                        return (
-                          <div key={skId} style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid #EC1E8F', background: '#0F0C1C' }}>
-                            <input value={editSkillEn} onChange={e => setEditSkillEn(e.target.value)} placeholder="Nume (EN)" autoFocus
-                              style={{ width: '100%', padding: '3px 5px', borderRadius: 6, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 10.5, marginBottom: 3 }} />
-                            <input value={editSkillRo} onChange={e => setEditSkillRo(e.target.value)} placeholder="Nume (RO)"
-                              style={{ width: '100%', padding: '3px 5px', borderRadius: 6, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 10.5, marginBottom: 4 }} />
-                            <div style={{ display: 'flex', gap: 4 }}>
-                              <input type="number" value={editSkillValue} onChange={e => setEditSkillValue(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && (saveSkillPoints(skId, Math.max(0, Number(editSkillValue)||0)), saveSkillLabel(skId, editSkillEn, editSkillRo), setEditingSkillId(null))}
-                                style={{ width: 44, padding: '3px 4px', borderRadius: 6, border: '1px solid #2E2850', background: '#151225', color: '#fff', fontSize: 11 }} />
-                              <button onClick={() => { saveSkillPoints(skId, Math.max(0, Number(editSkillValue)||0)); saveSkillLabel(skId, editSkillEn, editSkillRo); setEditingSkillId(null); }} style={{ padding: '2px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#4ADE80', color: '#0B0A14', fontSize: 10, fontWeight: 700 }}>✓</button>
-                            </div>
-                          </div>
-                        );
-                      }
-                      const SKILL_PALETTE = [
-                        ['#EF4444', '#B91C1C'], ['#FF7A45', '#C2410C'], ['#F5C542', '#B45309'], ['#A3E635', '#4D7C0F'],
-                        ['#4ADE80', '#15803D'], ['#2DD4BF', '#0F766E'], ['#22D3EE', '#0E7490'], ['#38BDF8', '#1D4ED8'],
-                        ['#818CF8', '#4338CA'], ['#A78BFA', '#6D28D9'], ['#E879F9', '#A21CAF'], ['#FB7185', '#BE185D'],
-                      ];
-                      const [skColor, skColor2] = SKILL_PALETTE[(() => { let h = 0x811c9dc5; for (let i = 0; i < skId.length; i++) { h ^= skId.charCodeAt(i); h = (h * 0x01000193) >>> 0; } return Math.floor((h / 4294967296) * SKILL_PALETTE.length); })()];
+                      const [skColor, skColor2] = skillPairFor(skId, effLabel.color);
                       return (
                         <button key={skId}
                           draggable
@@ -10154,7 +10430,7 @@ function TeacherApp({ onExit, teacherName }) {
                           background: `linear-gradient(135deg, ${skColor}, ${skColor2})`, color: '#fff', fontSize: 11.5, textAlign: 'left', lineHeight: 1.3,
                           boxShadow: `0 4px 14px ${skColor}55, 0 1px 0 rgba(255,255,255,.25) inset`, opacity: dragSkillId === skId ? 0.35 : 1,
                         }}>
-                          <span onClick={e => { e.stopPropagation(); setEditingSkillId(skId); setEditSkillValue(String(effectivePts)); setEditSkillEn(effLabel.en); setEditSkillRo(effLabel.ro); }} style={{
+                          <span onClick={e => { e.stopPropagation(); setSkillEditor({ mode: 'edit', id: skId, en: effLabel.en, ro: effLabel.ro, pts: String(effectivePts), color: effLabel.color || null, custom: !!effLabel.custom }); }} style={{
                             position: 'absolute', top: 4, right: 4, color: 'rgba(255,255,255,.75)', fontSize: 11, padding: 2, cursor: 'pointer',
                           }}><IPencil size={10}/></span>
                           <span style={{ color: '#fff', fontWeight: 900, textShadow: '0 1px 3px rgba(0,0,0,.35)' }}>+{effectivePts}</span> <span style={{ fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,.3)' }}>{effLabel.en}</span>
@@ -10181,27 +10457,39 @@ function TeacherApp({ onExit, teacherName }) {
                 </div>
 
                 <div style={{ background: '#151225', borderRadius: 14, padding: 18, marginBottom: 20 }}>
-                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Adaugă un badge</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Acordă o insignă (cocardă)</div>
+                  <div style={{ fontSize: 10.5, color: '#6E6A8C', marginBottom: 6 }}>1. Alege modelul</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                    {BADGE_DESIGNS.map(d => (
+                      <button key={d.id} onClick={() => setBadgeDesignId(d.id)} title={d.name} style={{
+                        padding: '6px 4px 2px', borderRadius: 12, cursor: 'pointer', background: badgeDesignId === d.id ? 'rgba(139,92,246,0.22)' : 'transparent',
+                        border: badgeDesignId === d.id ? '2px solid #8B5CF6' : '2px solid transparent',
+                      }}><BadgeRosette design={d} label="" size={42} /></button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#6E6A8C', marginBottom: 6 }}>2. Scrie numele insignei</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ flexShrink: 0 }}><BadgeRosette design={badgeDesignOf(badgeDesignId)} label="" size={44} /></div>
                     <input value={badgeText} onChange={e => setBadgeText(e.target.value)} onKeyDown={e => e.key === 'Enter' && addBadge()} placeholder="ex: Cititor al lunii"
                       style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13 }} />
-                    <button onClick={addBadge} style={{ padding: '0 16px', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#9B3CE0', color: '#fff', fontWeight: 600, fontSize: 13 }}>Adaugă</button>
+                    <button onClick={() => addBadge()} disabled={!badgeText.trim()} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', cursor: badgeText.trim() ? 'pointer' : 'default', background: badgeText.trim() ? '#9B3CE0' : '#221D3A', color: badgeText.trim() ? '#fff' : '#5A5570', fontWeight: 700, fontSize: 13 }}>Acordă</button>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                    {['💯 Prezență perfectă', '💯 Scor perfect', '⭐ Cel mai punctual', '🤝 Ajutor de clasă', '📚 Cititor al lunii', '🎤 Vorbitor activ'].map(preset => (
-                      <button key={preset} onClick={() => { setBadgeText(''); updateStudents(prev => prev.map(s => s.id !== selectedStudent.id ? s : { ...s, badges: [...s.badges, { id: uid(), label: preset, date: new Date().toISOString() }] })); }} style={{
-                        padding: '6px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#A5A2C0', fontSize: 11, cursor: 'pointer',
-                      }}>{preset}</button>
+                  <div style={{ fontSize: 10.5, color: '#6E6A8C', margin: '12px 0 6px' }}>Sau un clic pe una gata făcută:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[['Prezență perfectă', 'medal'], ['Scor perfect', 'gem'], ['Cel mai punctual', 'clock'], ['Ajutor de clasă', 'heart'], ['Cititor al lunii', 'book'], ['Vorbitor activ', 'mic']].map(([preset, dId]) => (
+                      <button key={preset} onClick={() => addBadge(preset, dId)} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 6px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#A5A2C0', fontSize: 11, cursor: 'pointer',
+                      }}><span style={{ fontSize: 14 }}>{badgeDesignOf(dId).icon}</span>{preset}</button>
                     ))}
                   </div>
                   {selectedStudent.badges.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-                      {selectedStudent.badges.map(b => (
-                        <span key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px 6px 12px', borderRadius: 20, background: 'rgba(155, 60, 224, 0.18)', color: '#C9A6EE', fontSize: 12 }}>
-                          {b.label}
-                          <button onClick={() => removeBadge(b.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8', display: 'flex', padding: 0 }}><IX size={12}/></button>
-                        </span>
-                      ))}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 16, paddingTop: 14, borderTop: '1px solid #221D3A' }}>
+                      {selectedStudent.badges.map(b => { const v = badgeView(b); return (
+                        <div key={b.id} style={{ position: 'relative' }}>
+                          <BadgeRosette design={v.design} label={v.label} size={52} />
+                          <button onClick={() => removeBadge(b.id)} title="Șterge insigna" style={{ position: 'absolute', top: -4, right: 2, width: 18, height: 18, borderRadius: '50%', background: '#221D3A', border: '1px solid #2E2850', cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}><IX size={10}/></button>
+                        </div>
+                      ); })}
                     </div>
                   )}
                 </div>
@@ -11405,6 +11693,84 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         );
       })()}
+      {skillEditor && (() => {
+        const e = skillEditor;
+        const [c1, c2] = skillPairFor(e.id || 'nou', e.color);
+        const setE = patch => setSkillEditor(prev => ({ ...prev, ...patch }));
+        return (
+          <div onClick={() => setSkillEditor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 75, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={ev => ev.stopPropagation()} style={{ background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '1px solid rgba(139,92,246,0.5)', borderRadius: 20, padding: 22, maxWidth: 380, width: '100%', maxHeight: '90vh', overflowY: 'auto' }} className="scrollbar">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <h3 className="heading-font" style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{e.mode === 'add' ? '＋ Casetă nouă de puncte rapide' : 'Editează caseta'}</h3>
+                <button onClick={() => setSkillEditor(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
+              </div>
+              <div style={{ padding: '10px 12px', borderRadius: 12, marginBottom: 14, background: `linear-gradient(135deg, ${c1}, ${c2})`, color: '#fff', boxShadow: `0 4px 14px ${c1}55, 0 1px 0 rgba(255,255,255,.25) inset` }}>
+                <span style={{ fontWeight: 900, textShadow: '0 1px 3px rgba(0,0,0,.35)' }}>+{Math.max(0, Math.round(Number(e.pts) || 0))}</span> <span style={{ fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,.3)' }}>{e.en || 'Nume (EN)'}</span>
+                <div style={{ color: 'rgba(255,255,255,.8)', fontSize: 10 }}>{e.ro || 'Nume (RO)'}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <input value={e.en} onChange={ev => setE({ en: ev.target.value })} placeholder="Nume (EN)" autoFocus style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12.5 }} />
+                <input value={e.ro} onChange={ev => setE({ ro: ev.target.value })} placeholder="Nume (RO)" style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 12.5 }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <span style={{ fontSize: 12, color: '#8A86A8' }}>Puncte:</span>
+                <input type="number" min="0" value={e.pts} onChange={ev => setE({ pts: ev.target.value })} style={{ width: 80, padding: '9px 10px', borderRadius: 8, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 14, fontWeight: 800 }} />
+              </div>
+              <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 6 }}>Culoare</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 16 }}>
+                <button onClick={() => setE({ color: null })} title="Automată (din nume)" style={{ height: 26, padding: '0 9px', borderRadius: 13, cursor: 'pointer', fontSize: 10.5, fontWeight: 700, color: '#C7C8E0', background: !e.color ? 'rgba(139,92,246,0.25)' : 'transparent', border: !e.color ? '2px solid #8B5CF6' : '1px solid #2E2850' }}>Auto</button>
+                {SKILL_PALETTE.map(([c]) => (
+                  <button key={c} onClick={() => setE({ color: c })} title={c} style={{ width: 26, height: 26, borderRadius: '50%', cursor: 'pointer', background: `linear-gradient(135deg, ${c}, ${darkenHex(c, 0.35)})`, border: e.color === c ? '3px solid #fff' : '2px solid transparent', boxShadow: e.color === c ? `0 0 0 2px ${c}` : 'none' }} />
+                ))}
+                <label title="Alege orice altă culoare" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: '#8A86A8', cursor: 'pointer' }}>
+                  <input type="color" value={e.color || c1} onChange={ev => setE({ color: ev.target.value })} style={{ width: 28, height: 28, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} /> altă
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={saveSkillFromEditor} disabled={!(e.en || '').trim() && !(e.ro || '').trim()} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13, opacity: ((e.en || '').trim() || (e.ro || '').trim()) ? 1 : 0.4 }}>{e.mode === 'add' ? 'Adaugă caseta' : 'Salvează'}</button>
+                {e.mode === 'edit' && e.custom && (
+                  <button onClick={() => { if (window.confirm('Ștergi această casetă?')) deleteCustomSkill(e.id); }} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(248,113,113,0.5)', cursor: 'pointer', background: 'transparent', color: '#F87171', fontWeight: 700, fontSize: 12 }}>Șterge</button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {showVocabEditor && (() => {
+        const cls = classes.find(x => x.id === activeClassId) || {};
+        const { ok, bad } = parseVocabText(vocabDraft);
+        const enough = ok.length >= 4;
+        return (
+          <div onClick={() => setShowVocabEditor(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 75, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={ev => ev.stopPropagation()} style={{ background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '1px solid rgba(245,197,66,0.45)', borderRadius: 20, padding: 22, maxWidth: 460, width: '100%', maxHeight: '92vh', overflowY: 'auto' }} className="scrollbar">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <h3 className="heading-font" style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>📚 Vocabular — clasa {cls.name || ''}</h3>
+                <button onClick={() => setShowVocabEditor(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
+              </div>
+              <p style={{ fontSize: 11.5, color: '#8A86A8', margin: '0 0 10px' }}>Un cuvânt pe linie, în formatul <b style={{ color: '#C7C8E0' }}>englezește - românește</b> (ex: <i>forest - pădure</i>). Cuferele din Worldcraft ale acestei clase pun întrebări din listă.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: '#8A86A8' }}>Listă gata făcută, nivel English World:</span>
+                {[1, 2, 3, 4, 5, 6, 7].map(n => (
+                  <button key={n} onClick={() => { if (vocabDraft.trim() && !window.confirm(`Înlocuiești lista din editor cu cea de nivel ${n}? (o poți modifica după.)`)) return; setVocabDraft(CHEST_VOCAB_LEVELS[n].join('\n')); }} style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #2E2850', cursor: 'pointer', background: '#221D3A', color: '#C7C8E0', fontSize: 12, fontWeight: 800 }}>{n}</button>
+                ))}
+              </div>
+              <textarea value={vocabDraft} onChange={ev => setVocabDraft(ev.target.value)} rows={10} placeholder={'forest - pădure\nriver - râu\nmountain - munte\ndesert - deșert'} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, border: '1px solid #2E2850', background: '#0F0C1C', color: '#fff', fontSize: 13, fontFamily: 'inherit', resize: 'vertical' }} />
+              <div style={{ fontSize: 11.5, margin: '8px 0', color: enough ? '#4ADE80' : '#F5C542', fontWeight: 700 }}>
+                {ok.length} {ok.length === 1 ? 'cuvânt recunoscut' : 'cuvinte recunoscute'}{!enough && ' — ai nevoie de cel puțin 4; până atunci cuferele rămân pe întrebările generale.'}
+              </div>
+              {bad.length > 0 && <div style={{ fontSize: 10.5, color: '#F87171', marginBottom: 8 }}>{bad.length} {bad.length === 1 ? 'linie neînțeleasă (fără „ - ")' : 'linii neînțelese (fără „ - ")'}: {bad.slice(0, 3).join(' · ')}{bad.length > 3 ? '…' : ''}</div>}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11.5, color: '#C7C8E0', marginBottom: 14, cursor: 'pointer' }}>
+                <input type="checkbox" checked={vocabResetChests} onChange={ev => setVocabResetChests(ev.target.checked)} style={{ marginTop: 2 }} />
+                <span><b>Modul nou</b> — redeschide toate cuferele din Worldcraft pentru elevii clasei (fiecare cufăr corect = +5 puncte, din nou). Lasă nebifat dacă doar corectezi lista.</span>
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={saveVocab} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#F5C542,#FF7A45)', color: '#2A1400', fontWeight: 800, fontSize: 13 }}>Salvează vocabularul</button>
+                <button onClick={() => setShowVocabEditor(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid #2E2850', cursor: 'pointer', background: 'transparent', color: '#8A86A8', fontWeight: 700, fontSize: 12 }}>Anulează</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <audio ref={radioAudioRef} src="https://listen-funkids.sharp-stream.com/funkids.mp3" preload="none" />
       {showMusicManager && (
         <div onClick={() => setShowMusicManager(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -12483,7 +12849,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.161';
+const APP_VERSION = 'v2.164';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -14326,6 +14692,7 @@ function Root() {
   }
   function handleListSticker(entryId, stickerId, price) {
     if (isParentSession) return;
+    if (!Number.isFinite(Number(price)) || Number(price) < 1) return;        // nu mai listăm niciodată "din greșeală" la 1 punct din cauza unui preț gol/invalid
     const next = students.map(s => {
       if (s.id !== loggedInStudentId) return s;
       const idx = s.stickers.findIndex(x => x.id === entryId);
@@ -14493,10 +14860,25 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
-  function handleOpenExploreChest(chestKey) {                       // ține minte pe cont, nu doar local — altfel un refresh reface cufărul la infinit
+  function handlePenaltyReward() {                               // +3 puncte pentru 4+ goluri din 5, cel mult o dată pe zi — returnează true doar dacă s-au acordat acum
+    if (isParentSession) return false;
+    const cur = students.find(s => s.id === loggedInStudentId);
+    if (!cur) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    if (cur.penaltyRewardDate === today) return false;
+    const next = students.map(s => s.id !== loggedInStudentId ? s : {
+      ...s, points: s.points + 3, penaltyRewardDate: today,
+      pointsLog: [{ id: uid(), delta: 3, reason: '⚽ Penalty — Worldcraft', date: new Date().toISOString() }, ...(s.pointsLog || [])],
+    });
+    persistStudentsLocal(next, students);
+    return true;
+  }
+  function handleOpenExploreChest(chestKey, rev) {                  // ține minte pe cont, nu doar local — altfel un refresh reface cufărul la infinit
+    const r = rev || 0;
     const next = students.map(s => s.id !== loggedInStudentId ? s : {
       ...s,
-      exploreOpenedChests: [...new Set([...(s.exploreOpenedChests || []), chestKey])],
+      exploreOpenedChests: [...new Set([...((s.exploreChestsRev || 0) === r ? (s.exploreOpenedChests || []) : []), chestKey])],
+      exploreChestsRev: r,
     });
     persistStudentsLocal(next, students);
   }
@@ -14587,7 +14969,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

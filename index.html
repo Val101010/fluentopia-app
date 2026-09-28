@@ -4764,6 +4764,25 @@ const DEFAULT_MUSIC_TRACKS = [                                  // set implicit 
   { id: 'uplifting-inspiring', label: 'Uplifting & Inspiring', file: 'music/uplifting-inspiring.mp3' },
   { id: 'upbeat-happy', label: 'Upbeat & Happy', file: 'music/upbeat-happy.mp3' },
 ];
+const LEGACY_DEFAULT_IDS = ['u2qF9ZWIt3Q', 'UoxZ4403hDc', 'ZzLXJUzyLzQ', 'wsinz56ghsk', 'rY12J2ZF_H8', 'JpuhuTkOQgw', 'jjr3oYJ5wVo', 'rFMT6DgiK0c', 'KK2smasHg6w', 'bOZCnxJAq_0'];   // piese implicite din versiunile vechi — dacă le-ai șters tu, rămân șterse
+function loadMusicTracks(teacherName, storage) {                 // lista ta salvată + piesele implicite NOI (pe care nu le-ai mai văzut); ce ștergi tu rămâne șters
+  const key = `fluentopia-music-tracks-${teacherName}`, seenKey = `fluentopia-music-seen-${teacherName}`;
+  try {
+    const raw = storage.getItem(key);
+    const currentIds = DEFAULT_MUSIC_TRACKS.map(t => t.id);
+    if (!raw) { try { storage.setItem(seenKey, JSON.stringify(currentIds)); } catch (e) {} return DEFAULT_MUSIC_TRACKS; }
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return DEFAULT_MUSIC_TRACKS;
+    let seen; try { seen = JSON.parse(storage.getItem(seenKey) || 'null'); } catch (e) { seen = null; }
+    if (!Array.isArray(seen)) seen = LEGACY_DEFAULT_IDS;
+    const have = new Set(saved.map(t => t.id));
+    const fresh = DEFAULT_MUSIC_TRACKS.filter(t => !have.has(t.id) && !seen.includes(t.id));
+    const merged = [...saved, ...fresh];
+    try { storage.setItem(seenKey, JSON.stringify([...new Set([...seen, ...currentIds])])); if (fresh.length) storage.setItem(key, JSON.stringify(merged)); } catch (e) {}
+    return merged;
+  } catch (e) { return DEFAULT_MUSIC_TRACKS; }
+}
+
 const EXPLORE_QUESTIONS = [
   { q: 'Ce înseamnă „forest" în română?', options: ['Râu', 'Pădure', 'Deal', 'Lac'], correctIdx: 1 },
   { q: 'Cum se spune „câine" în engleză?', options: ['Cat', 'Bird', 'Dog', 'Fish'], correctIdx: 2 },
@@ -9121,9 +9140,7 @@ function TeacherApp({ onExit, teacherName }) {
   const [showAcademicAdmin, setShowAcademicAdmin] = useState(false);
   const [showDjPanel, setShowDjPanel] = useState(false);
   const [showWaitSlide, setShowWaitSlide] = useState(false);
-  const [musicTracks, setMusicTracks] = useState(() => {
-    try { const saved = localStorage.getItem(`fluentopia-music-tracks-${teacherName}`); return saved ? JSON.parse(saved) : DEFAULT_MUSIC_TRACKS; } catch (e) { return DEFAULT_MUSIC_TRACKS; }
-  });
+  const [musicTracks, setMusicTracks] = useState(() => loadMusicTracks(teacherName, localStorage));
   const [showMusicManager, setShowMusicManager] = useState(false);
   const [radioPlaying, setRadioPlaying] = useState(false);
   const [pausedBubbleId, setPausedBubbleId] = useState(null);
@@ -9149,7 +9166,7 @@ function TeacherApp({ onExit, teacherName }) {
     setNewTrackUrl(''); setNewTrackLabel('');
   }
   const [waitMusicOn, setWaitMusicOn] = useState(false);
-  const [waitMusicTrack, setWaitMusicTrack] = useState(() => (DEFAULT_MUSIC_TRACKS[0] || {}).id || '');
+  const [waitMusicTrack, setWaitMusicTrack] = useState(() => (musicTracks[0] || {}).id || '');
   const [waitMusicVolume, setWaitMusicVolume] = useState(60);
   const waitYtPlayerRef = useRef(null);
   const waitBellPlayerRef = useRef(null);
@@ -9315,7 +9332,7 @@ function TeacherApp({ onExit, teacherName }) {
   const [djRunning, setDjRunning] = useState(false);
   const [djMusicStopped, setDjMusicStopped] = useState(false);
   const [djBgMusicOn, setDjBgMusicOn] = useState(false);
-  const [djBgMusicTrack, setDjBgMusicTrack] = useState(() => (DEFAULT_MUSIC_TRACKS[0] || {}).id || '');
+  const [djBgMusicTrack, setDjBgMusicTrack] = useState(() => (musicTracks[0] || {}).id || '');
   const [djBgMusicVolume, setDjBgMusicVolume] = useState(60);
   const djBgYtPlayerRef = useRef(null);
   useEffect(() => {
@@ -13045,7 +13062,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.165';
+const APP_VERSION = 'v2.166';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

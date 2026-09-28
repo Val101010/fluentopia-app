@@ -2341,15 +2341,17 @@ function listenTreasureWinner(track, cb) {
   const db = getDb(); if (!db) return () => {};
   return db.collection('fluentopia_treasure').doc(track === 'parent' ? 'winner-parent' : 'winner').onSnapshot(doc => cb(doc.data() || null), err => console.error('treasure winner listen error', err));
 }
-async function claimTreasureWin(track, studentId, studentName) {
-  const db = getDb(); if (!db) return false;
+async function claimTreasureWin(track, studentId, studentName) {   // 'won' | 'taken' | 'error' — atomic (tranzacție): doi elevi care termină în aceeași clipă nu pot câștiga amândoi; o eroare de conexiune NU e confundată cu „a câștigat altcineva"
+  const db = getDb(); if (!db) return 'error';
   const ref = db.collection('fluentopia_treasure').doc(track === 'parent' ? 'winner-parent' : 'winner');
   try {
-    const snap = await ref.get();
-    if (snap.exists && snap.data()) return false;                // deja există un câștigător — prea târziu
-    await ref.set({ winnerId: studentId, winnerName: studentName, wonAt: new Date().toISOString() });
-    return true;
-  } catch (e) { return false; }
+    return await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (snap.exists && snap.data()) return 'taken';                // deja există un câștigător — prea târziu
+      tx.set(ref, { winnerId: studentId, winnerName: studentName, wonAt: new Date().toISOString() });
+      return 'won';
+    });
+  } catch (e) { console.error('claimTreasureWin error', e); return 'error'; }
 }
 /* ---------- Harta Exploratorilor — cameră partajată (Pasul 2, live): UN document per hartă, comun întregii școli — jucătorii ca sub-câmpuri ---------- */
 function listenExplorePlayers(mapId, cb) {
@@ -6005,15 +6007,20 @@ function TreasureSparkle({ fragmentId, found, corner = 'top-right', onCollect })
     </button>
   );
 }
-function TreasureWinModal({ isWinner, winnerName, onClose }) {
+function TreasureWinModal({ isWinner, winnerName, isError, onClose }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: 'linear-gradient(160deg, #1A1830, #12101F)', border: '2px solid #F5C542', borderRadius: 24, padding: 32, maxWidth: 380, width: '100%', textAlign: 'center',
         boxShadow: '0 0 60px rgba(245,197,66,.4)',
       }}>
-        <div style={{ fontSize: 56, marginBottom: 10 }}>{isWinner ? '👑' : '🗺️'}</div>
-        {isWinner ? (
+        <div style={{ fontSize: 56, marginBottom: 10 }}>{isError ? '📡' : isWinner ? '👑' : '🗺️'}</div>
+        {isError ? (
+          <>
+            <div className="heading-font" style={{ fontSize: 19, fontWeight: 900, color: '#F5C542', marginBottom: 8 }}>Aproape ai terminat!</div>
+            <div style={{ fontSize: 13.5, color: '#C7C8E0' }}>Nu am putut verifica acum comoara (probabil conexiunea). Nu ai pierdut nimic — mai apasă o dată pe ultima ✨ în câteva secunde.</div>
+          </>
+        ) : isWinner ? (
           <>
             <div className="heading-font" style={{ fontSize: 22, fontWeight: 900, color: '#F5C542', marginBottom: 8 }}>Ai găsit toată comoara!</div>
             <div style={{ fontSize: 14, color: '#C7C8E0', marginBottom: 4 }}>Ești primul din toată școala — felicitări!</div>
@@ -6922,7 +6929,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
           </div>
         )}
       </div>
-      {treasureWinResult && <TreasureWinModal isWinner={treasureWinResult.isWinner} winnerName={treasureWinResult.winnerName} onClose={onCloseTreasureWinResult} />}
+      {treasureWinResult && <TreasureWinModal isWinner={treasureWinResult.isWinner} winnerName={treasureWinResult.winnerName} isError={treasureWinResult.isError} onClose={onCloseTreasureWinResult} />}
       {student.onPause && (
         <div style={{
           position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 14,
@@ -9158,6 +9165,11 @@ function TeacherApp({ onExit, teacherName }) {
     [next[idx], next[j]] = [next[j], next[idx]]; saveMusicTracks(next);
   }
   function removeTrack(idx) { saveMusicTracks(musicTracks.filter((_, i) => i !== idx)); }
+  const missingDefaultTracks = DEFAULT_MUSIC_TRACKS.filter(t => !musicTracks.some(x => x.id === t.id));
+  function restoreDefaultTracks() {                               // adaugă înapoi piesele implicite lipsă, fără să atingă ce ai adăugat/reordonat tu
+    if (!missingDefaultTracks.length) return;
+    saveMusicTracks([...musicTracks, ...missingDefaultTracks]);
+  }
   function setTrackStart(idx, seconds) { saveMusicTracks(musicTracks.map((t, i) => i === idx ? { ...t, start: Math.max(0, seconds) } : t)); }
   function addTrack() {
     const id = extractYoutubeId(newTrackUrl);
@@ -11993,6 +12005,11 @@ function TeacherApp({ onExit, teacherName }) {
               <button onClick={() => setShowMusicManager(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
             </div>
             <p style={{ fontSize: 11.5, color: '#8A86A8', marginBottom: 14 }}>Trage cu săgețile ca să reordonezi. Aceeași listă e folosită pe slide-ul de așteptare și pe DJ for a Day.</p>
+            {missingDefaultTracks.length > 0 ? (
+              <button onClick={restoreDefaultTracks} style={{ width: '100%', marginBottom: 12, padding: '9px 0', borderRadius: 10, border: '1px solid rgba(74,222,128,0.5)', cursor: 'pointer', background: 'rgba(74,222,128,0.1)', color: '#4ADE80', fontWeight: 800, fontSize: 12 }}>↺ Adaugă înapoi {missingDefaultTracks.length} {missingDefaultTracks.length === 1 ? 'melodie implicită lipsă' : 'melodii implicite lipsă'}</button>
+            ) : (
+              <div style={{ fontSize: 10.5, color: '#4ADE80', marginBottom: 10 }}>✓ Toate melodiile implicite sunt în listă ({musicTracks.length} melodii în total)</div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
               {musicTracks.map((t, i) => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#151225', borderRadius: 10, padding: '8px 10px' }}>
@@ -13062,7 +13079,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.166';
+const APP_VERSION = 'v2.168';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -15133,8 +15150,9 @@ function Root() {
     const isComplete = trackList.every(f => fragments.includes(f));
     let next = students.map(s => s.id !== loggedInStudentId ? s : { ...s, treasureFragments: fragments });
     if (isComplete) {
-      const won = await claimTreasureWin(track, cur.id, cur.name);
-      if (won) {
+      const res = await claimTreasureWin(track, cur.id, cur.name);
+      if (res === 'error') { setTreasureWinResult({ isError: true }); return; }          // conexiune/permisiuni: nu salvăm ultimul fragment, ca să poți încerca din nou
+      if (res === 'won') {
         next = next.map(s => s.id !== loggedInStudentId ? s : {
           ...s, points: s.points + 5000,
           pointsLog: [{ id: uid(), delta: 5000, reason: track === 'parent' ? '🏆 Comoara părinților — primul din școală!' : '🏆 Comoara ascunsă — primul din școală!', date: new Date().toISOString() }, ...(s.pointsLog || [])],

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fluentopia-v3';
+const CACHE_NAME = 'fluentopia-v4';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -34,7 +34,7 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-cache' })                // revalidează mereu cu serverul (GitHub Pages ține fișierele ~10 min în cache) — un redeploy se vede imediat
       .then((networkResponse) => {
         let responseClone;
         try { responseClone = networkResponse.clone(); } catch (e) { responseClone = null; }

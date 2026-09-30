@@ -466,6 +466,9 @@ const PET_TIPS = [
   ['Spune „Thank you" și „Please" — sunt cuvinte magice ✨', 'Say "Thank you" and "Please" — they are magic words ✨'],
   ['Citește câte puțin în engleză în fiecare zi 📖', 'Read a little English every day 📖'],
   ['Cartonaș galben = avertisment. Hai să nu luăm niciunul! 🟨', "Yellow card = warning. Let's not get any! 🟨"],
+  ['Hai la „📖 Lecția" — îți citesc eu o lecție de engleză! 📖', "Let's do a lesson — I'll read it to you! 📖"],
+  ['Mă provoci la duel? Răspunde mai repede ca mine! ⚔️', 'Challenge me to a duel! Answer faster than me! ⚔️'],
+  ['Nu-mi da prea multe gustări — mă doare burtica! 🤢', "Don't give me too many snacks — my tummy will hurt! 🤢"],
 ];
 const PET_SNACKS = [
   { e: '🍎', n: 'Măr' }, { e: '🍓', n: 'Căpșună' }, { e: '🍪', n: 'Biscuit' },
@@ -791,6 +794,239 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
       {canFeed && isEgg && !hibernating && (
         <div style={{ fontSize: 11, color: '#8A86A8', marginTop: 10, textAlign: 'center', maxWidth: 260 }}>🥚 Oul nu mănâncă încă. Dă-i masa zilei și power-up-uri ca să iasă din ou — apoi îi poți da gustări!</div>
       )}
+    </div>
+  );
+}
+
+/* ---------- Școala lui Aura Buddy: lecții pe nivel (W1–W6), citite de animăluț, + duel de întrebări ---------- */
+// fiecare lecție: [id, nivel, skill, titlu RO, [[EN, RO], ...], [[întrebare, [variante], index corect], ...]]
+const PET_LESSONS_RAW = [
+  ['w1colors', 1, 'Color Spotter', 'Culorile', [['Red, blue, yellow, green!', 'Roșu, albastru, galben, verde!'], ['The sun is yellow.', 'Soarele e galben.'], ['The grass is green.', 'Iarba e verde.'], ['My ball is red.', 'Mingea mea e roșie.']],
+    [['The grass is...', ['green', 'blue', 'red'], 0], ['„Albastru" in English is...', ['yellow', 'blue', 'black'], 1], ['The sun is...', ['purple', 'pink', 'yellow'], 2]]],
+  ['w1numbers', 1, 'Number Hero', 'Numerele 1–10', [['One, two, three, four, five.', 'Unu, doi, trei, patru, cinci.'], ['Six, seven, eight, nine, ten!', 'Șase, șapte, opt, nouă, zece!'], ['I have two eyes.', 'Am doi ochi.'], ['A spider has eight legs.', 'Un păianjen are opt picioare.']],
+    [['Two + three = ?', ['four', 'five', 'six'], 1], ['„Opt" in English is...', ['eight', 'eighty', 'nine'], 0], ['A spider has ... legs.', ['six', 'ten', 'eight'], 2]]],
+  ['w1animals', 1, 'Animal Friend', 'Animalele', [['A cat says meow.', 'Pisica face miau.'], ['A dog says woof.', 'Câinele face ham.'], ['A fish can swim.', 'Peștele poate să înoate.'], ['A bird can fly.', 'Pasărea poate să zboare.']],
+    [['A dog says...', ['meow', 'woof', 'moo'], 1], ['What can fly?', ['a bird', 'a fish', 'a cat'], 0], ['„Pisică" in English is...', ['dog', 'cow', 'cat'], 2]]],
+  ['w1hello', 1, 'Polite Buddy', 'Salutul', [['Hello! My name is Lumi.', 'Salut! Numele meu e Lumi.'], ['How are you? — I am fine, thank you!', 'Ce faci? — Bine, mulțumesc!'], ['Good morning! Good night!', 'Bună dimineața! Noapte bună!'], ['Goodbye! See you!', 'La revedere! Ne vedem!']],
+    [['„Mulțumesc" is...', ['please', 'thank you', 'sorry'], 1], ['We say ... before sleeping.', ['Good night', 'Good morning', 'Hello'], 0], ['What is your name? — My name ... Ana.', ['are', 'is', 'am'], 1]]],
+  ['w1family', 1, 'Family Star', 'Familia', [['This is my mother.', 'Aceasta este mama mea.'], ['This is my father.', 'Acesta este tatăl meu.'], ['I have a brother and a sister.', 'Am un frate și o soră.'], ['I love my family!', 'Îmi iubesc familia!']],
+    [['„Soră" is...', ['brother', 'sister', 'baby'], 1], ['My mother\'s mother is my...', ['grandmother', 'aunt', 'sister'], 0], ['„Tată" is...', ['mother', 'brother', 'father'], 2]]],
+
+  ['w2havegot', 2, 'Have-Got Master', 'I have got / She has got', [['I have got a red bike.', 'Eu am o bicicletă roșie.'], ['She has got long hair.', 'Ea are părul lung.'], ['He has got a dog.', 'El are un câine.'], ['We have got a big house.', 'Noi avem o casă mare.']],
+    [['She ... got a cat.', ['have', 'has', 'is'], 1], ['I ... got two pencils.', ['has', 'am', 'have'], 2], ['They ... got a car.', ['have', 'has', 'is'], 0]]],
+  ['w2can', 2, 'Can-Do Champion', 'Can / Can\'t', [['I can swim.', 'Eu pot să înot.'], ['A fish can\'t walk.', 'Peștele nu poate să meargă.'], ['Can you ride a bike? — Yes, I can!', 'Poți să mergi cu bicicleta? — Da, pot!'], ['Birds can fly.', 'Păsările pot să zboare.']],
+    [['A fish ... walk.', ['can', 'can\'t', 'is'], 1], ['... you jump? — Yes, I can.', ['Do', 'Are', 'Can'], 2], ['Birds can ...', ['fly', 'flies', 'flying'], 0]]],
+  ['w2plurals', 2, 'Plural Pro', 'Pluralul', [['One cat — two cats.', 'O pisică — două pisici.'], ['One box — three boxes.', 'O cutie — trei cutii.'], ['One child — many children.', 'Un copil — mulți copii.'], ['One mouse — two mice!', 'Un șoarece — doi șoareci!']],
+    [['One box, two...', ['boxs', 'boxes', 'boxies'], 1], ['One child, many...', ['childs', 'children', 'childrens'], 1], ['One mouse, two...', ['mice', 'mouses', 'mousees'], 0]]],
+  ['w2days', 2, 'Week Wizard', 'Zilele săptămânii', [['Monday, Tuesday, Wednesday.', 'Luni, marți, miercuri.'], ['Thursday, Friday.', 'Joi, vineri.'], ['Saturday and Sunday are the weekend!', 'Sâmbăta și duminica sunt weekendul!'], ['I have English on Monday.', 'Am engleză luni.']],
+    [['The day after Monday is...', ['Sunday', 'Tuesday', 'Friday'], 1], ['„Vineri" is...', ['Friday', 'Thursday', 'Saturday'], 0], ['The weekend is Saturday and...', ['Monday', 'Wednesday', 'Sunday'], 2]]],
+  ['w2prepositions', 2, 'Where-Is Wizard', 'In / On / Under', [['The cat is in the box.', 'Pisica e în cutie.'], ['The book is on the table.', 'Cartea e pe masă.'], ['The ball is under the bed.', 'Mingea e sub pat.'], ['Where is my pencil? It is on the desk.', 'Unde e creionul meu? E pe birou.']],
+    [['The ball is ... the bed. (sub)', ['on', 'in', 'under'], 2], ['The book is ... the table. (pe)', ['on', 'under', 'in'], 0], ['The cat is ... the box. (în)', ['under', 'in', 'on'], 1]]],
+
+  ['w3presentsimple', 3, 'Routine Ranger', 'Prezentul simplu (he/she + s)', [['I play football every day.', 'Joc fotbal în fiecare zi.'], ['She plays the piano.', 'Ea cântă la pian.'], ['He doesn\'t like milk.', 'Lui nu-i place laptele.'], ['Does she speak English? — Yes, she does.', 'Vorbește ea engleză? — Da.']],
+    [['He ... to school every day.', ['go', 'goes', 'going'], 1], ['She ... like fish.', ['don\'t', 'doesn\'t', 'isn\'t'], 1], ['... you play tennis?', ['Do', 'Does', 'Are'], 0]]],
+  ['w3continuous', 3, 'Right-Now Reporter', 'Prezentul continuu', [['I am reading a book now.', 'Citesc o carte acum.'], ['She is sleeping.', 'Ea doarme (acum).'], ['They are playing in the park.', 'Ei se joacă în parc.'], ['What are you doing? — I am drawing!', 'Ce faci? — Desenez!']],
+    [['Look! The baby ... .', ['cry', 'is crying', 'cries'], 1], ['They ... playing now.', ['is', 'am', 'are'], 2], ['What ... you doing?', ['are', 'do', 'is'], 0]]],
+  ['w3thereis', 3, 'Room Explorer', 'There is / There are', [['There is a lamp in my room.', 'E o lampă în camera mea.'], ['There are three chairs.', 'Sunt trei scaune.'], ['Is there a TV? — No, there isn\'t.', 'Este un televizor? — Nu, nu este.'], ['There are some apples on the table.', 'Sunt niște mere pe masă.']],
+    [['There ... two cats.', ['is', 'are', 'am'], 1], ['There ... a book on the desk.', ['is', 'are', 'be'], 0], ['... there any milk?', ['Are', 'Do', 'Is'], 2]]],
+  ['w3someany', 3, 'Shopping Buddy', 'Some / Any', [['I have some sweets.', 'Am niște dulciuri.'], ['I don\'t have any money.', 'Nu am deloc bani.'], ['Have you got any pets?', 'Ai animăluțe?'], ['Would you like some juice?', 'Vrei niște suc?']],
+    [['I don\'t have ... brothers.', ['some', 'any', 'a'], 1], ['There are ... eggs in the fridge.', ['some', 'any', 'an'], 0], ['Have you got ... questions?', ['some', 'a', 'any'], 2]]],
+  ['w3time', 3, 'Clock Keeper', 'Ora', [['It is seven o\'clock.', 'Este ora șapte.'], ['It is half past three.', 'Este trei și jumătate.'], ['It is quarter past five.', 'Este cinci și un sfert.'], ['What time is it?', 'Cât e ceasul?']],
+    [['3:30 is...', ['half past three', 'quarter past three', 'three o\'clock'], 0], ['5:15 is...', ['half past five', 'quarter past five', 'five o\'clock'], 1], ['„Cât e ceasul?" is...', ['How old are you?', 'Where is the clock?', 'What time is it?'], 2]]],
+
+  ['w4pastsimple', 4, 'Time Traveller', 'Trecutul simplu', [['Yesterday I played football.', 'Ieri am jucat fotbal.'], ['We went to the seaside last summer.', 'Am fost la mare vara trecută.'], ['She didn\'t watch TV.', 'Ea nu s-a uitat la televizor.'], ['Did you see the film? — Yes, I did!', 'Ai văzut filmul? — Da!']],
+    [['Yesterday I ... to the park.', ['go', 'went', 'goed'], 1], ['She ... like the cake.', ['didn\'t', 'doesn\'t', 'don\'t'], 0], ['... you finish your homework?', ['Do', 'Were', 'Did'], 2]]],
+  ['w4comparatives', 4, 'Compare Captain', 'Comparativul', [['An elephant is bigger than a dog.', 'Un elefant e mai mare decât un câine.'], ['My sister is taller than me.', 'Sora mea e mai înaltă decât mine.'], ['This book is more interesting than that one.', 'Cartea asta e mai interesantă decât aceea.'], ['Good — better. Bad — worse.', 'Bun — mai bun. Rău — mai rău.']],
+    [['A car is ... than a bike.', ['fast', 'faster', 'more fast'], 1], ['Maths is ... than art. (dificil)', ['more difficult', 'difficulter', 'most difficult'], 0], ['Good → ...', ['gooder', 'best', 'better'], 2]]],
+  ['w4goingto', 4, 'Future Planner', 'Going to (planuri)', [['I am going to visit my grandma.', 'O să-mi vizitez bunica.'], ['It is going to rain. Look at the clouds!', 'O să plouă. Uită-te la nori!'], ['They aren\'t going to play today.', 'Ei nu o să se joace azi.'], ['What are you going to do tomorrow?', 'Ce o să faci mâine?']],
+    [['I ... going to learn French.', ['is', 'am', 'are'], 1], ['Look at those clouds! It ... rain.', ['is going to', 'goes to', 'going'], 0], ['What are you going to ... ?', ['doing', 'did', 'do'], 2]]],
+  ['w4muchmany', 4, 'Counting Chef', 'Much / Many', [['How many apples are there?', 'Câte mere sunt?'], ['How much water do you drink?', 'Câtă apă bei?'], ['There isn\'t much time.', 'Nu e prea mult timp.'], ['I have many friends.', 'Am mulți prieteni.']],
+    [['How ... sugar do you want?', ['many', 'much', 'lot'], 1], ['How ... books have you got?', ['many', 'much', 'more'], 0], ['There isn\'t ... milk left.', ['many', 'a', 'much'], 2]]],
+  ['w4frequency', 4, 'Habit Hunter', 'Always / Usually / Never', [['I always brush my teeth.', 'Mereu mă spăl pe dinți.'], ['She usually walks to school.', 'De obicei merge pe jos la școală.'], ['We sometimes eat pizza.', 'Uneori mâncăm pizza.'], ['He never eats vegetables!', 'El nu mănâncă niciodată legume!']],
+    [['„Niciodată" is...', ['always', 'never', 'often'], 1], ['I ... do my homework. (mereu)', ['always', 'sometimes', 'never'], 0], ['Which is correct?', ['She late is often.', 'She often late is.', 'She is often late.'], 2]]],
+
+  ['w5presentperfect', 5, 'Experience Explorer', 'Prezentul perfect (ever / never)', [['I have visited London.', 'Am vizitat Londra.'], ['Have you ever eaten sushi?', 'Ai mâncat vreodată sushi?'], ['She has never seen snow.', 'Ea n-a văzut niciodată zăpadă.'], ['We have just finished our homework.', 'Tocmai ne-am terminat temele.']],
+    [['Have you ever ... a horse?', ['ride', 'ridden', 'rode'], 1], ['She ... never been to Italy.', ['has', 'have', 'is'], 0], ['I have ... finished. (tocmai)', ['yet', 'ever', 'just'], 2]]],
+  ['w5pastcontinuous', 5, 'Story Teller', 'Trecutul continuu', [['I was reading when the phone rang.', 'Citeam când a sunat telefonul.'], ['They were playing football at 5 o\'clock.', 'Jucau fotbal la ora cinci.'], ['What were you doing last night?', 'Ce făceai aseară?'], ['It was raining, so we stayed home.', 'Ploua, așa că am stat acasă.']],
+    [['I ... sleeping when you called.', ['am', 'was', 'were'], 1], ['They were ... TV at 8.', ['watching', 'watched', 'watch'], 0], ['While she was cooking, the cat ... in.', ['was come', 'comes', 'came'], 2]]],
+  ['w5firstconditional', 5, 'If-Then Thinker', 'Condiționalul I', [['If it rains, we will stay at home.', 'Dacă plouă, vom sta acasă.'], ['If you study, you will pass the test.', 'Dacă înveți, vei trece testul.'], ['I will call you if I have time.', 'Te sun dacă am timp.'], ['What will you do if you win?', 'Ce vei face dacă câștigi?']],
+    [['If it ... sunny, we will go out.', ['will be', 'is', 'was'], 1], ['If you eat too much, you ... sick.', ['will feel', 'feel', 'felt'], 0], ['I will help you if you ... me.', ['will ask', 'asked', 'ask'], 2]]],
+  ['w5modals', 5, 'Rule Keeper', 'Should / Must / Mustn\'t', [['You should drink more water.', 'Ar trebui să bei mai multă apă.'], ['You must wear a helmet.', 'Trebuie să porți cască.'], ['You mustn\'t talk during the test.', 'Nu ai voie să vorbești la test.'], ['You don\'t have to come early.', 'Nu e obligatoriu să vii devreme.']],
+    [['You ... run near the pool. It\'s dangerous!', ['must', 'mustn\'t', 'should'], 1], ['You look tired. You ... go to bed.', ['should', 'mustn\'t', 'don\'t'], 0], ['It\'s free — you ... pay.', ['mustn\'t', 'must', 'don\'t have to'], 2]]],
+  ['w5superlatives', 5, 'Record Breaker', 'Superlativul', [['The cheetah is the fastest animal.', 'Ghepardul e cel mai rapid animal.'], ['This is the most beautiful place!', 'Acesta e cel mai frumos loc!'], ['Mount Everest is the highest mountain.', 'Everest e cel mai înalt munte.'], ['That was the best day ever!', 'A fost cea mai bună zi!']],
+    [['The blue whale is the ... animal.', ['bigger', 'biggest', 'most big'], 1], ['It\'s the ... film I\'ve seen.', ['worst', 'baddest', 'worse'], 0], ['She is the ... student in class. (inteligent)', ['intelligentest', 'more intelligent', 'most intelligent'], 2]]],
+
+  ['w6secondconditional', 6, 'Dream Builder', 'Condiționalul II', [['If I had a million dollars, I would buy an island.', 'Dacă aș avea un milion, aș cumpăra o insulă.'], ['If I were you, I would study more.', 'Dacă aș fi în locul tău, aș învăța mai mult.'], ['What would you do if you could fly?', 'Ce ai face dacă ai putea zbura?'], ['She would travel if she had time.', 'Ar călători dacă ar avea timp.']],
+    [['If I ... a dog, I would walk it every day.', ['have', 'had', 'will have'], 1], ['If I were you, I ... apologise.', ['would', 'will', 'am'], 0], ['If I ... you, I would say yes.', ['am', 'was being', 'were'], 2]]],
+  ['w6passive', 6, 'Passive Pro', 'Diateza pasivă', [['English is spoken all over the world.', 'Engleza e vorbită în toată lumea.'], ['The Mona Lisa was painted by Leonardo da Vinci.', 'Mona Lisa a fost pictată de Leonardo da Vinci.'], ['The windows are cleaned every week.', 'Geamurile sunt spălate săptămânal.'], ['This app was made for Fluentopia students.', 'Aplicația asta a fost făcută pentru elevii Fluentopia.']],
+    [['The cake ... by my mum yesterday.', ['is made', 'was made', 'made'], 1], ['Paper ... from wood.', ['is made', 'makes', 'was make'], 0], ['These books ... in 1990.', ['were write', 'wrote', 'were written'], 2]]],
+  ['w6usedto', 6, 'Memory Keeper', 'Used to', [['I used to be afraid of the dark.', 'Înainte îmi era frică de întuneric.'], ['We used to live in a small town.', 'Locuiam pe vremuri într-un oraș mic.'], ['Did you use to play with toys?', 'Obișnuiai să te joci cu jucării?'], ['He didn\'t use to like vegetables.', 'Înainte nu-i plăceau legumele.']],
+    [['I ... to have long hair.', ['use', 'used', 'using'], 1], ['Did you ... to live here?', ['use', 'used', 'using'], 0], ['She ... use to like coffee.', ['wasn\'t', 'doesn\'t', 'didn\'t'], 2]]],
+  ['w6reported', 6, 'Message Messenger', 'Vorbirea indirectă', [['"I am tired." → She said she was tired.', '„Sunt obosită." → A spus că era obosită.'], ['"I like pizza." → He said he liked pizza.', '„Îmi place pizza." → A spus că îi plăcea pizza.'], ['"We will come." → They said they would come.', '„Vom veni." → Au spus că vor veni.'], ['She told me to sit down.', 'Mi-a spus să mă așez.']],
+    [['"I am happy." → He said he ... happy.', ['is', 'was', 'be'], 1], ['"I will help." → She said she ... help.', ['would', 'will', 'can'], 0], ['"We like it." → They said they ... it.', ['like', 'likes', 'liked'], 2]]],
+  ['w6phrasal', 6, 'Phrasal Phenom', 'Phrasal verbs', [['Please turn off the lights.', 'Te rog stinge luminile.'], ['I get up at seven.', 'Mă trezesc la șapte.'], ['Don\'t give up — you can do it!', 'Nu renunța — poți!'], ['Can you look after my cat?', 'Poți să ai grijă de pisica mea?']],
+    [['„A renunța" is...', ['give in', 'give up', 'give out'], 1], ['„A avea grijă de" is...', ['look after', 'look up', 'look out'], 0], ['Please ... off your phone.', ['take', 'get', 'turn'], 2]]],
+];
+const PET_LESSONS = PET_LESSONS_RAW.map(([id, lvl, skill, title, lines, qs]) => ({ id, lvl, skill, title, lines, qs }));
+const PET_LESSON_DAILY_REWARDS = 2, PET_DUEL_DAILY_REWARDS = 3;
+const PET_DUEL_ACCURACY = [0, 0.5, 0.62, 0.74, 0.84];                  // cât de „deștept" e Aura Buddy în duel, pe etape (pui → adult)
+function petSpeak(text) {
+  try {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, ''));
+    u.lang = 'en-GB'; u.rate = 0.88; u.pitch = 1.35;
+    const v = window.speechSynthesis.getVoices().find(x => /en[-_]GB/i.test(x.lang)) || window.speechSynthesis.getVoices().find(x => /^en/i.test(x.lang));
+    if (v) u.voice = v;
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
+function petQuestionPool(level) {
+  const lessonQs = PET_LESSONS.filter(l => l.lvl <= level).flatMap(l => l.qs.map(q => ({ q: q[0], opts: q[1], ok: q[2], from: l.title })));
+  const vocab = WORD_BANK.filter(w => !w.level || w.level <= Math.min(3, level)).map(w => w);
+  const vocabQs = shuffleArr(vocab).slice(0, 25).map(w => {
+    const opts = shuffleArr([w.en, ...shuffleArr(vocab.filter(x => x.en !== w.en)).slice(0, 2).map(x => x.en)]);
+    return { q: `${w.emoji || ''} „${w.ro}" in English is...`, opts, ok: opts.indexOf(w.en), from: 'Vocabulary' };
+  });
+  return [...lessonQs, ...vocabQs];
+}
+
+function PetSchool({ mode, pet, species, stage, level, filter, lessonsDoneIds, lessonRewardsLeft, duelRewardsLeft, onLessonDone, onDuelDone, onClose }) {
+  const name = pet.name || species.name;
+  const img = species.stages[stage];
+  const [talk, setTalk] = React.useState(false);
+  const speak = (t) => { petSpeak(t); setTalk(true); setTimeout(() => setTalk(false), 1400); };
+  // ---- lecție ----
+  const levelLessons = PET_LESSONS.filter(l => l.lvl === level);
+  const pickLesson = () => levelLessons.find(l => !lessonsDoneIds.includes(l.id)) || shuffleArr(PET_LESSONS.filter(l => l.lvl <= level))[0];
+  const [lesson, setLesson] = React.useState(() => (mode === 'lesson' ? pickLesson() : null));
+  const [lineIdx, setLineIdx] = React.useState(0);
+  const [phase, setPhase] = React.useState(mode === 'lesson' ? 'read' : 'duel');
+  const [qIdx, setQIdx] = React.useState(0);
+  const [correct, setCorrect] = React.useState(0);
+  const [picked, setPicked] = React.useState(null);
+  React.useEffect(() => { if (phase === 'read' && lesson) speak(lesson.lines[lineIdx][0]); }, [lineIdx, phase]);
+  // ---- duel ----
+  const [duelQs] = React.useState(() => (mode === 'duel' ? shuffleArr(petQuestionPool(level)).slice(0, 9) : []));
+  const [dIdx, setDIdx] = React.useState(0);
+  const [score, setScore] = React.useState({ me: 0, pet: 0 });
+  const [dState, setDState] = React.useState(null);                   // null | {by:'me'|'pet', right, pick}
+  const [buzz, setBuzz] = React.useState(0);                          // 0..100: bara lui Aura Buddy care „se gândește"
+  const [duelOver, setDuelOver] = React.useState(false);
+  const acc = PET_DUEL_ACCURACY[Math.max(1, Math.min(4, stage))];
+  const TARGET = 4;
+  React.useEffect(() => {
+    if (mode !== 'duel' || duelOver || dState) return;
+    const think = 4200 + Math.random() * 3500 - level * 250;
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      const pct = Math.min(100, ((Date.now() - t0) / think) * 100);
+      setBuzz(pct);
+      if (pct >= 100) {
+        clearInterval(iv);
+        const q = duelQs[dIdx]; const right = Math.random() < acc;
+        const pick = right ? q.ok : [0, 1, 2].filter(i => i !== q.ok)[Math.floor(Math.random() * 2)];
+        resolve('pet', right, pick);
+      }
+    }, 80);
+    return () => clearInterval(iv);
+  }, [dIdx, dState, duelOver]);
+  function resolve(by, right, pick) {
+    if (dState || duelOver) return;
+    const n = { ...score };
+    if (by === 'me') { if (right) n.me++; else n.pet++; } else { if (right) n.pet++; else n.me++; }
+    setScore(n); setDState({ by, right, pick });
+    if (by === 'pet') playPetSound(right ? 'yay' : 'cry'); else playPetSound(right ? 'pop' : 'boing');
+    if (n.me >= TARGET || n.pet >= TARGET || dIdx + 1 >= duelQs.length) {
+      setTimeout(() => { setDuelOver(true); onDuelDone(n.me > n.pet); speak(n.me > n.pet ? 'Well done! You beat me!' : 'I won this time! Try again!'); }, 1400);
+    }
+  }
+  const nextDuelQ = () => { setDState(null); setBuzz(0); setDIdx(i => i + 1); };
+
+  const card = { color: '#fff', fontFamily: 'inherit', background: '#151225', border: `1px solid ${species.color}55`, borderRadius: 22, padding: 20, width: '100%', maxWidth: 440, maxHeight: '92vh', overflowY: 'auto', boxShadow: `0 20px 60px ${species.color}33` };
+  const petPic = (
+    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+      <img src={img} alt={name} style={{ width: 120, height: 120, objectFit: 'contain', filter: filter || 'none', transformOrigin: '50% 95%', animation: talk ? 'lpChomp 1.3s ease-in-out' : 'lpBreathe 3.2s ease-in-out infinite' }} />
+    </div>
+  );
+  const optBtn = (label, onClick, state) => (
+    <button key={label} onClick={onClick} disabled={state !== undefined} style={{
+      width: '100%', padding: '11px 12px', borderRadius: 12, marginBottom: 8, fontSize: 14, fontWeight: 700, textAlign: 'left', cursor: state === undefined ? 'pointer' : 'default',
+      border: state === 'ok' ? '2px solid #4ADE80' : state === 'bad' ? '2px solid #F87171' : '1px solid #2E2850',
+      background: state === 'ok' ? 'rgba(74,222,128,0.15)' : state === 'bad' ? 'rgba(248,113,113,0.15)' : '#0F0C1C', color: '#fff',
+    }}>{label}</button>
+  );
+
+  let body;
+  if (mode === 'lesson' && lesson) {
+    if (phase === 'read') {
+      const [en, ro] = lesson.lines[lineIdx];
+      body = (<>
+        <div style={{ textAlign: 'center', fontSize: 12, color: '#A9A5C4' }}>📖 {name} îți citește · Nivel W{lesson.lvl} · {lineIdx + 1}/{lesson.lines.length}</div>
+        <div style={{ textAlign: 'center', fontSize: 17, fontWeight: 800, margin: '4px 0 10px' }}>{lesson.title}</div>
+        {petPic}
+        <div style={{ background: '#fff', color: '#1A1530', borderRadius: 16, padding: '14px 16px', textAlign: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>🇬🇧 {en}</div>
+          <div style={{ fontSize: 13, color: '#5B4E9A', marginTop: 6 }}>🇷🇴 {ro}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => speak(en)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #3A3360', background: '#15122A', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>🔊 Încă o dată</button>
+          <button onClick={() => (lineIdx + 1 < lesson.lines.length ? setLineIdx(lineIdx + 1) : (setPhase('quiz'), speak('Now, a little quiz!')))} style={{ flex: 2, padding: '10px 0', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>{lineIdx + 1 < lesson.lines.length ? 'Mai departe ➜' : 'La quiz! ✏️'}</button>
+        </div>
+      </>);
+    } else if (phase === 'quiz') {
+      const [qq, opts, ok] = lesson.qs[qIdx];
+      body = (<>
+        <div style={{ textAlign: 'center', fontSize: 12, color: '#A9A5C4' }}>✏️ Quiz · întrebarea {qIdx + 1}/{lesson.qs.length}</div>
+        {petPic}
+        <div style={{ fontSize: 17, fontWeight: 800, textAlign: 'center', margin: '4px 0 14px' }}>{qq}</div>
+        {opts.map((o, i) => optBtn(o, () => {
+          setPicked(i); const good = i === ok; if (good) setCorrect(c => c + 1);
+          playPetSound(good ? 'yay' : 'boing'); speak(good ? 'Correct!' : 'Oops! The answer is ' + opts[ok]);
+          setTimeout(() => { setPicked(null); if (qIdx + 1 < lesson.qs.length) setQIdx(qIdx + 1); else { setPhase('done'); onLessonDone(lesson, correct + (good ? 1 : 0)); } }, 1500);
+        }, picked === null ? undefined : i === ok ? 'ok' : i === picked ? 'bad' : 'idle'))}
+      </>);
+    } else {
+      const total = lesson.qs.length;
+      body = (<>
+        {petPic}
+        <div style={{ textAlign: 'center', fontSize: 20, fontWeight: 900 }}>{correct === total ? '🌟 Perfect!' : correct >= 2 ? '🎉 Bravo!' : '💪 Mai încercăm!'}</div>
+        <div style={{ textAlign: 'center', fontSize: 14, color: '#C7C8E0', margin: '6px 0 12px' }}>Ai răspuns corect la {correct} din {total}.</div>
+        {correct >= 2 ? (
+          <div style={{ background: `${species.color}22`, border: `1px solid ${species.color}66`, borderRadius: 14, padding: 12, textAlign: 'center', fontSize: 13 }}>
+            🧠 {name} a învățat skill-ul <b>{lesson.skill}</b>!{lessonRewardsLeft > 0 ? <><br />+5 creștere · +3 puncte</> : <><br /><span style={{ color: '#8A86A8' }}>(recompensele de azi s-au terminat — mâine primești iar)</span></>}
+          </div>
+        ) : <div style={{ textAlign: 'center', fontSize: 12.5, color: '#A9A5C4' }}>Ai nevoie de cel puțin 2 răspunsuri corecte ca {name} să învețe skill-ul. Mai încearcă!</div>}
+        <button onClick={onClose} style={{ marginTop: 14, width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Gata</button>
+      </>);
+    }
+  } else if (mode === 'duel') {
+    const q = duelQs[dIdx];
+    body = duelOver ? (<>
+      {petPic}
+      <div style={{ textAlign: 'center', fontSize: 22, fontWeight: 900 }}>{score.me > score.pet ? '🏆 Ai câștigat!' : '🐾 A câștigat ' + name + '!'}</div>
+      <div style={{ textAlign: 'center', fontSize: 15, margin: '6px 0 12px' }}>Tu {score.me} — {score.pet} {name}</div>
+      {score.me > score.pet && <div style={{ textAlign: 'center', fontSize: 13, color: '#4ADE80' }}>{duelRewardsLeft > 0 ? '+3 puncte · +2 creștere pentru ' + name : 'Recompensele de duel de azi s-au terminat — dar ai câștigat onoarea! 😎'}</div>}
+      <button onClick={onClose} style={{ marginTop: 14, width: '100%', padding: '11px 0', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Gata</button>
+    </>) : q ? (<>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 900, fontSize: 18 }}>
+        <span>🧒 Tu: {score.me}</span><span style={{ fontSize: 11, color: '#A9A5C4' }}>primul la {TARGET}</span><span style={{ color: species.color }}>{name}: {score.pet}</span>
+      </div>
+      {petPic}
+      <div style={{ height: 8, borderRadius: 999, background: '#221D3A', overflow: 'hidden', marginBottom: 6 }}><div style={{ width: `${dState ? 100 : buzz}%`, height: '100%', background: `linear-gradient(90deg, ${species.color}, #F87171)` }} /></div>
+      <div style={{ fontSize: 11, color: '#A9A5C4', textAlign: 'center', marginBottom: 10 }}>{dState ? (dState.by === 'pet' ? `${name} a răspuns primul — ${dState.right ? 'corect! 😼' : 'greșit! 😅'}` : dState.right ? 'Corect! +1 pentru tine ⭐' : `Greșit — punct pentru ${name}`) : `${name} se gândește... răspunde înaintea lui! 🤔`}</div>
+      <div style={{ fontSize: 16.5, fontWeight: 800, textAlign: 'center', margin: '4px 0 12px' }}>{q.q}</div>
+      {q.opts.map((o, i) => optBtn(o, () => resolve('me', i === q.ok, i), !dState ? undefined : i === q.ok ? 'ok' : i === dState.pick ? 'bad' : 'idle'))}
+      {dState && !duelOver && <button onClick={nextDuelQ} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Următoarea ➜</button>}
+    </>) : null;
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,6,16,0.88)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
+      <style>{PET_ANIM_CSS}</style>
+      <div style={card}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} onClose(); }} style={{ border: 'none', background: 'transparent', color: '#8A86A8', fontSize: 20, cursor: 'pointer' }}>✕</button></div>
+        {body}
+      </div>
     </div>
   );
 }
@@ -7054,7 +7290,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, onClaimBinder, onUsePetItem, onPetPatch, onPetOverfed, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, onClaimBinder, onUsePetItem, onPetPatch, onPetOverfed, onPetLesson, onPetDuel, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   useEffect(() => {                                              // Aura Buddy: se ascunde în ou după 3 zile fără masă; boala trece singură după 3 zile
     if (isParentView || !onPetPatch) return;
@@ -7063,6 +7299,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
       else if (p.sick && !petIsSick(p)) onPetPatch(p.id, { sick: null });
     });
   }, [student.pets]);
+  const [petSchool, setPetSchool] = useState(null);              // { mode: 'lesson' | 'duel', petId }
   const [newParentPin, setNewParentPin] = useState('');
   const [expandedArticle, setExpandedArticle] = useState(null);
   const [articleLang, setArticleLang] = useState('ro');
@@ -8087,6 +8324,48 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                     </div>
                   </div>
 
+                  {(() => {
+                    const myClassP = (classes || []).find(c => c.id === student.classId);
+                    const lvl = worldLevelOf(myClassP?.level).filterLevel || 1;
+                    const today = todayStr();
+                    const lessonLeft = PET_LESSON_DAILY_REWARDS - (student.petLessonDay && student.petLessonDay.date === today ? student.petLessonDay.n : 0);
+                    const duelLeft = PET_DUEL_DAILY_REWARDS - (student.petDuelDay && student.petDuelDay.date === today ? student.petDuelDay.n : 0);
+                    const canLearn = stage > 0 && !pet.hibernating && !isParentView;
+                    const doneAtLvl = PET_LESSONS.filter(l => l.lvl === lvl && (student.petLessonsDone || []).includes(l.id)).length;
+                    const totalAtLvl = PET_LESSONS.filter(l => l.lvl === lvl).length;
+                    return (
+                      <div style={{ marginBottom: 20, background: 'linear-gradient(160deg, rgba(56,189,248,0.14), #151225 60%)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: 16, padding: 14 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 4 }}>🎓 Școala lui {pet.name || species.name}</div>
+                        <div style={{ fontSize: 11, color: '#A9A5C4', marginBottom: 10, lineHeight: 1.5 }}>
+                          {pet.name || species.name} îți citește lecții de engleză pe nivelul tău (W{lvl}) și te provoacă la duel. Tu înveți, el câștigă skill-uri! / Learn English with your buddy.
+                          <br />Lecții W{lvl}: {doneAtLvl}/{totalAtLvl} · Recompense azi: lecții {Math.max(0, lessonLeft)}/{PET_LESSON_DAILY_REWARDS}, dueluri {Math.max(0, duelLeft)}/{PET_DUEL_DAILY_REWARDS}
+                        </div>
+                        {canLearn ? (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button onClick={() => setPetSchool({ mode: 'lesson', petId: pet.id })} style={{ flex: 1, minWidth: 130, padding: '11px 10px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #38BDF8, #6366F1)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>📖 Lecția cu {pet.name || species.name}</button>
+                            <button onClick={() => setPetSchool({ mode: 'duel', petId: pet.id })} style={{ flex: 1, minWidth: 130, padding: '11px 10px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>⚔️ Duel: tu vs {pet.name || species.name}</button>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: '#6E6A8C' }}>{isParentView ? 'Lecțiile le face elevul din contul lui.' : pet.hibernating ? 'Întâi trezește-l din ou 🥚' : 'Trebuie să iasă din ou ca să poată învăța 🥚'}</div>
+                        )}
+                        {(pet.skills || []).length > 0 && (
+                          <div style={{ marginTop: 12 }}>
+                            <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 6 }}>🧠 Skill-uri învățate ({pet.skills.length})</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {pet.skills.map(sk => <span key={sk} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999, background: `${species.color}22`, border: `1px solid ${species.color}66` }}>{sk}</span>)}
+                            </div>
+                          </div>
+                        )}
+                        {petSchool && petSchool.petId === pet.id && (
+                          <PetSchool mode={petSchool.mode} pet={pet} species={species} stage={stage} level={lvl} filter={filter}
+                            lessonsDoneIds={student.petLessonsDone || []} lessonRewardsLeft={lessonLeft} duelRewardsLeft={duelLeft}
+                            onLessonDone={(lesson, c) => onPetLesson && onPetLesson(pet.id, lesson, c)} onDuelDone={won => onPetDuel && onPetDuel(pet.id, won)}
+                            onClose={() => setPetSchool(null)} />
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {!isParentView && (() => {
                     const bag = (student.stickers || []).filter(e => !e.used && (STICKERS.find(x => x.id === e.stickerId) || {}).petItem);
                     const grouped = {}; bag.forEach(e => { (grouped[e.stickerId] = grouped[e.stickerId] || []).push(e); });
@@ -8903,10 +9182,24 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             'Abțibildurile pe care le ai le vezi în „Sticker Chart".',
           ] },
           { icon: '🐣', img: 'egg', title: 'Aura Buddy', steps: [
-            'E un animăluț magic, doar al tău.',
-            'În fiecare zi, apasă „Hrănește" o dată.',
-            'Cu cât îl hrănești mai des, cu atât crește mai repede.',
-            'Are 5 etape — poate ajunge foarte mare!',
+            'E un animăluț magic, doar al tău. Are 5 etape: Ou → Pui → Copil → Adolescent → Adult.',
+            'În fiecare zi apasă „🍲 Masa zilei" o dată: +5 creștere și +2 puncte.',
+            'Atinge-l ca să-l mângâi. 5 atingeri rapide = dans! „🎵 Joacă-te" îl face să danseze, iar „💬 Sfat / Tip" îți spune un sfat, în română și engleză.',
+            'Gustările (🍎🍓🍪...) sunt gratuite, dar nu exagera: după 10 pe zi îl doare burtica 🤢 și nu mai crește până se vindecă (cu o pastilă sau singur, după 3 zile).',
+            'Dacă nu-i dai masa zilei 3 zile, se ascunde trist înapoi în ou 🥚😢. Nu pierde nimic! Îl trezești cu 3 mese la rând sau cu Poțiunea Trezirii.',
+            'Dacă fericirea lui scade mult, plânge 😢 — hrănește-l și joacă-te cu el.',
+            'Noaptea (22:00–7:00) doarme. Îl poți trezi atingându-l.',
+          ] },
+          { icon: '🎓', img: 'exam_prep', title: 'Școala lui Aura Buddy', steps: [
+            '„📖 Lecția": Aura Buddy îți citește cu voce tare o mini-lecție de engleză pe nivelul tău, apoi îți dă un quiz de 3 întrebări.',
+            'Dacă răspunzi corect la cel puțin 2, el învață un skill nou 🧠, iar tu primești +3 puncte și el +5 creștere (de 2 ori pe zi).',
+            '„⚔️ Duel": tu și Aura Buddy răspundeți la aceleași întrebări. El se gândește — răspunde înaintea lui! Primul la 4 puncte câștigă.',
+            'Dacă câștigi duelul: +3 puncte și +2 creștere (de 3 ori pe zi). Cu cât e mai mare, cu atât e mai greu de bătut!',
+          ] },
+          { icon: '🎒', img: 'medal', title: 'Rucsacul și Clasorul Aura Buddy', steps: [
+            'În Catalog, la „🐾 Clasorul Aura Buddy", găsești pastile, poțiuni și surprize pentru animăluțul tău.',
+            'Le folosești din 🎒 Rucsacul din tab-ul Aura Buddy: vindecă burtica, îl trezesc din ou, îl fac fericit, îl ajută să crească sau îi dau blană curcubeu ✨.',
+            'Obiectele folosite rămân în clasor. Strânge câte unul din fiecare și primești trofeul clasorului!',
           ] },
           { icon: '🎡', img: 'spin', title: 'Roata Norocului', steps: [
             'Ai un spin gratuit în fiecare săptămână.',
@@ -13974,7 +14267,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.175';
+const APP_VERSION = 'v2.176';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -15290,6 +15583,44 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
+  function handlePetLesson(petId, lesson, correctCount) {        // lecția citită de Aura Buddy: skill nou + recompensă (max 2/zi)
+    if (isParentSession) return;
+    const today = todayStr();
+    const next = students.map(s => {
+      if (s.id !== loggedInStudentId) return s;
+      const day = s.petLessonDay && s.petLessonDay.date === today ? s.petLessonDay : { date: today, n: 0 };
+      const passed = correctCount >= 2;
+      const reward = passed && day.n < PET_LESSON_DAILY_REWARDS;
+      const pets = (s.pets || []).map(p => p.id !== petId ? p : {
+        ...p, growth: (p.growth || 0) + (reward ? 5 : 0),
+        skills: passed ? Array.from(new Set([...(p.skills || []), lesson.skill])) : (p.skills || []),
+      });
+      return {
+        ...s, pets,
+        petLessonsDone: passed ? Array.from(new Set([...(s.petLessonsDone || []), lesson.id])) : (s.petLessonsDone || []),
+        petLessonDay: reward ? { date: today, n: day.n + 1 } : day,
+        points: s.points + (reward ? 3 : 0),
+        pointsLog: reward ? [{ id: uid(), delta: 3, reason: `Lecție Aura Buddy: ${lesson.title}`, date: new Date().toISOString() }, ...(s.pointsLog || [])] : (s.pointsLog || []),
+      };
+    });
+    persistStudentsLocal(next, students);
+  }
+  function handlePetDuel(petId, won) {                           // duel de întrebări cu Aura Buddy: câștig = +3 puncte, +2 creștere (max 3/zi)
+    if (isParentSession || !won) return;
+    const today = todayStr();
+    const next = students.map(s => {
+      if (s.id !== loggedInStudentId) return s;
+      const day = s.petDuelDay && s.petDuelDay.date === today ? s.petDuelDay : { date: today, n: 0 };
+      if (day.n >= PET_DUEL_DAILY_REWARDS) return s;
+      return {
+        ...s, petDuelDay: { date: today, n: day.n + 1 },
+        pets: (s.pets || []).map(p => p.id === petId ? { ...p, growth: (p.growth || 0) + 2 } : p),
+        points: s.points + 3,
+        pointsLog: [{ id: uid(), delta: 3, reason: 'Duel câștigat cu Aura Buddy', date: new Date().toISOString() }, ...(s.pointsLog || [])],
+      };
+    });
+    persistStudentsLocal(next, students);
+  }
   function handlePetPatch(petId, patch) {                           // schimbări automate de stare (ascuns în ou, boală trecută) — nu în vizualizarea părintelui
     if (isParentSession) return;
     updatePet(petId, p => ({ ...p, ...patch }));
@@ -16166,7 +16497,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} onClaimBinder={handleClaimBinder} onUsePetItem={handleUsePetItem} onPetPatch={handlePetPatch} onPetOverfed={handlePetOverfed} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} onClaimBinder={handleClaimBinder} onUsePetItem={handleUsePetItem} onPetPatch={handlePetPatch} onPetOverfed={handlePetOverfed} onPetLesson={handlePetLesson} onPetDuel={handlePetDuel} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

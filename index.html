@@ -403,6 +403,17 @@ function isBirthdayToday(student) {
   const d = new Date();
   return (d.getMonth() + 1) === student.birthdayMonth && d.getDate() === student.birthdayDay;
 }
+function daysUntilBirthday(student, from) {                      // câte zile până la ziua elevului (0 = azi), sau null dacă nu are dată setată — ține cont de trecerea peste sfârșitul anului
+  if (!student.birthdayMonth || !student.birthdayDay) return null;
+  const d0 = from || new Date(); const y = d0.getFullYear();
+  const mk = yr => new Date(yr, student.birthdayMonth - 1, student.birthdayDay);
+  const today = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate());
+  let next = mk(y); if (next < today) next = mk(y + 1);
+  return Math.round((next - today) / 86400000);
+}
+function upcomingBirthdays(students, daysAhead) {                 // elevii cu ziua azi sau în următoarele N zile, sortați după apropiere — pentru atenționarea din consola profesorului
+  return students.map(s => ({ s, days: daysUntilBirthday(s) })).filter(x => x.days !== null && x.days <= daysAhead).sort((a, b) => a.days - b.days);
+}
 const BIRTHDAY_BONUS = 300;
 /* ---------- Bank Fluentopia (loans with interest) ---------- */
 const LOAN_MAX = 500;
@@ -9101,6 +9112,11 @@ function TeacherApp({ onExit, teacherName }) {
     return unsub;
   }, []);
   const [activeClassId, setActiveClassId] = useState('c1');
+  const [dismissedBdayToday, setDismissedBdayToday] = useState(() => { try { return localStorage.getItem('fluentopia-bday-dismissed') === todayStr(); } catch (e) { return false; } });
+  const birthdaysUpcoming = upcomingBirthdays(students, 7);                    // azi + următoarele 7 zile, din toate clasele
+  const birthdaysToday = birthdaysUpcoming.filter(x => x.days === 0);
+  const birthdaysSoon = birthdaysUpcoming.filter(x => x.days > 0);
+  function dismissBdayBanner() { setDismissedBdayToday(true); try { localStorage.setItem('fluentopia-bday-dismissed', todayStr()); } catch (e) {} }
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [editingStudentName, setEditingStudentName] = useState(false);
   const [studentNameDraft, setStudentNameDraft] = useState('');
@@ -9183,11 +9199,13 @@ function TeacherApp({ onExit, teacherName }) {
   const waitYtPlayerRef = useRef(null);
   const waitBellPlayerRef = useRef(null);
   const djBellPlayerRef = useRef(null);
-  function createAudioFilePlayer(src, volume, startSeconds) {   // "player" cu aceeași interfață ca YT.Player (setVolume/playVideo/seekTo/destroy), dar pentru fișiere mp3 proprii, fără reclame
+  function createAudioFilePlayer(src, volume, startSeconds, onMissing) {   // "player" cu aceeași interfață ca YT.Player (setVolume/playVideo/seekTo/destroy), dar pentru fișiere mp3 proprii, fără reclame. onMissing() se cheamă o singură dată dacă fișierul chiar lipsește pe server (404) — ca să putem trece mai departe, în loc să rămânem blocați pe o piesă mută
     const audio = new Audio(src);
     audio.volume = Math.max(0, Math.min(1, (volume || 0) / 100));
     audio.currentTime = startSeconds || 0;
+    let reported = false;
     audio.addEventListener('ended', () => { audio.currentTime = startSeconds || 0; audio.play().catch(() => {}); });
+    audio.addEventListener('error', () => { if (!reported) { reported = true; console.error('Fișier audio negăsit:', src); if (onMissing) onMissing(); } });
     audio.play().catch(() => {});
     return {
       setVolume: v => { audio.volume = Math.max(0, Math.min(1, v / 100)); },
@@ -9204,7 +9222,9 @@ function TeacherApp({ onExit, teacherName }) {
       return;
     }
     if (currentTrack.file) {                                     // fișier mp3 propriu, fără reclame — nu trece deloc prin YouTube
-      const player = createAudioFilePlayer(currentTrack.file, waitMusicVolume, currentTrack.start || 0);
+      const player = createAudioFilePlayer(currentTrack.file, waitMusicVolume, currentTrack.start || 0, () => {
+        if (musicTracks.length > 1) { const i = musicTracks.findIndex(t => t.id === waitMusicTrack); setWaitMusicTrack(musicTracks[(i + 1) % musicTracks.length].id); }
+      });
       waitYtPlayerRef.current = player;
       return () => { try { player.destroy(); } catch (e) {} if (waitYtPlayerRef.current === player) waitYtPlayerRef.current = null; };
     }
@@ -9374,7 +9394,9 @@ function TeacherApp({ onExit, teacherName }) {
       return;
     }
     if (currentTrack.file) {                                     // fișier mp3 propriu, fără reclame
-      const player = createAudioFilePlayer(currentTrack.file, djBgMusicVolume, currentTrack.start || 0);
+      const player = createAudioFilePlayer(currentTrack.file, djBgMusicVolume, currentTrack.start || 0, () => {
+        if (musicTracks.length > 1) { const i = musicTracks.findIndex(t => t.id === djBgMusicTrack); setDjBgMusicTrack(musicTracks[(i + 1) % musicTracks.length].id); }
+      });
       djBgYtPlayerRef.current = player;
       return () => { try { player.destroy(); } catch (e) {} if (djBgYtPlayerRef.current === player) djBgYtPlayerRef.current = null; };
     }
@@ -10259,6 +10281,20 @@ function TeacherApp({ onExit, teacherName }) {
 
       <div style={{ flex: 1, display: 'flex', minWidth: 320 }}>
         <div style={{ width: selectedStudent ? 320 : '100%', borderRight: selectedStudent ? '1px solid #221D3A' : 'none', padding: 24, overflowY: 'auto', flexShrink: 0 }} className="scrollbar">
+          {(birthdaysToday.length > 0 || (birthdaysSoon.length > 0 && !dismissedBdayToday)) && (
+            <div style={{ position: 'relative', marginBottom: 16, padding: '12px 16px', borderRadius: 14, background: birthdaysToday.length ? 'linear-gradient(135deg, rgba(236,30,143,0.18), rgba(245,197,66,0.12))' : '#151225', border: birthdaysToday.length ? '1px solid rgba(236,30,143,0.45)' : '1px solid #2E2850' }}>
+              <button onClick={dismissBdayBanner} style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', color: '#8A86A8', cursor: 'pointer' }}><IX size={13}/></button>
+              {birthdaysToday.length > 0 && (
+                <div style={{ marginBottom: birthdaysSoon.length ? 8 : 0 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 800, color: '#F5C542' }}>🎂 Azi {birthdaysToday.length === 1 ? 'e ziua lui' : 'sunt zilele de naștere ale:'} {birthdaysToday.map(x => x.s.name).join(', ')}!</span>
+                  <span style={{ fontSize: 11.5, color: '#C7C8E0', marginLeft: 6 }}>Nu uita de „🎉 Birthday Party" din profilul {birthdaysToday.length === 1 ? 'lui' : ''}.</span>
+                </div>
+              )}
+              {birthdaysSoon.length > 0 && (
+                <div style={{ fontSize: 11.5, color: '#A5A2C0' }}>🎈 În curând: {birthdaysSoon.map(x => `${x.s.name} (peste ${x.days} ${x.days === 1 ? 'zi' : 'zile'})`).join(' · ')}</div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{classes.find(c => c.id === activeClassId)?.name}</h1>
             <button onClick={() => setShowAddStudent(true)} style={{
@@ -11515,6 +11551,37 @@ function TeacherApp({ onExit, teacherName }) {
                   <StatBox value={totalPoints.toLocaleString('ro-RO')} label="Puncte totale acordate" color="#4ADE80" />
                   <StatBox value={`${totalLei} lei`} label="Economisiți din recomandări" color="#4ADE80" />
                 </div>
+              </Section>
+
+              <Section icon="⛏️" title="Minerit zilnic — părinți" color="#F5C542">
+                {(() => {
+                  const testClassIds = classes.filter(c => c.name === 'Test').map(c => c.id);
+                  const eligible = students.filter(s => !testClassIds.includes(s.classId));
+                  const today = new Date().toDateString();
+                  const minedToday = eligible.filter(s => s.parentLastMineDate === today);
+                  const everMined = eligible.filter(s => !!s.parentLastMineDate);
+                  return (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 }}>
+                        <StatBox value={minedToday.length} label="Părinți care minează azi" color="#F5C542" />
+                        <StatBox value={everMined.length} label="Părinți care au minat vreodată" color="#F5C542" />
+                      </div>
+                      <div style={{ fontSize: 10.5, color: '#6E6A8C', marginBottom: everMined.length ? 8 : 0 }}>Doar tendința generală — nu urmărim ora exactă a clickului, ca la statisticile de conectare.</div>
+                      {everMined.length > 0 && (
+                        <details>
+                          <summary style={{ cursor: 'pointer', fontSize: 11.5, color: '#F5C542', fontWeight: 700 }}>Vezi numele (opțional)</summary>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8, maxHeight: 160, overflowY: 'auto' }} className="scrollbar">
+                            {everMined.map(s => {
+                              const cls = classes.find(c => c.id === s.classId);
+                              const active = s.parentLastMineDate === today;
+                              return <span key={s.id} style={{ fontSize: 10.5, color: active ? '#F5C542' : '#A5A2C0', background: '#151225', border: active ? '1px solid rgba(245,197,66,0.4)' : 'none', borderRadius: 12, padding: '3px 9px' }}>{active ? '⛏️ ' : ''}{s.name}{cls ? ` · ${cls.name}` : ''}</span>;
+                            })}
+                          </div>
+                        </details>
+                      )}
+                    </>
+                  );
+                })()}
               </Section>
 
               <Section icon="👪" title="Distribuiri din Catalog Părinți" color="#25D366" onReset={async () => { if (window.confirm('Ștergi contorul de click-uri de distribuire?')) { await resetParentShareClicks(); } }}>
@@ -13079,7 +13146,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.168';
+const APP_VERSION = 'v2.169';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

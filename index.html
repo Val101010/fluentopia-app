@@ -2339,6 +2339,43 @@ function snlCellPos(n) {                                          // numărul c�
   return { row, col: leftToRight ? col : 9 - col };
 }
 function snlRollDie(seed) { return 1 + Math.floor(seededRandom(seed)() * 6); }
+/* ---------- Bingo — cartonaș 3x3, extragere live, linie doar pe verticală ---------- */
+const BINGO_CARD_PRICE = 15;
+const BINGO_LINE_REWARD = 40;
+const BINGO_FULL_REWARD = 120;
+function bingoDrawCard(words, seedExtra) {                        // 9 cuvinte unice, alese la întâmplare din lista profesorului
+  const pool = [...words];
+  const rnd = seededRandom(Date.now() % 2147483000 + (seedExtra || 0));
+  const picked = [];
+  while (picked.length < 9 && pool.length) picked.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+  return picked;
+}
+const BINGO_COLUMNS = [[0, 3, 6], [1, 4, 7], [2, 5, 8]];           // linia se face DOAR pe verticală, cum a cerut profesorul
+function bingoHasLine(crossed) { return BINGO_COLUMNS.some(col => col.every(i => crossed[i])); }
+function bingoHasFull(crossed) { return crossed.every(Boolean); }
+function listenBingo(classId, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_bingo').doc(classId).onSnapshot(doc => cb(doc.data() || null), err => console.error('bingo listen error', err));
+}
+async function saveBingo(classId, data) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_bingo').doc(classId).set(data).catch(() => {});
+}
+async function claimBingoWin(classId, kind, studentId, studentName) {   // kind: 'line' | 'full' — tranzacție atomică, primul câștigă
+  const db = getDb(); if (!db) return 'error';
+  const ref = db.collection('fluentopia_bingo').doc(classId);
+  const field = kind === 'full' ? 'bingoWinner' : 'lineWinner';
+  try {
+    return await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const data = snap.data();
+      if (!data) return 'error';
+      if (data[field]) return 'taken';
+      tx.set(ref, { ...data, [field]: { id: studentId, name: studentName } });
+      return 'won';
+    });
+  } catch (e) { console.error('claimBingoWin error', e); return 'error'; }
+}
 function listenSnakeLadder(classId, cb) {
   const db = getDb(); if (!db) return () => {};
   return db.collection('fluentopia_snakeladder').doc(classId).onSnapshot(doc => cb(doc.data() || null), err => console.error('snake&ladder listen error', err));
@@ -9517,6 +9554,10 @@ function TeacherApp({ onExit, teacherName }) {
     return unsub;
   }, [showStudentTests, activeClassId]);
   const [sidebarPresence, setSidebarPresence] = useState({});
+  const schoolOnlineCount = students.filter(s => {
+    const cls = classes.find(c => c.id === s.classId);
+    return (!cls || cls.name !== 'Test') && isOnline(sidebarPresence, s.id);
+  }).length;
   const [presenceTick, setPresenceTick] = useState(0);
   useEffect(() => {                                    // reevaluează "online acum" periodic — altfel un elev deconectat rămâne verde pe ecran până apare oricum un alt re-render
     const iv = setInterval(() => setPresenceTick(t => t + 1), 20000);
@@ -9634,12 +9675,36 @@ function TeacherApp({ onExit, teacherName }) {
   const [editSkillValue, setEditSkillValue] = useState('');
   const [editSkillEn, setEditSkillEn] = useState('');
   const [editSkillRo, setEditSkillRo] = useState('');
+  const [showBingo, setShowBingo] = useState(false);
+  const [bingoState, setBingoState] = useState(null);
+  const [bingoWordsDraft, setBingoWordsDraft] = useState('');
+  const [bingoJustDrawn, setBingoJustDrawn] = useState(null);       // ultimul cuvânt extras — arătat mare, câteva secunde
+  useEffect(() => {
+    if (!showBingo) return;
+    const unsub = listenBingo(activeClassId, setBingoState);
+    return unsub;
+  }, [showBingo, activeClassId]);
+  function bingoStartRound() {
+    const words = [...new Set(bingoWordsDraft.split('\n').map(w => w.trim()).filter(Boolean))].slice(0, 60);
+    if (words.length < 9) return;
+    saveBingo(activeClassId, { roundId: uid(), words, drawn: [], lineWinner: null, bingoWinner: null });
+    setBingoJustDrawn(null);
+  }
+  function bingoDrawNext() {
+    if (!bingoState) return;
+    const remaining = bingoState.words.filter(w => !bingoState.drawn.includes(w));
+    if (!remaining.length) return;
+    const next = remaining[Math.floor(Math.random() * remaining.length)];
+    saveBingo(activeClassId, { ...bingoState, drawn: [...bingoState.drawn, next] });
+    setBingoJustDrawn(next);
+  }
   const [showSnakeLadder, setShowSnakeLadder] = useState(false);
   const [snlState, setSnlState] = useState(null);
   const [snlLevel, setSnlLevel] = useState(3);
   const [snlPendingQ, setSnlPendingQ] = useState(null);            // { teamIdx, question } — echipa a fost întrebată, așteaptă verdictul, înainte de a arunca zarul
   const [snlRolled, setSnlRolled] = useState(null);                // { teamIdx, value, from, to, event } — rezultatul ultimei aruncări, arătat scurt pe ecran
   const [newSnlTeamName, setNewSnlTeamName] = useState('');
+  const [dragSnlTeamIdx, setDragSnlTeamIdx] = useState(null);
   useEffect(() => {
     if (!showSnakeLadder) return;
     const unsub = listenSnakeLadder(activeClassId, setSnlState);
@@ -9657,6 +9722,11 @@ function TeacherApp({ onExit, teacherName }) {
   function snlRemoveTeam(idx) {
     if (!snlState) return;
     saveSnakeLadder(activeClassId, { ...snlState, teams: snlState.teams.filter((_, i) => i !== idx), turnIdx: 0 });
+  }
+  function snlReorderTeams(fromIdx, toIdx) {
+    if (!snlState || fromIdx === toIdx) return;
+    const teams = [...snlState.teams]; const [moved] = teams.splice(fromIdx, 1); teams.splice(toIdx, 0, moved);
+    saveSnakeLadder(activeClassId, { ...snlState, teams });
   }
   function snlAsk() {
     if (!snlState || snlState.winnerIdx != null || snlState.teams.length === 0 || snlPendingQ) return;
@@ -10235,6 +10305,7 @@ function TeacherApp({ onExit, teacherName }) {
               { id: 'vocab', icon: '📚', label: 'Vocabular clasă (cufere Worldcraft)', onClick: openVocabEditor },
               { id: 'testmode', icon: '🤫', label: 'Test în desfășurare', onClick: () => setShowTestMode(true) },
               { id: 'snakeladder', icon: '🐍', label: 'Șarpe & Scară', onClick: () => setShowSnakeLadder(true) },
+              { id: 'bingo', icon: '🎱', label: 'Bingo', onClick: () => setShowBingo(true) },
             ];
             const orderedTools = toolOrder
               ? toolOrder.map(id => TEACHER_TOOLS_DEFAULT.find(t => t.id === id)).filter(Boolean).concat(TEACHER_TOOLS_DEFAULT.filter(t => !toolOrder.includes(t.id)))
@@ -11958,6 +12029,7 @@ function TeacherApp({ onExit, teacherName }) {
                     <span className="heading-font" style={{ fontSize: 17, fontWeight: 900, color: '#fff', letterSpacing: 0.5 }}>FLUENTOPIA</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span title="Elevi conectați acum în toată școala" style={{ fontSize: 12, fontWeight: 800, color: '#4ADE80', padding: '5px 12px', borderRadius: 20, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.35)' }}>🟢 {schoolOnlineCount} conectați</span>
                     {clsName && <span style={{ fontSize: 12, fontWeight: 800, color: '#C7C8E0', letterSpacing: 1.2, padding: '5px 12px', borderRadius: 20, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>CLASS {clsName.toUpperCase()}</span>}
                     <button onClick={() => toggleFullscreen('wait-slide-box')} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', fontSize: 13, width: 30, height: 30, flexShrink: 0 }}>⛶</button>
                     <button onClick={() => setShowWaitSlide(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7C8E0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, flexShrink: 0 }}><IX size={15}/></button>
@@ -12224,7 +12296,17 @@ function TeacherApp({ onExit, teacherName }) {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
               {(snlState?.teams || []).map((t, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 20, background: snlState && i === snlState.turnIdx % Math.max(1, snlState.teams.length) && snlState.winnerIdx == null ? 'rgba(74,222,128,0.22)' : '#15321F', border: snlState && i === snlState.turnIdx % Math.max(1, snlState.teams.length) && snlState.winnerIdx == null ? '1px solid #4ADE80' : '1px solid #1E3A28' }}>
+                <div key={i} draggable
+                  onDragStart={() => setDragSnlTeamIdx(i)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={() => { snlReorderTeams(dragSnlTeamIdx, i); setDragSnlTeamIdx(null); }}
+                  onDragEnd={() => setDragSnlTeamIdx(null)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 20, cursor: 'grab', opacity: dragSnlTeamIdx === i ? 0.35 : 1,
+                    background: snlState && i === snlState.turnIdx % Math.max(1, snlState.teams.length) && snlState.winnerIdx == null ? 'rgba(74,222,128,0.22)' : '#15321F',
+                    border: snlState && i === snlState.turnIdx % Math.max(1, snlState.teams.length) && snlState.winnerIdx == null ? '1px solid #4ADE80' : '1px solid #1E3A28',
+                  }}>
+                  <span style={{ color: '#3E5E48', fontSize: 11 }}>⠿</span>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: '#fff' }}>{snlState?.winnerIdx === i ? '🏆 ' : ''}{t.name}</span>
                   <span style={{ fontSize: 11, color: '#8AAE95' }}>căsuța {t.pos}</span>
                   <button onClick={() => snlRemoveTeam(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5E8A70', fontSize: 11 }}>✕</button>
@@ -13380,7 +13462,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.170';
+const APP_VERSION = 'v2.171';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

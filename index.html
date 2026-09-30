@@ -2326,6 +2326,27 @@ const GBA_QUESTIONS = {                                          // bancă de î
     { q: 'What do you think is the biggest problem in the world today? Give your opinion.', a: 'Open answer — accept any well-reasoned opinion' }, { q: 'Change to passive voice: "People speak English all over the world."', a: 'English is spoken all over the world.' },
   ],
 };
+/* ---------- Șarpe & Scară — tablă live, cu întrebări de nivel English World ---------- */
+const SNL_SIZE = 50;                                              // 5x10, drum șarpe (boustrophedon): 1..10 stânga-dreapta, 11..20 dreapta-stânga, ș.a.m.d.
+function buildSnakeLadderBoard() {
+  const ladders = { 4: 14, 9: 31, 21: 42, 28: 44 };        // fund → vârf
+  const snakes = { 17: 7, 34: 16, 47: 26, 49: 11 };                // cap → coadă
+  return { ladders, snakes };
+}
+function snlCellPos(n) {                                          // numărul căsuței -> {row, col}, pentru randare pe grilă 5x10 (rândul 0 e jos)
+  const row = Math.floor((n - 1) / 10), col = (n - 1) % 10;
+  const leftToRight = row % 2 === 0;
+  return { row, col: leftToRight ? col : 9 - col };
+}
+function snlRollDie(seed) { return 1 + Math.floor(seededRandom(seed)() * 6); }
+function listenSnakeLadder(classId, cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_snakeladder').doc(classId).onSnapshot(doc => cb(doc.data() || null), err => console.error('snake&ladder listen error', err));
+}
+async function saveSnakeLadder(classId, data) {
+  const db = getDb(); if (!db) return;
+  await db.collection('fluentopia_snakeladder').doc(classId).set(data).catch(() => {});
+}
 function buildGBAGrid(rows, cols) {
   const total = rows * cols;
   const pool = [];
@@ -9613,6 +9634,71 @@ function TeacherApp({ onExit, teacherName }) {
   const [editSkillValue, setEditSkillValue] = useState('');
   const [editSkillEn, setEditSkillEn] = useState('');
   const [editSkillRo, setEditSkillRo] = useState('');
+  const [showSnakeLadder, setShowSnakeLadder] = useState(false);
+  const [snlState, setSnlState] = useState(null);
+  const [snlLevel, setSnlLevel] = useState(3);
+  const [snlPendingQ, setSnlPendingQ] = useState(null);            // { teamIdx, question } — echipa a fost întrebată, așteaptă verdictul, înainte de a arunca zarul
+  const [snlRolled, setSnlRolled] = useState(null);                // { teamIdx, value, from, to, event } — rezultatul ultimei aruncări, arătat scurt pe ecran
+  const [newSnlTeamName, setNewSnlTeamName] = useState('');
+  useEffect(() => {
+    if (!showSnakeLadder) return;
+    const unsub = listenSnakeLadder(activeClassId, setSnlState);
+    return unsub;
+  }, [showSnakeLadder, activeClassId]);
+  function snlNewGame() {
+    saveSnakeLadder(activeClassId, { board: buildSnakeLadderBoard(), teams: (snlState && snlState.teams) || [], turnIdx: 0, log: [], winnerIdx: null });
+    setSnlPendingQ(null); setSnlRolled(null);
+  }
+  function snlAddTeam() {
+    if (!newSnlTeamName.trim() || !snlState) return;
+    saveSnakeLadder(activeClassId, { ...snlState, teams: [...snlState.teams, { name: newSnlTeamName.trim(), pos: 0 }] });
+    setNewSnlTeamName('');
+  }
+  function snlRemoveTeam(idx) {
+    if (!snlState) return;
+    saveSnakeLadder(activeClassId, { ...snlState, teams: snlState.teams.filter((_, i) => i !== idx), turnIdx: 0 });
+  }
+  function snlAsk() {
+    if (!snlState || snlState.winnerIdx != null || snlState.teams.length === 0 || snlPendingQ) return;
+    const teamIdx = snlState.turnIdx % snlState.teams.length;
+    const bank = GBA_QUESTIONS[snlLevel] || GBA_QUESTIONS[3];
+    setSnlPendingQ({ teamIdx, question: bank[Math.floor(Math.random() * bank.length)] });
+  }
+  function snlJudge(correct) {
+    if (!snlState || !snlPendingQ) return;
+    const { teamIdx } = snlPendingQ;
+    const teamName = snlState.teams[teamIdx].name;
+    if (!correct) {
+      saveSnakeLadder(activeClassId, { ...snlState, turnIdx: snlState.turnIdx + 1, log: [`❌ ${teamName} a răspuns greșit — trece rândul, fără zar.`, ...(snlState.log || [])] });
+      setSnlPendingQ(null);
+      return;
+    }
+    const value = snlRollDie(Date.now() + teamIdx);
+    const teams = snlState.teams.map(t => ({ ...t }));
+    const from = teams[teamIdx].pos;
+    let to = Math.min(SNL_SIZE, from + value);
+    let event = '';
+    if (snlState.board.ladders[to]) { const dest = snlState.board.ladders[to]; event = `🪜 ${teamName} urcă pe scară, din ${to} în ${dest}!`; to = dest; }
+    else if (snlState.board.snakes[to]) { const dest = snlState.board.snakes[to]; event = `🐍 ${teamName} alunecă pe șarpe, din ${to} în ${dest}!`; to = dest; }
+    teams[teamIdx].pos = to;
+    const won = to >= SNL_SIZE;
+    setSnlRolled({ teamIdx, value, from, to, event });
+    saveSnakeLadder(activeClassId, {
+      ...snlState, teams, winnerIdx: won ? teamIdx : null, turnIdx: snlState.turnIdx + 1,
+      log: [event || `🎲 ${teamName} a dat ${value} — merge de la ${from} la ${to}.`, ...(won ? [`🏆 ${teamName} a câștigat!`] : []), ...(snlState.log || [])],
+    });
+    setSnlPendingQ(null);
+  }
+  const [showTestMode, setShowTestMode] = useState(false);
+  const [testModeMinutes, setTestModeMinutes] = useState(20);
+  const [testModeSecondsLeft, setTestModeSecondsLeft] = useState(null);
+  const [testModeRunning, setTestModeRunning] = useState(false);
+  useEffect(() => {
+    if (!testModeRunning) return;
+    const iv = setInterval(() => setTestModeSecondsLeft(s => { if (s === null || s <= 1) { setTestModeRunning(false); ringPrimedBell(testModeBellPlayerRef); return 0; } return s - 1; }), 1000);
+    return () => clearInterval(iv);
+  }, [testModeRunning]);
+  const testModeBellPlayerRef = useRef(null);
   const [dragClassId, setDragClassId] = useState(null);
   const [dragOverClassId, setDragOverClassId] = useState(null);
   const [reorderMode, setReorderMode] = useState(false);
@@ -10147,6 +10233,8 @@ function TeacherApp({ onExit, teacherName }) {
               { id: 'explore', icon: '🗺️', label: 'Worldcraft (privește)', onClick: () => setShowExploreSpectator(true) },
               { id: 'gba', icon: '🎯', label: 'Îngeri, Tunuri & Bombe', onClick: () => setShowGBA(true) },
               { id: 'vocab', icon: '📚', label: 'Vocabular clasă (cufere Worldcraft)', onClick: openVocabEditor },
+              { id: 'testmode', icon: '🤫', label: 'Test în desfășurare', onClick: () => setShowTestMode(true) },
+              { id: 'snakeladder', icon: '🐍', label: 'Șarpe & Scară', onClick: () => setShowSnakeLadder(true) },
             ];
             const orderedTools = toolOrder
               ? toolOrder.map(id => TEACHER_TOOLS_DEFAULT.find(t => t.id === id)).filter(Boolean).concat(TEACHER_TOOLS_DEFAULT.filter(t => !toolOrder.includes(t.id)))
@@ -12112,6 +12200,152 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         </div>
       )}
+      {showSnakeLadder && (
+        <div onClick={() => setShowSnakeLadder(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 58, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div id="snl-box" onClick={e => e.stopPropagation()} style={{
+            background: 'linear-gradient(160deg, #142A1C, #0E1F14)', border: '1px solid rgba(74,222,128,0.5)', borderRadius: 20, padding: 22, maxWidth: 620, width: '100%', maxHeight: '92vh', overflowY: 'auto',
+          }} className="scrollbar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#4ADE80' }}>🐍 Șarpe &amp; Scară</h3>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => toggleFullscreen('snl-box')} title="Ecran complet" style={{ background: '#15321F', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#C7E8CF', fontSize: 13, width: 30, height: 30 }}>⛶</button>
+                <button onClick={() => setShowSnakeLadder(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
+              </div>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#8AAE95', marginBottom: 12 }}>Pune o întrebare, echipa răspunde corect, apoi apasă „Aruncă zarul". Greșit = trece rândul, fără zar. Scară 🪜 = urci; șarpe 🐍 = cobori.</p>
+
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11.5, color: '#8AAE95' }}>Nivel (English World):</span>
+              {[1, 2, 3, 4, 5, 6, 7].map(lvl => (
+                <button key={lvl} onClick={() => setSnlLevel(lvl)} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 800, background: snlLevel === lvl ? 'linear-gradient(135deg,#4ADE80,#22C55E)' : '#15321F', color: snlLevel === lvl ? '#0B2A16' : '#8AAE95' }}>{lvl}</button>
+              ))}
+              <button onClick={snlNewGame} style={{ marginLeft: 'auto', padding: '6px 14px', borderRadius: 18, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#22C55E,#15803D)', color: '#fff', fontWeight: 700, fontSize: 11.5 }}>🔀 Joc nou</button>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {(snlState?.teams || []).map((t, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 20, background: snlState && i === snlState.turnIdx % Math.max(1, snlState.teams.length) && snlState.winnerIdx == null ? 'rgba(74,222,128,0.22)' : '#15321F', border: snlState && i === snlState.turnIdx % Math.max(1, snlState.teams.length) && snlState.winnerIdx == null ? '1px solid #4ADE80' : '1px solid #1E3A28' }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#fff' }}>{snlState?.winnerIdx === i ? '🏆 ' : ''}{t.name}</span>
+                  <span style={{ fontSize: 11, color: '#8AAE95' }}>căsuța {t.pos}</span>
+                  <button onClick={() => snlRemoveTeam(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5E8A70', fontSize: 11 }}>✕</button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 4 }}>
+                <input value={newSnlTeamName} onChange={e => setNewSnlTeamName(e.target.value)} onKeyDown={e => e.key === 'Enter' && snlAddTeam()} placeholder="Echipă nouă" style={{ padding: '6px 10px', borderRadius: 20, border: '1px solid #1E3A28', background: '#0F1F14', color: '#fff', fontSize: 12, width: 100 }} />
+                <button onClick={snlAddTeam} style={{ padding: '6px 12px', borderRadius: 20, border: '1px solid #1E3A28', cursor: 'pointer', background: 'transparent', color: '#8AAE95', fontSize: 12 }}>+ Adaugă</button>
+              </div>
+            </div>
+
+            {!snlState ? (
+              <div style={{ textAlign: 'center', color: '#4A6652', fontSize: 12.5, padding: '30px 0' }}>Apasă „🔀 Joc nou" ca să începi.</div>
+            ) : (
+              <>
+                {snlState.winnerIdx != null && (
+                  <div style={{ textAlign: 'center', padding: '10px 0', marginBottom: 12, fontSize: 15, fontWeight: 900, color: '#4ADE80' }}>🏆 {snlState.teams[snlState.winnerIdx]?.name} a câștigat!</div>
+                )}
+                {snlPendingQ && (
+                  <div style={{ background: 'linear-gradient(135deg, rgba(74,222,128,0.16), rgba(56,189,248,0.08))', border: '1px solid rgba(74,222,128,0.45)', borderRadius: 14, padding: 16, marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, color: '#8AAE95', fontWeight: 700, marginBottom: 6 }}>Nivel {snlLevel} · Rândul lui {snlState.teams[snlPendingQ.teamIdx]?.name}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{snlPendingQ.question.q}</div>
+                    <div style={{ fontSize: 11.5, color: '#6E9A80', marginBottom: 12, fontStyle: 'italic' }}>Răspuns orientativ (doar pentru tine): {snlPendingQ.question.a}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => snlJudge(true)} style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>✓ Corect → aruncă zarul</button>
+                      <button onClick={() => snlJudge(false)} style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: '#F87171', color: '#2A0A0A', fontWeight: 800, fontSize: 13 }}>✕ Greșit</button>
+                    </div>
+                  </div>
+                )}
+                {snlRolled && !snlPendingQ && (
+                  <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                    <span style={{ fontSize: 34 }}>{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][snlRolled.value - 1]}</span>
+                    <div style={{ fontSize: 12.5, color: '#C7E8CF' }}>{snlState.teams[snlRolled.teamIdx]?.name}: {snlRolled.from} → {snlRolled.to} {snlRolled.event ? '(' + snlRolled.event.replace(/^[^ ]+ /, '') + ')' : ''}</div>
+                  </div>
+                )}
+                {!snlPendingQ && snlState.winnerIdx == null && snlState.teams.length > 0 && (
+                  <button onClick={snlAsk} style={{ display: 'block', margin: '0 auto 14px', padding: '9px 22px', borderRadius: 20, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: '#fff', fontWeight: 800, fontSize: 12.5 }}>❓ Pune o întrebare — {snlState.teams[snlState.turnIdx % snlState.teams.length]?.name}</button>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gridTemplateRows: 'repeat(5, 1fr)', gap: 3, aspectRatio: '2', marginBottom: 12 }}>
+                  {Array.from({ length: SNL_SIZE }, (_, i) => i + 1).map(n => {
+                    const { row, col } = snlCellPos(n);
+                    const isLadder = !!snlState.board.ladders[n], isSnake = !!snlState.board.snakes[n];
+                    const here = snlState.teams.filter(t => t.pos === n);
+                    return (
+                      <div key={n} style={{
+                        gridRow: 5 - row, gridColumn: col + 1, position: 'relative', borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: isLadder ? 'rgba(74,222,128,0.18)' : isSnake ? 'rgba(248,113,113,0.18)' : '#0F1F14', border: '1px solid #1E3A28', fontSize: 9, color: '#5E8A70',
+                      }}>
+                        <span style={{ position: 'absolute', top: 1, left: 2, fontSize: 7.5 }}>{n}</span>
+                        {isLadder && <span style={{ fontSize: 13 }}>🪜</span>}
+                        {isSnake && <span style={{ fontSize: 13 }}>🐍</span>}
+                        {here.length > 0 && (
+                          <div style={{ position: 'absolute', bottom: 1, display: 'flex', gap: 1 }}>
+                            {here.map((t, i) => <span key={i} title={t.name} style={{ width: 8, height: 8, borderRadius: '50%', background: ['#4ADE80', '#38BDF8', '#F5C542', '#EC1E8F'][snlState.teams.indexOf(t) % 4], border: '1px solid #0B0A14' }} />)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 11, color: '#5E8A70', maxHeight: 80, overflowY: 'auto' }} className="scrollbar">
+                  {(snlState.log || []).map((l, i) => <div key={i} style={{ padding: '2px 0' }}>{l}</div>)}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {showTestMode && (
+        <div onClick={() => setShowTestMode(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div id="testmode-box" onClick={e => e.stopPropagation()} style={{
+            position: 'relative', overflow: 'hidden', background: 'linear-gradient(160deg, #2A0808, #12080A)', border: '1px solid rgba(248,113,113,0.5)', borderRadius: 26,
+            padding: 44, maxWidth: 720, width: '100%', boxShadow: '0 30px 90px rgba(220,38,38,.3)',
+          }}>
+            <style>{`
+              @keyframes testPulseBorder { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.5); } 50% { box-shadow: 0 0 0 10px rgba(248,113,113,0); } }
+              @keyframes testDotBlink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+            `}</style>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#F87171', animation: 'testDotBlink 1.3s ease-in-out infinite', boxShadow: '0 0 10px #F87171' }}></span>
+                <span className="heading-font" style={{ fontSize: 16, fontWeight: 900, letterSpacing: 1.5, color: '#FCA5A5' }}>TEST ÎN DESFĂȘURARE</span>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => toggleFullscreen('testmode-box')} title="Ecran complet" style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FCA5A5', fontSize: 13, width: 30, height: 30 }}>⛶</button>
+                <button onClick={() => setShowTestMode(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FCA5A5', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30 }}><IX size={15}/></button>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: 30 }}>
+              <div style={{ position: 'relative', width: 190, height: 190, margin: '0 auto 22px', borderRadius: '50%', border: '3px solid rgba(248,113,113,0.6)', animation: 'testPulseBorder 2s ease-in-out infinite', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, rgba(248,113,113,0.14), transparent 70%)' }}>
+                <span style={{ fontSize: 72 }}>🤫</span>
+              </div>
+              {testModeSecondsLeft !== null ? (
+                <span className="heading-font" style={{ fontSize: 76, fontWeight: 900, color: '#FCA5A5', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 30px rgba(248,113,113,.45)' }}>
+                  {String(Math.floor(testModeSecondsLeft / 60)).padStart(2, '0')}:{String(testModeSecondsLeft % 60).padStart(2, '0')}
+                </span>
+              ) : (
+                <div style={{ fontSize: 15, color: '#E8B4B4' }}>Cronometrul e opțional — apasă „Pornește" doar dacă vrei să numeri timpul.</div>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
+              {[['🤫', 'Liniște deplină'], ['📷', 'Camera pornită'], ['🎤', 'Microfonul pornit']].map(([icon, label]) => (
+                <div key={label} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 14, padding: '16px 8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#F1C4C4' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+              {!testModeRunning ? (
+                <button onClick={() => { setTestModeSecondsLeft(testModeSecondsLeft === null ? testModeMinutes * 60 : testModeSecondsLeft); setTestModeRunning(true); primeBellPlayer(testModeBellPlayerRef); }} style={{ padding: '10px 22px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#4ADE80,#22C55E)', color: '#0B2A16', fontWeight: 800, fontSize: 13 }}>▶ Pornește</button>
+              ) : (
+                <button onClick={() => setTestModeRunning(false)} style={{ padding: '10px 22px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', color: '#F1C4C4', fontWeight: 700, fontSize: 13 }}>⏸ Pauză</button>
+              )}
+              <button onClick={() => { setTestModeRunning(false); setTestModeSecondsLeft(null); }} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(248,113,113,0.35)', cursor: 'pointer', background: 'transparent', color: '#E8B4B4', fontWeight: 700, fontSize: 13 }}>↺ Reset</button>
+              <input type="number" min="1" max="180" value={testModeMinutes} onChange={e => setTestModeMinutes(Math.max(1, Number(e.target.value) || 1))} disabled={testModeRunning} style={{ width: 56, padding: '10px', borderRadius: 10, border: '1px solid rgba(248,113,113,0.35)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontSize: 13 }} />
+              <span style={{ fontSize: 12, color: '#E8B4B4' }}>min</span>
+            </div>
+          </div>
+        </div>
+      )}
       {showGBA && (
         <div onClick={() => setShowGBA(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div id="gba-box" onClick={e => e.stopPropagation()} style={{
@@ -13146,7 +13380,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.169';
+const APP_VERSION = 'v2.170';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

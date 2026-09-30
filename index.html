@@ -529,7 +529,7 @@ const PET_ACTION_ANIM = {
 const PET_ACTION_MS = { hop: 700, wiggle: 800, lookL: 1600, lookR: 1600, chomp: 1300, dance: 2400, wobble: 1000 };
 
 function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, size = 180, canFeed, dailyFedToday, onDailyFeed, children,
-  sick, hibernating, wakeMeals = 0, eggSrc, rainbow, sparkle, nightOwl, happyFill, partyStamp, onOverfed }) {
+  sick, hibernating, wakeMeals = 0, eggSrc, rainbow, sparkle, nightOwl, happyFill, partyStamp, onOverfed, bare, muted, busy, lying }) {
   const isEgg = stage === 0 || !!hibernating;
   if (hibernating) src = eggSrc || src;
   const eyes = isEgg ? null : PET_EYES[speciesId + stage];
@@ -599,12 +599,17 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
         if (!busyRef.current && !reduceMotion && !document.hidden) {
           const hr = new Date().getHours();
           const asleep = !isEgg && !nightOwl && (hr >= 22 || hr < 7) && Date.now() > awakeUntil;
-          if (asleep) burst(['💤'], 1, { x: 62, y: 18 });
+          if (asleep) { if (!lying) burst(['💤'], 1, { x: 62, y: 18 }); }
+          else if (busy && !isEgg) {                               // ocupat: își face temele / e pedepsit fără telefon
+            if (busy.kind === 'homework') { play('wiggle'); if (Math.random() < 0.5) burst(['✏️', '📚'], 1, { x: 60, y: 45 }); }
+            else { play('wobble'); if (Math.random() < 0.5) burst(['💧'], 1, { x: 45, y: 35 }); }
+            if (Math.random() < 0.3) say(busy.ro, 2600, busy.en);
+          }
           else if (!isEgg && happy < 20) {
             const ey = PET_EYES[speciesId + stage];
             if (ey) ey.forEach(e2 => burst(['💧'], 1, { x: e2[0] / 384 * 100, y: (e2[1] + e2[3]) / 384 * 100 }));
             setParticles(ps => ps.map(x2 => (x2.e === '💧' && !x2.down ? { ...x2, down: true, dy: (30 + Math.random() * 25) + 'px', dx: (Math.random() * 10 - 5) + 'px' } : x2)));
-            playPetSound('cry'); play('wobble');
+            if (!muted) playPetSound('cry'); play('wobble');
             say(['Sunt trist... mi-e foame 😢', 'Buhuhu... 😭', 'M-am simțit singur... 😢'][Math.floor(Math.random() * 3)], 2000);
           }
           else if (Math.random() < 0.15) sayTip();
@@ -653,6 +658,7 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
     if (!wantsDance && busyRef.current && action !== 'lookL' && action !== 'lookR') return;
     if (hibernating) { play('wobble'); playPetSound('cry'); burst(['💧'], 3, { x: 50, y: 40 }); say('M-am ascuns în ou... mi-a fost foame 😢', 2400, 'I hid in my egg... I was hungry 😢'); return; }
     if (isEgg) { play('wobble'); playPetSound('pop'); burst(['✨', '💛'], 5, { x: 50, y: 40 }); say(tapsRef.current.length >= 4 ? 'Crește-mă ca să ies! 🥚' : 'Toc-toc! 🥚'); bumpHappy(2); return; }
+    if (busy && !isEgg) { play('wiggle'); playPetSound(busy.kind === 'homework' ? 'pop' : 'cry'); say(busy.ro, 2600, busy.en); return; }
     if (sick && !wantsDance) { play('wiggle'); playPetSound('cry'); burst(['🤢'], 1, { x: 60, y: 20 }); say('Mă doare burtica... 🤢', 2000, 'My tummy hurts... 🤢'); return; }
     if (wantsDance) {
       tapsRef.current = []; play('dance'); playPetSound('yay'); burst(['✨', '⭐', '🎉', '💖'], 12, { x: 50, y: 35 }); say('Yuhuu! Hai să dansăm! 🕺'); bumpHappy(6); return;
@@ -700,6 +706,7 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
   };
   const onPlay = () => {
     if (busyRef.current) return;
+    if (busy && !isEgg) { play('wiggle'); say(busy.ro, 2600, busy.en); return; }
     if (sleeping) { setAwakeUntil(Date.now() + 120000); setNowTick(Date.now()); }
     if (isEgg) { play('wobble'); burst(['🎵', '🎶'], 5); say('🎵 La-la-la 🎵'); bumpHappy(5); return; }
     if (sick) { play('wiggle'); say('Acum nu pot dansa... mi-e rău 🤢', 2000, "I can't dance now... I feel sick 🤢"); return; }
@@ -753,9 +760,11 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
             <span style={{ position: 'absolute', left: '50%', bottom: -6, marginLeft: -6, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '7px solid #fff' }} />
           </div>
         )}
-        {sleeping && <div style={{ position: 'absolute', right: '4%', top: '4%', fontSize: size * 0.12, pointerEvents: 'none', animation: 'lpGlow 2.4s ease-in-out infinite' }}>💤</div>}
+        {busy && !sleeping && !isEgg && <div style={{ position: 'absolute', left: '4%', top: '4%', fontSize: size * 0.14, pointerEvents: 'none', animation: 'lpGlow 2.2s ease-in-out infinite', zIndex: 3 }}>{busy.badge}</div>}
+        {sleeping && !lying && <div style={{ position: 'absolute', right: '4%', top: '4%', fontSize: size * 0.12, pointerEvents: 'none', animation: 'lpGlow 2.4s ease-in-out infinite' }}>💤</div>}
       </div>
 
+      {!bare && (<>
       <div style={{ width: Math.max(180, size), marginTop: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A5A2C0', marginBottom: 4 }}>
           <span>❤️ Fericire</span><span style={{ color: happyColor, fontWeight: 700 }}>{happy}%</span>
@@ -764,7 +773,7 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
           <div style={{ width: `${happy}%`, height: '100%', borderRadius: 999, background: `linear-gradient(90deg, ${happyColor}, ${speciesColor})`, transition: 'width 0.5s ease' }} />
         </div>
         <div style={{ fontSize: 10.5, color: '#6E6A8C', marginTop: 4, textAlign: 'center' }}>
-          {hibernating ? `S-a ascuns în ou pentru că n-a primit masa zilei 3 zile. Dă-i masa zilei 3 zile la rând (${wakeMeals}/3) sau folosește Poțiunea Trezirii 🧪` : sick ? 'E bolnav de burtică 🤢 — nu crește până se vindecă. Folosește Pastila de Burtică 💊 sau așteaptă 3 zile.' : crying ? 'Plânge! Dă-i ceva de mâncare sau joacă-te cu el 😢' : sleeping ? 'Doarme... atinge-l ca să-l trezești 😴' : isEgg ? 'Atinge oul ca să vezi ce face 🥚' : 'Atinge-l ca să-l mângâi! (5 atingeri rapide = dans 🕺)'}
+          {busy && !isEgg && !sleeping ? busy.status : hibernating ? `S-a ascuns în ou pentru că n-a primit masa zilei 3 zile. Dă-i masa zilei 3 zile la rând (${wakeMeals}/3) sau folosește Poțiunea Trezirii 🧪` : sick ? 'E bolnav de burtică 🤢 — nu crește până se vindecă. Folosește Pastila de Burtică 💊 sau așteaptă 3 zile.' : crying ? 'Plânge! Dă-i ceva de mâncare sau joacă-te cu el 😢' : sleeping ? 'Doarme... atinge-l ca să-l trezești 😴' : isEgg ? 'Atinge oul ca să vezi ce face 🥚' : 'Atinge-l ca să-l mângâi! (5 atingeri rapide = dans 🕺)'}
         </div>
       </div>
 
@@ -794,6 +803,7 @@ function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, siz
       {canFeed && isEgg && !hibernating && (
         <div style={{ fontSize: 11, color: '#8A86A8', marginTop: 10, textAlign: 'center', maxWidth: 260 }}>🥚 Oul nu mănâncă încă. Dă-i masa zilei și power-up-uri ca să iasă din ou — apoi îi poți da gustări!</div>
       )}
+      </>)}
     </div>
   );
 }
@@ -1027,6 +1037,164 @@ function PetSchool({ mode, pet, species, stage, level, filter, lessonsDoneIds, l
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button onClick={() => { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {} onClose(); }} style={{ border: 'none', background: 'transparent', color: '#8A86A8', fontSize: 20, cursor: 'pointer' }}>✕</button></div>
         {body}
       </div>
+    </div>
+  );
+}
+
+/* ---------- Camera lui Aura Buddy: decoruri cumpărate cu puncte; animăluțul doarme în pat, își face temele la birou sau stă pedepsit ---------- */
+const PET_ROOM_ITEMS = [                                          // t = sus (%, pe perete), b = jos (%, pe podea / birou); x = centru (%); fs = mărime (% din lățime)
+  { id: 'bed', label: 'Pat pufos', en: 'Fluffy bed', emoji: '🛏️', price: 300, x: 22, b: 2, fs: 36 },
+  { id: 'desk', label: 'Birou de teme', en: 'Homework desk', emoji: '🪑', price: 300, x: 88, b: 4, fs: 13, deskEl: true },
+  { id: 'lamp', label: 'Lampă de birou', en: 'Desk lamp', emoji: '💡', price: 120, x: 90, b: 37, fs: 7, onDesk: true },
+  { id: 'globe', label: 'Glob pământesc', en: 'Globe', emoji: '🌍', price: 160, x: 71, b: 37, fs: 6, onDesk: true },
+  { id: 'window', label: 'Fereastră cu cer', en: 'Sky window', emoji: '🪟', price: 250, fs: 0 },
+  { id: 'rug', label: 'Covor rotund', en: 'Round rug', emoji: '⭕', price: 150, fs: 0 },
+  { id: 'lights', label: 'Instalație de lumini', en: 'Fairy lights', emoji: '✨', price: 200, fs: 0 },
+  { id: 'plant', label: 'Plantă', en: 'Plant', emoji: '🪴', price: 180, x: 38, b: 27, fs: 9 },
+  { id: 'shelf', label: 'Raft cu cărți', en: 'Bookshelf', emoji: '📚', price: 220, x: 9, t: 20, fs: 12 },
+  { id: 'teddy', label: 'Ursuleț', en: 'Teddy bear', emoji: '🧸', price: 100, x: 37, b: 3, fs: 8 },
+  { id: 'poster', label: 'Poster Fluentopia', en: 'Poster', emoji: '🖼️', price: 90, x: 80, t: 12, fs: 12 },
+  { id: 'clock', label: 'Ceas', en: 'Clock', emoji: '🕰️', price: 80, x: 26, t: 12, fs: 8 },
+  { id: 'beanbag', label: 'Fotoliu puf', en: 'Beanbag', emoji: '🛋️', price: 250, x: 51, b: 2, fs: 12 },
+  { id: 'rocket', label: 'Rachetă de jucărie', en: 'Toy rocket', emoji: '🚀', price: 140, x: 26, t: 34, fs: 7 },
+];
+const PET_ROOM_THEMES = [
+  { id: 'basic', label: 'Simplu', price: 0, wall: 'linear-gradient(180deg, #3A3160, #2A2448)', floor: 'repeating-linear-gradient(90deg, #5B4636 0 38px, #4E3C2E 38px 40px)' },
+  { id: 'night', label: 'Cer de noapte', price: 150, wall: 'radial-gradient(circle at 20% 20%, #ffffff22 0 2px, transparent 3px) 0 0/46px 46px, radial-gradient(circle at 70% 60%, #ffffff18 0 1.5px, transparent 2.5px) 0 0/34px 34px, linear-gradient(180deg, #1B1A4A, #2E2166)', floor: 'repeating-linear-gradient(90deg, #3B3170 0 38px, #332A62 38px 40px)' },
+  { id: 'candy', label: 'Bomboane roz', price: 150, wall: 'repeating-linear-gradient(90deg, #F9C6DD 0 22px, #F7B5D2 22px 44px)', floor: 'repeating-linear-gradient(90deg, #E9A3C1 0 38px, #DE93B4 38px 40px)' },
+  { id: 'forest', label: 'Pădure', price: 150, wall: 'radial-gradient(circle at 50% 120%, #2F6B4A, #1E4632)', floor: 'repeating-linear-gradient(90deg, #7A5A3C 0 38px, #6B4E33 38px 40px)' },
+  { id: 'ocean', label: 'Ocean', price: 150, wall: 'linear-gradient(180deg, #5EC8F0, #2C7FB8)', floor: 'repeating-linear-gradient(90deg, #E8D3A8 0 38px, #DCC596 38px 40px)' },
+];
+function petBusyState(student) {
+  if ((student.cardDebts || []).length > 0) return {
+    kind: 'punished', badge: '📵',
+    ro: 'Sunt pedepsit — n-am voie cu telefonul până nu se rezolvă cartonașul tău 📵', en: "I'm grounded — no phone until your card is sorted 📵",
+    status: 'E pedepsit 📵: nu se joacă și nu face dueluri până nu plătești cartonașul (la Bancă sau cu un abțibild). Lecțiile sunt voie!',
+  };
+  const d = new Date(), wd = d.getDay(), h = d.getHours();
+  if (wd >= 1 && wd <= 5 && h === 16) return {
+    kind: 'homework', badge: '📚',
+    ro: 'Shh! Îmi fac temele. Hai să învățăm împreună la „📖 Lecția"!', en: "Shh! I'm doing my homework. Let's do a lesson together!",
+    status: 'Își face temele 📚 (luni–vineri, 16:00–17:00). Între timp puteți face împreună o „📖 Lecție".',
+  };
+  return null;
+}
+function PetRoom({ student, pet, species, stage, filter, busy, readOnly, onBuy, onPatch, livePetProps }) {
+  const room = student.petRoom || {};
+  const owned = room.owned || [], hidden = room.hidden || [], themesOwned = ['basic', ...(room.themes || [])];
+  const theme = PET_ROOM_THEMES.find(t => t.id === room.theme) || PET_ROOM_THEMES[0];
+  const [shopOpen, setShopOpen] = React.useState(false);
+  const [w, setW] = React.useState(360);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const upd = () => { if (ref.current) setW(ref.current.offsetWidth); };
+    upd(); window.addEventListener('resize', upd); return () => window.removeEventListener('resize', upd);
+  }, []);
+  const has = id => owned.includes(id) && !hidden.includes(id);
+  const hour = new Date().getHours();
+  const night = hour >= 20 || hour < 7;
+  const sleepingNow = stage > 0 && !pet.hibernating && !pet.nightOwl && (hour >= 22 || hour < 7);
+  const activity = (pet.hibernating || stage === 0 ? 'egg' : sleepingNow ? 'sleep' : busy ? busy.kind : 'free');
+  const petSize = Math.round(w * (activity === 'egg' ? 0.22 : activity === 'sleep' && owned.includes('bed') && !hidden.includes('bed') ? 0.27 : 0.27));
+  const pos = activity === 'sleep' ? (has('bed') ? { x: 21, b: 13 } : { x: 47, b: 6 })
+    : activity === 'homework' ? (has('desk') ? { x: 78, b: 7 } : { x: 60, b: 6 })
+    : activity === 'punished' ? { x: 65, b: 3 }
+    : { x: 47, b: 8 };
+  const H = w * 0.66;
+  const lyingInBed = activity === 'sleep' && has('bed');
+  const u = v => (v / 100) * w;                                   // unități relative la lățimea camerei
+  const caption = { sleep: '😴 Doarme' + (has('bed') ? ' în pătuțul lui' : ' pe jos — cumpără-i un pat!'), homework: '📚 Își face temele' + (has('desk') ? ' la birou' : ' pe jos — cumpără-i un birou!'), punished: '📵 Stă pedepsit în colț, fără telefon', egg: '🥚 Oul stă cuminte în cameră', free: '🏠 Se joacă prin cameră' }[activity];
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>🏠 Camera lui {pet.name || species.name}</div>
+        {!readOnly && <button onClick={() => setShopOpen(o => !o)} style={{ padding: '7px 12px', borderRadius: 10, border: `1px solid ${species.color}88`, background: shopOpen ? `${species.color}33` : 'transparent', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{shopOpen ? 'Închide magazinul' : '🛒 Decorează camera'}</button>}
+      </div>
+      <div ref={ref} style={{ position: 'relative', width: '100%', height: H, borderRadius: 18, overflow: 'hidden', border: `2px solid ${species.color}55`, boxShadow: `0 10px 30px ${species.color}22` }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '68%', background: theme.wall }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '32%', background: theme.floor, boxShadow: 'inset 0 10px 18px rgba(0,0,0,0.3)' }} />
+        {night && <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,8,40,0.28)', pointerEvents: 'none', zIndex: 5 }} />}
+        {has('lights') && (
+          <div style={{ position: 'absolute', left: '3%', right: '3%', top: '3%', display: 'flex', justifyContent: 'space-between', zIndex: 6 }}>
+            {Array.from({ length: 14 }).map((_, i) => <span key={i} style={{ width: u(1.8), height: u(1.8), borderRadius: '50%', background: ['#F9A8D4', '#FDE68A', '#86EFAC', '#93C5FD'][i % 4], boxShadow: `0 0 ${u(2)}px ${['#F9A8D4', '#FDE68A', '#86EFAC', '#93C5FD'][i % 4]}`, marginTop: (i % 2) * u(1.2), animation: `lpGlow ${1.4 + (i % 3) * 0.5}s ease-in-out infinite` }} />)}
+          </div>
+        )}
+        {has('window') && (
+          <div style={{ position: 'absolute', left: '40%', top: '9%', width: u(22), height: u(17), borderRadius: u(2), border: `${u(1)}px solid #EDE7FF`, background: night ? 'linear-gradient(180deg, #0B1033, #28206B)' : 'linear-gradient(180deg, #7DD3FC, #BAE6FD)', overflow: 'hidden', boxShadow: 'inset 0 0 12px rgba(0,0,0,0.3)' }}>
+            <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: u(0.7), background: '#EDE7FF' }} />
+            <span style={{ position: 'absolute', right: '10%', top: '8%', fontSize: u(5) }}>{night ? '🌙' : '☀️'}</span>
+            {night && <span style={{ position: 'absolute', left: '12%', top: '40%', fontSize: u(2.5) }}>⭐</span>}
+            {!night && <span style={{ position: 'absolute', left: '8%', top: '45%', fontSize: u(4) }}>☁️</span>}
+          </div>
+        )}
+        {has('rug') && <div style={{ position: 'absolute', left: '26%', bottom: '3%', width: '46%', height: '15%', borderRadius: '50%', background: `radial-gradient(ellipse, ${species.color}cc, ${species.color}66 60%, ${species.color}33)`, border: `${u(0.6)}px dashed #ffffff66` }} />}
+        {has('desk') && (<>
+          <div style={{ position: 'absolute', left: '64%', width: '33%', bottom: '31%', height: '4%', borderRadius: u(1), background: 'linear-gradient(180deg, #C08A5A, #8B5E3C)', boxShadow: '0 4px 8px rgba(0,0,0,0.35)', zIndex: 1 }} />
+          <div style={{ position: 'absolute', left: '66%', width: '2%', bottom: '8%', height: '24%', background: '#7A5233', zIndex: 1 }} />
+          <div style={{ position: 'absolute', left: '93%', width: '2%', bottom: '8%', height: '24%', background: '#7A5233', zIndex: 1 }} />
+          <span style={{ position: 'absolute', left: '80%', bottom: '34.5%', transform: 'translateX(-50%)', fontSize: u(6), zIndex: 2, pointerEvents: 'none' }}>📖</span>
+        </>)}
+        {PET_ROOM_ITEMS.filter(it => it.fs && has(it.id) && (!it.onDesk || has('desk'))).map(it => (
+          <span key={it.id} style={{ position: 'absolute', left: `${it.x}%`, ...(it.t !== undefined ? { top: `${it.t}%` } : { bottom: `${it.b}%` }), transform: 'translateX(-50%)', fontSize: u(it.fs), lineHeight: 1, filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.35))', zIndex: it.id === 'bed' || it.id === 'desk' ? 1 : 2, pointerEvents: 'none' }}>{it.emoji}</span>
+        ))}
+        {activity === 'punished' && <span style={{ position: 'absolute', left: '58%', bottom: '42%', fontSize: u(8), zIndex: 4, animation: 'lpGlow 1.8s ease-in-out infinite' }}>📵</span>}
+        {lyingInBed ? (<>
+          <div style={{ position: 'absolute', left: '22%', bottom: '24%', width: petSize, height: petSize, transform: 'translate(-50%, 50%) rotate(-84deg)', zIndex: 3, pointerEvents: 'none' }}>
+            <LivePet {...livePetProps} size={petSize} bare muted lying busy={null} />
+          </div>
+          <div style={{ position: 'absolute', left: '21%', width: '19%', bottom: '11%', height: '17%', borderRadius: `${u(3)}px ${u(3)}px ${u(1.5)}px ${u(1.5)}px`, zIndex: 4, pointerEvents: 'none',
+            background: `repeating-linear-gradient(45deg, ${species.color}ee 0 ${u(2)}px, ${species.color}bb ${u(2)}px ${u(4)}px)`, boxShadow: `inset 0 ${u(0.8)}px 0 #ffffff55, 0 ${u(0.6)}px ${u(1.5)}px rgba(0,0,0,0.35)`, border: `${u(0.4)}px solid #ffffff44` }} />
+          <div style={{ position: 'absolute', left: '14%', bottom: '44%', zIndex: 5, pointerEvents: 'none', fontWeight: 900, color: '#E0E7FF', textShadow: '0 0 6px #6366F1' }}>
+            {['Z', 'z', 'z'].map((z, i) => <span key={i} style={{ position: 'absolute', left: u(i * 2.6), bottom: u(i * 2.6), fontSize: u(3.6 - i * 0.7), animation: `lpGlow 2.4s ease-in-out ${i * 0.5}s infinite` }}>{z}</span>)}
+          </div>
+        </>) : (
+        <div style={{ position: 'absolute', left: `${pos.x}%`, bottom: `${pos.b}%`, transform: 'translateX(-50%)', zIndex: 3, transition: 'left 0.8s ease, bottom 0.8s ease' }}>
+          <LivePet {...livePetProps} size={petSize} bare muted busy={activity === 'homework' || activity === 'punished' ? busy : null} />
+        </div>
+        )}
+        <div style={{ position: 'absolute', right: 8, top: '38%', zIndex: 6, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: 'rgba(11,10,20,0.7)', color: '#fff' }}>{caption}</div>
+      </div>
+
+      {shopOpen && !readOnly && (
+        <div style={{ marginTop: 12, background: '#151225', border: '1px solid #2E2850', borderRadius: 16, padding: 12 }}>
+          <div style={{ fontSize: 12, color: '#A9A5C4', marginBottom: 10 }}>Ai {student.points} puncte. Ce cumperi rămâne în cameră pentru totdeauna — îl poți ascunde sau arăta oricând.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 8 }}>
+            {PET_ROOM_ITEMS.map(it => {
+              const own = owned.includes(it.id), vis = own && !hidden.includes(it.id), can = student.points >= it.price;
+              return (
+                <div key={it.id} style={{ background: '#0F0C1C', border: `1px solid ${own ? species.color + '88' : '#2E2850'}`, borderRadius: 12, padding: 8, textAlign: 'center' }}>
+                  <div style={{ fontSize: 30 }}>{it.emoji}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#E2E0F5', lineHeight: 1.2, minHeight: 26 }}>{it.label}</div>
+                  {own ? (
+                    <button onClick={() => onPatch({ hidden: vis ? [...hidden, it.id] : hidden.filter(x => x !== it.id) })} style={{ marginTop: 6, width: '100%', padding: '5px 0', borderRadius: 8, border: '1px solid #3A3360', background: vis ? `${species.color}22` : 'transparent', color: '#fff', fontSize: 10.5, fontWeight: 700, cursor: 'pointer' }}>{vis ? '👁️ Ascunde' : '➕ Arată'}</button>
+                  ) : (
+                    <button disabled={!can} onClick={() => onBuy('item', it.id, it.price)} style={{ marginTop: 6, width: '100%', padding: '5px 0', borderRadius: 8, border: 'none', background: can ? 'linear-gradient(135deg, #EC1E8F, #9B3CE0)' : '#221D3A', color: can ? '#fff' : '#5A5570', fontSize: 10.5, fontWeight: 700, cursor: can ? 'pointer' : 'not-allowed' }}>{it.price} pts</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 800, margin: '14px 0 8px' }}>🎨 Tapet</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 8 }}>
+            {PET_ROOM_THEMES.map(t => {
+              const own = themesOwned.includes(t.id), on = theme.id === t.id, can = student.points >= t.price;
+              return (
+                <div key={t.id} style={{ borderRadius: 12, overflow: 'hidden', border: `2px solid ${on ? species.color : '#2E2850'}` }}>
+                  <div style={{ height: 34, background: t.wall }} /><div style={{ height: 12, background: t.floor }} />
+                  <div style={{ background: '#0F0C1C', padding: 6, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>{t.label}</div>
+                    {own ? (
+                      <button disabled={on} onClick={() => onPatch({ theme: t.id })} style={{ marginTop: 4, width: '100%', padding: '4px 0', borderRadius: 7, border: '1px solid #3A3360', background: on ? `${species.color}33` : 'transparent', color: '#fff', fontSize: 10.5, fontWeight: 700, cursor: on ? 'default' : 'pointer' }}>{on ? '✓ Pus' : 'Pune'}</button>
+                    ) : (
+                      <button disabled={!can} onClick={() => onBuy('theme', t.id, t.price)} style={{ marginTop: 4, width: '100%', padding: '4px 0', borderRadius: 7, border: 'none', background: can ? 'linear-gradient(135deg, #EC1E8F, #9B3CE0)' : '#221D3A', color: can ? '#fff' : '#5A5570', fontSize: 10.5, fontWeight: 700, cursor: can ? 'pointer' : 'not-allowed' }}>{t.price} pts</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -7290,7 +7458,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, onClaimBinder, onUsePetItem, onPetPatch, onPetOverfed, onPetLesson, onPetDuel, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, onClaimBinder, onUsePetItem, onPetPatch, onPetOverfed, onPetLesson, onPetDuel, onBuyRoom, onRoomPatch, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   useEffect(() => {                                              // Aura Buddy: se ascunde în ou după 3 zile fără masă; boala trece singură după 3 zile
     if (isParentView || !onPetPatch) return;
@@ -8245,6 +8413,14 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
               const filter = PET_VARIANT_FILTERS[variantIdx]?.filter || 'none';
               const fedToday = pet.lastFed === todayStr();
               const nameDraft = petNameDrafts[pet.id] ?? (pet.name || '');
+              const petBusy = petBusyState(student);
+              const lpProps = {
+                petId: pet.id, speciesId: species.id, speciesColor: species.color, stage, src: species.stages[stage], filter,
+                name: pet.name || species.name, canFeed: !isParentView, dailyFedToday: fedToday, onDailyFeed: () => onPetFeed(pet.id),
+                sick: petIsSick(pet), hibernating: !!pet.hibernating, wakeMeals: pet.wakeMeals || 0, eggSrc: species.stages[0],
+                rainbow: pet.rainbow && pet.rainbowOn !== false, sparkle: pet.sparkle && pet.sparkleOn !== false, nightOwl: !!pet.nightOwl,
+                happyFill: pet.happyFill, partyStamp: pet.partyStamp, onOverfed: () => onPetOverfed && onPetOverfed(pet.id),
+              };
               return (
                 <div key={pet.id} style={{ marginBottom: 28, paddingBottom: 24, borderBottom: '1px solid #221D3A' }}>
                   <div style={{
@@ -8256,7 +8432,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                       name={pet.name || species.name} size={190} canFeed={!isParentView} dailyFedToday={fedToday} onDailyFeed={() => onPetFeed(pet.id)}
                       sick={petIsSick(pet)} hibernating={!!pet.hibernating} wakeMeals={pet.wakeMeals || 0} eggSrc={species.stages[0]}
                       rainbow={pet.rainbow && pet.rainbowOn !== false} sparkle={pet.sparkle && pet.sparkleOn !== false} nightOwl={!!pet.nightOwl}
-                      happyFill={pet.happyFill} partyStamp={pet.partyStamp} onOverfed={() => onPetOverfed && onPetOverfed(pet.id)}>
+                      happyFill={pet.happyFill} partyStamp={pet.partyStamp} onOverfed={() => onPetOverfed && onPetOverfed(pet.id)} busy={petBusy}>
                       {pet.accessory && (() => {
                         const acc = PET_ACCESSORIES.find(a => a.id === pet.accessory);
                         if (!acc) return null;
@@ -8324,6 +8500,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                     </div>
                   </div>
 
+                  <PetRoom student={student} pet={pet} species={species} stage={stage} filter={filter} busy={petBusy} readOnly={isParentView}
+                    onBuy={(k, id, price) => onBuyRoom && onBuyRoom(k, id, price)} onPatch={patch => onRoomPatch && onRoomPatch(patch)} livePetProps={lpProps} />
+
                   {(() => {
                     const myClassP = (classes || []).find(c => c.id === student.classId);
                     const lvl = worldLevelOf(myClassP?.level).filterLevel || 1;
@@ -8343,7 +8522,7 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                         {canLearn ? (
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button onClick={() => setPetSchool({ mode: 'lesson', petId: pet.id })} style={{ flex: 1, minWidth: 130, padding: '11px 10px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #38BDF8, #6366F1)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>📖 Lecția cu {pet.name || species.name}</button>
-                            <button onClick={() => setPetSchool({ mode: 'duel', petId: pet.id })} style={{ flex: 1, minWidth: 130, padding: '11px 10px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>⚔️ Duel: tu vs {pet.name || species.name}</button>
+                            <button disabled={!!petBusyState(student)} onClick={() => setPetSchool({ mode: 'duel', petId: pet.id })} style={{ flex: 1, minWidth: 130, padding: '11px 10px', borderRadius: 12, border: 'none', background: petBusyState(student) ? '#221D3A' : `linear-gradient(135deg, ${species.color}, #9B3CE0)`, color: petBusyState(student) ? '#5A5570' : '#fff', fontWeight: 800, fontSize: 13, cursor: petBusyState(student) ? 'not-allowed' : 'pointer' }}>{petBusyState(student) ? (petBusyState(student).kind === 'homework' ? '⚔️ Duel după teme (17:00)' : '⚔️ Duel blocat 📵') : `⚔️ Duel: tu vs ${pet.name || species.name}`}</button>
                           </div>
                         ) : (
                           <div style={{ fontSize: 12, color: '#6E6A8C' }}>{isParentView ? 'Lecțiile le face elevul din contul lui.' : pet.hibernating ? 'Întâi trezește-l din ou 🥚' : 'Trebuie să iasă din ou ca să poată învăța 🥚'}</div>
@@ -9189,6 +9368,12 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
             'Dacă nu-i dai masa zilei 3 zile, se ascunde trist înapoi în ou 🥚😢. Nu pierde nimic! Îl trezești cu 3 mese la rând sau cu Poțiunea Trezirii.',
             'Dacă fericirea lui scade mult, plânge 😢 — hrănește-l și joacă-te cu el.',
             'Noaptea (22:00–7:00) doarme. Îl poți trezi atingându-l.',
+          ] },
+          { icon: '🏠', img: 'egg', title: 'Camera lui Aura Buddy', steps: [
+            'Aura Buddy are camera lui! Apasă „🛒 Decorează camera" și cumpără cu puncte: pat, birou, lampă, fereastră, covor, lumini, plantă, ursuleț și altele, plus tapet.',
+            'Noaptea îl vezi dormind în pat. Luni–vineri, între 16:00 și 17:00, își face temele la birou — atunci nu se joacă și nu face dueluri, dar puteți face împreună o Lecție.',
+            'Dacă ai un cartonaș neplătit, Aura Buddy e pedepsit 📵: stă în colț, fără telefon, nu se joacă și nu face dueluri până plătești cartonașul.',
+            'Ce cumperi rămâne pentru totdeauna — poți ascunde sau arăta oricând fiecare obiect.',
           ] },
           { icon: '🎓', img: 'exam_prep', title: 'Școala lui Aura Buddy', steps: [
             '„📖 Lecția": Aura Buddy îți citește cu voce tare o mini-lecție de engleză pe nivelul tău, apoi îți dă un quiz de 3 întrebări.',
@@ -14267,7 +14452,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.176';
+const APP_VERSION = 'v2.178';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -15621,6 +15806,30 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
+  function handleBuyRoom(kind, id, price) {                       // camera lui Aura Buddy: decoruri și tapet (permanente, per elev)
+    if (isParentSession) return;
+    const next = students.map(s => {
+      if (s.id !== loggedInStudentId || s.points < price) return s;
+      const room = s.petRoom || {};
+      if (kind === 'item') {
+        const it = PET_ROOM_ITEMS.find(x => x.id === id);
+        if (!it || (room.owned || []).includes(id)) return s;
+        return { ...s, points: s.points - price, petRoom: { ...room, owned: [...(room.owned || []), id] },
+          pointsLog: [{ id: uid(), delta: -price, reason: `Camera Aura Buddy: ${it.label}`, date: new Date().toISOString() }, ...(s.pointsLog || [])] };
+      }
+      const th = PET_ROOM_THEMES.find(x => x.id === id);
+      if (!th || (room.themes || []).includes(id)) return s;
+      return { ...s, points: s.points - price, petRoom: { ...room, themes: [...(room.themes || []), id], theme: id },
+        pointsLog: [{ id: uid(), delta: -price, reason: `Tapet Aura Buddy: ${th.label}`, date: new Date().toISOString() }, ...(s.pointsLog || [])] };
+    });
+    playDing();
+    persistStudentsLocal(next, students);
+  }
+  function handleRoomPatch(patch) {
+    if (isParentSession) return;
+    const next = students.map(s => s.id !== loggedInStudentId ? s : { ...s, petRoom: { ...(s.petRoom || {}), ...patch } });
+    persistStudentsLocal(next, students);
+  }
   function handlePetPatch(petId, patch) {                           // schimbări automate de stare (ascuns în ou, boală trecută) — nu în vizualizarea părintelui
     if (isParentSession) return;
     updatePet(petId, p => ({ ...p, ...patch }));
@@ -16497,7 +16706,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} onClaimBinder={handleClaimBinder} onUsePetItem={handleUsePetItem} onPetPatch={handlePetPatch} onPetOverfed={handlePetOverfed} onPetLesson={handlePetLesson} onPetDuel={handlePetDuel} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} onClaimBinder={handleClaimBinder} onUsePetItem={handleUsePetItem} onPetPatch={handlePetPatch} onPetOverfed={handlePetOverfed} onPetLesson={handlePetLesson} onPetDuel={handlePetDuel} onBuyRoom={handleBuyRoom} onRoomPatch={handleRoomPatch} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

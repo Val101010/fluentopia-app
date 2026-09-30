@@ -397,6 +397,292 @@ function petStageForGrowth(growth) {
   for (let i = 0; i < PET_STAGE_THRESHOLDS.length; i++) { if (growth >= PET_STAGE_THRESHOLDS[i]) stage = i; }
   return stage;
 }
+/* ---------- Aura Buddy „viu": clipește, respiră, se uită în jur, mănâncă gustări gratuite, dansează ---------- */
+// ochii fiecărei imagini (coordonate în pătratul de 384px): [x, y, rx, ry, culoare pleoapă, culoare pleoapă luminoasă]
+const PET_EYES = {
+  dede1: [[145,144,27.1,27.1,'#e29eb0','#fdb0c5'], [235,144,27.1,27.1,'#a8677c','#bc738a']],
+  dede2: [[150,138,28.3,27.1,'#da899c','#f499ae'], [234,138,26.0,26.0,'#aa6576','#be7184']],
+  dede3: [[189,124,30.7,24.8,'#dda0b6','#f7b3cb'], [268,126,16.5,23.6,'#edb1c0','#ffc6d7']],
+  dede4: [[144,144,28.3,26.0,'#ea87a4','#ff97b7'], [238,145,27.1,26.0,'#c57090','#dc7da1']],
+  skye1: [[150,161,28.3,28.3,'#5591b0','#5fa2c5'], [231,161,28.3,28.3,'#93c5e5','#a4dcff']],
+  skye2: [[151,142,26.0,26.0,'#409fbe','#47b2d4'], [230,142,26.0,26.0,'#7ddef6','#8cf8ff']],
+  skye3: [[173,129,26.0,24.8,'#377392','#3d80a3'], [248,128,17.7,23.6,'#96c9e3','#a8e1fe']],
+  skye4: [[146,152,20.1,20.1,'#d2acab','#ebc0bf'], [238,152,18.9,18.9,'#eccabf','#ffe2d5']],
+  lumi1: [[144,164,30.7,28.3,'#bb9058','#d1a162'], [235,162,23.6,27.1,'#e9bf7d','#ffd58c']],
+  lumi2: [[152,129,28.3,27.1,'#c7955c','#dea667'], [238,127,26.0,27.1,'#fccc7e','#ffe48d']],
+  lumi3: [[133,133,26.0,24.8,'#d29c60','#ebae6b'], [216,129,22.4,24.8,'#f7bb6e','#ffd17b']],
+  lumi4: [[145,154,17.7,21.2,'#cca86d','#e4bc7a'], [235,155,20.1,22.4,'#ffe19d','#fffcaf']],
+};
+const PET_SNACKS = [
+  { e: '🍎', n: 'Măr' }, { e: '🍓', n: 'Căpșună' }, { e: '🍪', n: 'Biscuit' },
+  { e: '🥕', n: 'Morcov' }, { e: '🍉', n: 'Pepene' }, { e: '🧁', n: 'Brioșă' },
+];
+function petLoadHappy(petId) {
+  try {
+    const r = JSON.parse(localStorage.getItem('fluentopia-pet-happy-' + petId) || 'null');
+    if (!r) return 60;
+    const decay = Math.floor((Date.now() - r.t) / 600000);            // -1% la fiecare 10 minute
+    return Math.max(0, Math.min(100, r.v - decay));
+  } catch (e) { return 60; }
+}
+function petSaveHappy(petId, v) {
+  try { localStorage.setItem('fluentopia-pet-happy-' + petId, JSON.stringify({ v, t: Date.now() })); } catch (e) {}
+}
+let petAudioCtx = null;
+function playPetSound(kind) {
+  try {
+    if (!petAudioCtx) petAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = petAudioCtx; const now = ctx.currentTime;
+    const blip = (f0, f1, t, dur, type, vol) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0, now + t); o.frequency.exponentialRampToValueAtTime(f1, now + t + dur);
+      g.gain.setValueAtTime(vol, now + t); g.gain.exponentialRampToValueAtTime(0.001, now + t + dur);
+      o.connect(g); g.connect(ctx.destination); o.start(now + t); o.stop(now + t + dur + 0.02);
+    };
+    if (kind === 'nom') { [0, 0.28, 0.56].forEach(t => { blip(220, 140, t, 0.12, 'triangle', 0.18); blip(170, 110, t + 0.1, 0.1, 'triangle', 0.12); }); }
+    else if (kind === 'boing') blip(260, 620, 0, 0.28, 'sine', 0.16);
+    else if (kind === 'giggle') [0, 0.09, 0.18, 0.27].forEach((t, i) => blip(760 + i * 60, 900 + i * 60, t, 0.07, 'sine', 0.1));
+    else if (kind === 'yay') [523, 659, 784, 1047].forEach((f, i) => blip(f, f * 1.01, i * 0.09, 0.22, 'sine', 0.13));
+    else if (kind === 'pop') blip(900, 300, 0, 0.12, 'sine', 0.12);
+  } catch (e) {}
+}
+const PET_ANIM_CSS = `
+@keyframes lpBreathe { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.022,0.978); } }
+@keyframes lpBreatheSleep { 0%,100% { transform: scale(1,1); } 50% { transform: scale(1.035,0.965); } }
+@keyframes lpHop { 0% { transform: translateY(0) scale(1,1); } 15% { transform: translateY(0) scale(1.1,0.88); } 45% { transform: translateY(-22%) scale(0.94,1.08); } 75% { transform: translateY(0) scale(1.08,0.9); } 100% { transform: translateY(0) scale(1,1); } }
+@keyframes lpWiggle { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-7deg); } 40% { transform: rotate(6deg); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(3deg); } }
+@keyframes lpLookL { 0%,100% { transform: translateX(0) skewX(0); } 25%,75% { transform: translateX(-5%) skewX(3deg) rotate(-3deg); } }
+@keyframes lpLookR { 0%,100% { transform: translateX(0) skewX(0); } 25%,75% { transform: translateX(5%) skewX(-3deg) rotate(3deg); } }
+@keyframes lpChomp { 0%,100% { transform: scale(1,1); } 10%,43%,76% { transform: scale(1.08,0.9); } 26%,59%,92% { transform: scale(0.96,1.06); } }
+@keyframes lpDance { 0%,100% { transform: translateX(0) rotate(0) translateY(0); } 12% { transform: translateX(-8%) rotate(-10deg) translateY(-6%); } 25% { transform: translateX(0) rotate(0) translateY(0); } 37% { transform: translateX(8%) rotate(10deg) translateY(-6%); } 50% { transform: translateX(0) rotate(0) translateY(0); } 62% { transform: translateY(-20%) rotate(-12deg); } 75% { transform: translateY(0) rotate(0) scale(1.08,0.92); } 87% { transform: translateY(-14%) rotate(12deg); } }
+@keyframes lpWobble { 0%,100% { transform: rotate(0); } 15% { transform: rotate(-9deg); } 30% { transform: rotate(8deg); } 45% { transform: rotate(-6deg); } 60% { transform: rotate(4deg); } 75% { transform: rotate(-2deg); } }
+@keyframes lpFloatUp { 0% { transform: translate(-50%,-50%) translate(0,0) scale(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(-50%,-50%) translate(var(--dx), var(--dy)) scale(1.15); opacity: 0; } }
+@keyframes lpBubble { 0% { transform: translateX(-50%) scale(0.5); opacity: 0; } 12% { transform: translateX(-50%) scale(1.05); opacity: 1; } 20%,85% { transform: translateX(-50%) scale(1); opacity: 1; } 100% { transform: translateX(-50%) scale(0.9); opacity: 0; } }
+@keyframes lpGlow { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes lpShadow { 0%,100% { transform: translateX(-50%) scale(1); opacity: .45; } 50% { transform: translateX(-50%) scale(0.8); opacity: .25; } }
+.lp-btn:active { transform: scale(0.94); }
+`;
+const PET_ACTION_ANIM = {
+  hop: 'lpHop 0.7s ease-out', wiggle: 'lpWiggle 0.8s ease-in-out', lookL: 'lpLookL 1.6s ease-in-out', lookR: 'lpLookR 1.6s ease-in-out',
+  chomp: 'lpChomp 1.3s ease-in-out', dance: 'lpDance 2.4s ease-in-out', wobble: 'lpWobble 1s ease-in-out',
+};
+const PET_ACTION_MS = { hop: 700, wiggle: 800, lookL: 1600, lookR: 1600, chomp: 1300, dance: 2400, wobble: 1000 };
+
+function LivePet({ petId, speciesId, speciesColor, stage, src, filter, name, size = 180, canFeed, dailyFedToday, onDailyFeed, children }) {
+  const isEgg = stage === 0;
+  const eyes = isEgg ? null : PET_EYES[speciesId + stage];
+  const [action, setAction] = React.useState(null);
+  const [blink, setBlink] = React.useState(false);
+  const [happyEyes, setHappyEyes] = React.useState(false);
+  const [particles, setParticles] = React.useState([]);
+  const [bubble, setBubble] = React.useState(null);
+  const [fly, setFly] = React.useState(null);
+  const [happy, setHappy] = React.useState(() => petLoadHappy(petId));
+  const [awakeUntil, setAwakeUntil] = React.useState(0);
+  const [nowTick, setNowTick] = React.useState(Date.now());
+  const busyRef = React.useRef(false);
+  const tapsRef = React.useRef([]);
+  const timersRef = React.useRef([]);
+  const later = (fn, ms) => { const t = setTimeout(fn, ms); timersRef.current.push(t); return t; };
+  React.useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
+
+  const hour = new Date(nowTick).getHours();
+  const sleeping = !isEgg && (hour >= 22 || hour < 7) && nowTick > awakeUntil;
+  const reduceMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const bumpHappy = (d) => setHappy(h => { const v = Math.max(0, Math.min(100, h + d)); petSaveHappy(petId, v); return v; });
+  const play = (a, ms) => {
+    setAction(a); busyRef.current = true;
+    later(() => { setAction(null); busyRef.current = false; }, ms || PET_ACTION_MS[a] || 800);
+  };
+  const say = (text, ms = 1800) => { const id = Math.random(); setBubble({ id, text }); later(() => setBubble(b => (b && b.id === id ? null : b)), ms); };
+  const burst = (emojis, n, from) => {
+    const base = from || { x: 50, y: 40 };
+    const items = Array.from({ length: n }, (_, i) => ({
+      id: Math.random() + '-' + i, e: emojis[i % emojis.length],
+      x: base.x + (Math.random() * 30 - 15), y: base.y + (Math.random() * 16 - 8),
+      dx: (Math.random() * 120 - 60) + 'px', dy: (-50 - Math.random() * 70) + 'px', dur: 0.9 + Math.random() * 0.7, delay: Math.random() * 0.25,
+    }));
+    setParticles(p => [...p, ...items]);
+    later(() => setParticles(p => p.filter(x => !items.includes(x))), 2000);
+  };
+
+  // clipit natural, la intervale neregulate (uneori dublu)
+  React.useEffect(() => {
+    if (!eyes) return;
+    let alive = true; let t;
+    const loop = () => {
+      t = setTimeout(() => {
+        if (!alive) return;
+        setBlink(true);
+        setTimeout(() => { if (!alive) return; setBlink(false);
+          if (Math.random() < 0.25) setTimeout(() => { if (!alive) return; setBlink(true); setTimeout(() => alive && setBlink(false), 120); }, 180);
+        }, 130);
+        loop();
+      }, 2200 + Math.random() * 3800);
+    };
+    loop();
+    return () => { alive = false; clearTimeout(t); };
+  }, [speciesId, stage]);
+
+  // mișcări spontane când nu face nimic + reverificare somn
+  React.useEffect(() => {
+    let alive = true; let t;
+    const loop = () => {
+      t = setTimeout(() => {
+        if (!alive) return;
+        setNowTick(Date.now());
+        if (!busyRef.current && !reduceMotion && !document.hidden) {
+          const hr = new Date().getHours();
+          const asleep = !isEgg && (hr >= 22 || hr < 7) && Date.now() > awakeUntil;
+          if (asleep) burst(['💤'], 1, { x: 62, y: 18 });
+          else if (isEgg) { if (Math.random() < 0.6) play('wobble'); }
+          else {
+            const r = Math.random();
+            if (r < 0.35) play(Math.random() < 0.5 ? 'lookL' : 'lookR');
+            else if (r < 0.55) play('hop');
+            else if (r < 0.7) play('wiggle');
+            if (happy < 25 && Math.random() < 0.5) say('Mi-e foame... 🥺', 2200);
+          }
+        }
+        loop();
+      }, 4500 + Math.random() * 4500);
+    };
+    loop();
+    return () => { alive = false; clearTimeout(t); };
+  }, [isEgg, awakeUntil, happy]);
+
+  const mouth = eyes ? {
+    x: ((eyes[0][0] + eyes[1][0]) / 2) / 384 * 100,
+    y: ((eyes[0][1] + eyes[1][1]) / 2 + (eyes[0][3] + eyes[1][3]) / 2 * 1.15) / 384 * 100,
+  } : { x: 50, y: 45 };
+
+  const onTapPet = () => {
+    if (sleeping) { setAwakeUntil(Date.now() + 120000); setNowTick(Date.now()); play('hop'); playPetSound('boing'); say('Hmm? M-ai trezit! 😊'); return; }
+    const now = Date.now();
+    tapsRef.current = [...tapsRef.current.filter(t => now - t < 2500), now];
+    const wantsDance = !isEgg && tapsRef.current.length >= 5;
+    if (!wantsDance && busyRef.current && action !== 'lookL' && action !== 'lookR') return;
+    if (isEgg) { play('wobble'); playPetSound('pop'); burst(['✨', '💛'], 5, { x: 50, y: 40 }); say(tapsRef.current.length >= 4 ? 'Crește-mă ca să ies! 🥚' : 'Toc-toc! 🥚'); bumpHappy(2); return; }
+    if (wantsDance) {
+      tapsRef.current = []; play('dance'); playPetSound('yay'); burst(['✨', '⭐', '🎉', '💖'], 12, { x: 50, y: 35 }); say('Yuhuu! Hai să dansăm! 🕺'); bumpHappy(6); return;
+    }
+    const r = Math.random();
+    if (r < 0.4) { play('hop'); playPetSound('boing'); burst(['💖', '💕'], 4, { x: 50, y: 25 }); say(['Te iubesc! 💖', 'Încă o dată!', 'Hihi! 😄'][Math.floor(Math.random() * 3)], 1500); }
+    else if (r < 0.75) { play('wiggle'); playPetSound('giggle'); setHappyEyes(true); later(() => setHappyEyes(false), 800); burst(['💕'], 3, { x: 50, y: 25 }); say('Hihihi, gâdilă! 🤭', 1500); }
+    else { play('hop'); playPetSound('boing'); burst(['⭐', '✨'], 5, { x: 50, y: 30 }); say(`${name || 'Eu'} sunt cel mai fericit! ⭐`, 1600); }
+    bumpHappy(3);
+  };
+
+  const eat = (emoji, big) => {
+    if (busyRef.current || fly) return;
+    if (sleeping) { setAwakeUntil(Date.now() + 120000); setNowTick(Date.now()); }
+    busyRef.current = true;
+    const id = Math.random();
+    setFly({ id, e: emoji, x: 50, y: 108, s: 1.3 });
+    later(() => setFly(f => (f && f.id === id ? { ...f, x: mouth.x, y: mouth.y, s: 0.45 } : f)), 30);
+    later(() => {
+      setFly(null);
+      setAction('chomp'); setHappyEyes(true); playPetSound('nom');
+      say(big ? 'Mmm, ce masă bună! 😋' : ['Nom nom! 😋', 'Delicios! 🤤', 'Mulțumesc! 💖', 'Încă una? 🥺'][Math.floor(Math.random() * 4)], 1700);
+      burst(['✨', '·', '•'], 6, { x: mouth.x, y: mouth.y + 4 });
+    }, 620);
+    later(() => { setAction(null); setHappyEyes(false); burst(['💖', '💕', '💗'], big ? 8 : 4, { x: 50, y: 25 }); busyRef.current = false; bumpHappy(big ? 20 : 8); }, 620 + 1300);
+  };
+
+  const onDaily = () => {
+    if (!canFeed || dailyFedToday) return;
+    onDailyFeed();
+    if (isEgg) { play('wobble'); burst(['🔥', '💛', '✨'], 8, { x: 50, y: 50 }); say('Ce cald e! Cresc! 🥚', 1800); bumpHappy(20); }
+    else eat('🍲', true);
+  };
+  const onPlay = () => {
+    if (busyRef.current) return;
+    if (sleeping) { setAwakeUntil(Date.now() + 120000); setNowTick(Date.now()); }
+    if (isEgg) { play('wobble'); burst(['🎵', '🎶'], 5); say('🎵 La-la-la 🎵'); bumpHappy(5); return; }
+    play('dance'); playPetSound('yay'); burst(['🎵', '🎶', '⭐'], 10, { x: 50, y: 30 }); say('🎵 Dansăm! 🎵', 2200); bumpHappy(10);
+  };
+
+  const lidsClosed = sleeping || blink || happyEyes;
+  const outerAnim = reduceMotion ? 'none' : `${sleeping ? 'lpBreatheSleep 4.2s' : 'lpBreathe 3.2s'} ease-in-out infinite`;
+  const happyColor = happy >= 60 ? '#4ADE80' : happy >= 25 ? '#F5C542' : '#F87171';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <style>{PET_ANIM_CSS}</style>
+      <div onClick={onTapPet} role="button" aria-label={name || 'Aura Buddy'} style={{ position: 'relative', width: size, height: size, cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}>
+        <div style={{ position: 'absolute', left: '50%', bottom: '2%', width: '46%', height: '7%', borderRadius: '50%', background: 'radial-gradient(ellipse, rgba(0,0,0,0.55), transparent 70%)', animation: reduceMotion ? 'none' : 'lpShadow 3.2s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', inset: 0, transformOrigin: '50% 95%', animation: outerAnim }}>
+          <div style={{ position: 'absolute', inset: 0, transformOrigin: '50% 95%', animation: action ? PET_ACTION_ANIM[action] : 'none', filter }}>
+            <img src={src} alt={name} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+            {eyes && eyes.map((ey, i) => (
+              <div key={i} style={{
+                position: 'absolute', left: `${(ey[0] - ey[2]) / 384 * 100}%`, top: `${(ey[1] - ey[3]) / 384 * 100}%`,
+                width: `${ey[2] * 2 / 384 * 100}%`, height: `${ey[3] * 2 / 384 * 100}%`, borderRadius: '50%',
+                background: `radial-gradient(ellipse at 50% 20%, ${ey[5]}, ${ey[4]} 75%)`,
+                borderBottom: '2px solid rgba(70,30,45,0.55)', transformOrigin: '50% 0%',
+                transform: `scaleY(${lidsClosed ? 1 : 0})`, transition: `transform ${blink ? 70 : 160}ms ease-in`, pointerEvents: 'none',
+              }} />
+            ))}
+            <div style={{ position: 'absolute', inset: 0, fontSize: size / 120 * 16, pointerEvents: 'none' }}>{children}</div>
+          </div>
+        </div>
+        {fly && (
+          <div style={{ position: 'absolute', left: `${fly.x}%`, top: `${fly.y}%`, transform: `translate(-50%,-50%) scale(${fly.s})`, fontSize: size * 0.2, transition: 'left 0.58s cubic-bezier(.3,-0.3,.6,1), top 0.58s cubic-bezier(.3,-0.6,.6,1), transform 0.58s ease-in', pointerEvents: 'none', zIndex: 3 }}>{fly.e}</div>
+        )}
+        {particles.map(p => (
+          <span key={p.id} style={{ position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, fontSize: size * 0.11, pointerEvents: 'none', zIndex: 3, '--dx': p.dx, '--dy': p.dy, animation: `lpFloatUp ${p.dur}s ease-out ${p.delay}s forwards`, opacity: 0 }}>{p.e}</span>
+        ))}
+        {bubble && (
+          <div key={bubble.id} style={{ position: 'absolute', left: '50%', top: '-14%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', background: '#fff', color: '#1A1530', fontWeight: 700, fontSize: 12.5, padding: '6px 12px', borderRadius: 14, boxShadow: '0 6px 18px rgba(0,0,0,0.35)', zIndex: 4, pointerEvents: 'none', animation: 'lpBubble 1.8s ease-out forwards' }}>
+            {bubble.text}
+            <span style={{ position: 'absolute', left: '50%', bottom: -6, marginLeft: -6, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '7px solid #fff' }} />
+          </div>
+        )}
+        {sleeping && <div style={{ position: 'absolute', right: '4%', top: '4%', fontSize: size * 0.12, pointerEvents: 'none', animation: 'lpGlow 2.4s ease-in-out infinite' }}>💤</div>}
+      </div>
+
+      <div style={{ width: Math.max(180, size), marginTop: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#A5A2C0', marginBottom: 4 }}>
+          <span>❤️ Fericire</span><span style={{ color: happyColor, fontWeight: 700 }}>{happy}%</span>
+        </div>
+        <div style={{ height: 8, borderRadius: 999, background: '#221D3A', overflow: 'hidden' }}>
+          <div style={{ width: `${happy}%`, height: '100%', borderRadius: 999, background: `linear-gradient(90deg, ${happyColor}, ${speciesColor})`, transition: 'width 0.5s ease' }} />
+        </div>
+        <div style={{ fontSize: 10.5, color: '#6E6A8C', marginTop: 4, textAlign: 'center' }}>
+          {sleeping ? 'Doarme... atinge-l ca să-l trezești 😴' : isEgg ? 'Atinge oul ca să vezi ce face 🥚' : 'Atinge-l ca să-l mângâi! (5 atingeri rapide = dans 🕺)'}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+        <button className="lp-btn" disabled={dailyFedToday || !canFeed} onClick={onDaily} style={{
+          padding: '9px 16px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600,
+          cursor: (dailyFedToday || !canFeed) ? 'not-allowed' : 'pointer',
+          background: (dailyFedToday || !canFeed) ? '#221D3A' : 'linear-gradient(135deg, #EC1E8F, #9B3CE0)',
+          color: (dailyFedToday || !canFeed) ? '#5A5570' : '#fff',
+        }}>{!canFeed ? 'Doar elevul poate hrăni' : dailyFedToday ? '🍲 Masa zilei: gata' : '🍲 Masa zilei (+5 creștere)'}</button>
+        <button className="lp-btn" onClick={onPlay} style={{ padding: '9px 16px', borderRadius: 10, border: `1px solid ${speciesColor}88`, background: `${speciesColor}22`, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>🎵 Joacă-te</button>
+      </div>
+
+      {canFeed && !isEgg && (
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: '#8A86A8', marginBottom: 6 }}>🍽️ Gustări gratuite — dă-i oricând!</div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {PET_SNACKS.map(sn => (
+              <button key={sn.e} className="lp-btn" title={sn.n} onClick={() => eat(sn.e)} style={{
+                width: 44, height: 44, borderRadius: 12, border: '1px solid #2E2850', background: '#0F0C1C', fontSize: 22, cursor: 'pointer', transition: 'transform 0.1s',
+              }}>{sn.e}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {canFeed && isEgg && (
+        <div style={{ fontSize: 11, color: '#8A86A8', marginTop: 10, textAlign: 'center', maxWidth: 260 }}>🥚 Oul nu mănâncă încă. Dă-i masa zilei și power-up-uri ca să iasă din ou — apoi îi poți da gustări!</div>
+      )}
+    </div>
+  );
+}
+
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function isBirthdayToday(student) {
   if (!student.birthdayMonth || !student.birthdayDay) return false;
@@ -7571,27 +7857,23 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                     border: `1px solid ${species.color}55`, borderRadius: 22, padding: '26px 20px', textAlign: 'center', marginBottom: 20,
                     boxShadow: `0 10px 34px ${species.color}22`,
                   }}>
-                    <div style={{ position: 'relative', display: 'inline-block' }}>
-                      <img src={species.stages[stage]} alt={pet.name || species.name} style={{ width: 120, height: 120, objectFit: 'contain', filter }} />
+                    <LivePet petId={pet.id} speciesId={species.id} speciesColor={species.color} stage={stage} src={species.stages[stage]} filter={filter}
+                      name={pet.name || species.name} size={190} canFeed={!isParentView} dailyFedToday={fedToday} onDailyFeed={() => onPetFeed(pet.id)}>
                       {pet.accessory && (() => {
                         const acc = PET_ACCESSORIES.find(a => a.id === pet.accessory);
                         if (!acc) return null;
-                        const style = acc.stageTop && acc.stageTop[stage] ? { ...acc.style, top: acc.stageTop[stage] } : acc.style;
+                        let style = acc.stageTop && acc.stageTop[stage] ? { ...acc.style, top: acc.stageTop[stage] } : acc.style;
+                        const ey = PET_EYES[species.id + stage];
+                        if (acc.id === 'glasses' && ey) style = { ...style, top: `${((ey[0][1] + ey[1][1]) / 2) / 384 * 100 - 9}%`, left: `${((ey[0][0] + ey[1][0]) / 2) / 384 * 100}%` };
                         return <span style={{ position: 'absolute', ...style }}>{acc.emoji}</span>;
                       })()}
-                    </div>
+                    </LivePet>
                     <div style={{ fontWeight: 700, fontSize: 17, marginTop: 8, color: species.color }}>{pet.name || species.name}</div>
                     <div style={{ fontSize: 12, color: '#8A86A8', marginTop: 2 }}>{PET_STAGE_LABELS[stage]}{nextThreshold !== undefined ? ` · ${growth}/${nextThreshold} pentru evoluție` : ' · nivel maxim'}</div>
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
                       <CircleStat size={54} pct={nextThreshold ? Math.round(Math.min(100, (growth / nextThreshold) * 100)) : 100} count="" label="" color={species.color} />
                     </div>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-                      <button disabled={fedToday || isParentView} onClick={() => onPetFeed(pet.id)} style={{
-                        padding: '9px 20px', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 600,
-                        cursor: (fedToday || isParentView) ? 'not-allowed' : 'pointer',
-                        background: (fedToday || isParentView) ? '#221D3A' : 'linear-gradient(135deg, #EC1E8F, #9B3CE0)',
-                        color: (fedToday || isParentView) ? '#5A5570' : '#fff',
-                      }}>{isParentView ? 'Doar elevul poate hrăni' : fedToday ? 'Deja hrănit azi' : 'Hrănește'}</button>
                       <button onClick={() => {
                         const price = window.prompt('La ce preț (puncte) vrei să-l vinzi pe Pupils Market?');
                         const p = Math.max(1, Math.round(Number(price) || 0));
@@ -13462,7 +13744,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.172';
+const APP_VERSION = 'v2.173';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

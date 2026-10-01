@@ -1442,12 +1442,12 @@ const PET_ACCESSORIES = [                                       // hw = lățime
   { id: 'glassesHeart', emoji: '💗', label: 'Ochelari-inimă', price: 500, slot: 'face', ew: 2.2 },
   { id: 'bow', emoji: '🎀', label: 'Fundă', price: 400, slot: 'side', hw: 0.34, side: 0.13, sy: 0.15, rot: 15 },
   { id: 'starclip', emoji: '⭐', label: 'Agrafă-stea', price: 350, slot: 'side', hw: 0.27, side: 0.12, sy: 0.3, rot: 10 },
-  { id: 'headphones', emoji: '🎧', label: 'Căști pufoase', price: 700, slot: 'ears', retired: true, hw: 1.22, cupY: 0.72 },
-  { id: 'headphonesCat', emoji: '🐱', label: 'Căști cu urechi de pisică', price: 800, slot: 'ears', retired: true, hw: 1.18, cupY: 0.72 },
-  { id: 'earmuffs', emoji: '❄️', label: 'Antifoane pufoase', price: 550, slot: 'ears', retired: true, hw: 1.22, cupY: 0.72 },
-  { id: 'scarf', emoji: '🧣', label: 'Fular curcubeu', price: 500, slot: 'neck', retired: true, hw: 0.68, below: 0.85 },
-  { id: 'scarfStripe', emoji: '🎅', label: 'Fular în dungi', price: 500, slot: 'neck', retired: true, hw: 0.68, below: 0.85 },
-  { id: 'bandana', emoji: '🩷', label: 'Bandană cu buline', price: 450, slot: 'neck', retired: true, hw: 0.56, below: 0.88 },
+  { id: 'headphones', emoji: '🎧', label: 'Căști pufoase', price: 700, slot: 'ears', hw: 1.22, cupY: 0.72 },
+  { id: 'headphonesCat', emoji: '🐱', label: 'Căști cu urechi de pisică', price: 800, slot: 'ears', hw: 1.18, cupY: 0.72 },
+  { id: 'earmuffs', emoji: '❄️', label: 'Antifoane pufoase', price: 550, slot: 'ears', hw: 1.22, cupY: 0.72 },
+  { id: 'scarf', emoji: '🧣', label: 'Fular curcubeu', price: 500, slot: 'neck', hw: 0.68, below: 0.85 },
+  { id: 'scarfStripe', emoji: '🎅', label: 'Fular în dungi', price: 500, slot: 'neck', hw: 0.68, below: 0.85 },
+  { id: 'bandana', emoji: '🩷', label: 'Bandană cu buline', price: 450, slot: 'neck', hw: 0.56, below: 0.88 },
 ];
 function petAccList(pet) { return pet ? (pet.accessories || (pet.accessory ? [pet.accessory] : [])) : []; }
 function petAccToggle(list, id) {
@@ -1460,7 +1460,7 @@ function petAccessoryNodes(speciesId, stage, ids) {
   const [mx, ey, ed, top, hl, hr] = an;
   const hw = hr - hl, hc = (hl + hr) / 2;
   const order = ['neck', 'face', 'ears', 'side', 'head'];
-  return ids.map(id => PET_ACCESSORIES.find(a => a.id === id)).filter(a => a && !a.retired && PET_ACC_IMG[a.id])
+  return ids.map(id => PET_ACCESSORIES.find(a => a.id === id)).filter(a => a && PET_ACC_IMG[a.id])
     .sort((a, b) => order.indexOf(a.slot) - order.indexOf(b.slot)).map(a => {
       const w = a.ew ? a.ew * ed : a.hw * hw, h = w * (PET_ACC_ASPECT[a.id] || 1);
       let cx = hc, y0;
@@ -7787,7 +7787,7 @@ function ConsentModal({ onAccept }) {
   );
 }
 
-function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, onClaimBinder, onUsePetItem, onPetPatch, onPetOverfed, onPetLesson, onPetDuel, onBuyRoom, onRoomPatch, onBingoBuy, onBingoCross, onBingoReward, onPetGift, onPetFriend, onRefundAccessories, lang, onSetLang }) {
+function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onSubmitTest, onOpenExternalTest, onPetAdd, onPetRename, onPetSetVariant, onPetFeed, onPetBuyPowerup, onChangePassword, onGameStart, onGameFinish, onSetAvatar, onBankBorrow, onBankRepay, onBankSync, onBankDeposit, onBankWithdrawDeposit, onPayCardDebt, onPayCardDebtWithSticker, onSellSticker, onAcceptConsent, classmates, onCheckStreak, onWheelSpin, onBuyAccessory, onEquipAccessory, onListSticker, onCancelListing, onMarketBuy, onClaimDividend, onBuyAvatarFrame, onEquipAvatarFrame, onBuyPetSlot, onListPet, onCancelPetListing, onBuyPetFromMarket, onBuyEgg, announcement, classAnnouncement, allStudents, onCelebrateBirthday, onClaimDuelReward, onClaimBattleReward, onEarnStudentTestReward, viewMode, onParentShare, onChangeParentPassword, onBuyParentSticker, onReadArticle, onParentMine, onUpdateHeroConfig, onClaimHeroBattleReward, onAssignHeroCardNumber, onTransferPointsToChild, academicArticles, onJudgeResolveCard, onPayAllDebtsWithWildcard, onConsumeDjSticker, onOpenExploreChest, onBuyChairs, onThrowChair, onCollectTreasureFragment, treasureWinnerInfo, treasureWinResult, onCloseTreasureWinResult, onPenaltyReward, onClaimBinder, onUsePetItem, onPetPatch, onPetOverfed, onPetLesson, onPetDuel, onBuyRoom, onRoomPatch, onBingoBuy, onBingoCross, onBingoReward, onPetGift, onPetFriend, lang, onSetLang }) {
   const isParentView = viewMode === 'parent';
   useEffect(() => {                                              // Aura Buddy: se ascunde în ou după 3 zile fără masă; boala trece singură după 3 zile
     if (isParentView || !onPetPatch) return;
@@ -7800,10 +7800,6 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
     if (isParentView || !onPetFriend) return;
     (student.petFriends || []).forEach(f => { if (petFriendShouldRun(f)) onPetFriend('runaway', f.id); });
   }, [student.petFriends]);
-  useEffect(() => {                                              // căștile și fularele au fost scoase: elevii primesc punctele înapoi, o singură dată
-    if (isParentView || !onRefundAccessories) return;
-    if ((student.petAccessoriesOwned || []).some(id => (PET_ACCESSORIES.find(a => a.id === id) || {}).retired)) onRefundAccessories();
-  }, [(student.petAccessoriesOwned || []).join(',')]);
   useEffect(() => {                                              // cadou de bun venit: o Pastilă de Burtică gratuită
     if (isParentView || student.freePillGiven || !(student.pets || []).length || !onPetGift) return;
     onPetGift('pillTummy');
@@ -8871,9 +8867,9 @@ function StudentDashboard({ student, tests, classes, onLogout, onBuySticker, onS
                   </div>
 
                   <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Accesorii 3D — poartă câte unul pe cap, pe ochi și lângă cap. Ai {student.points} puncte.</div>
+                    <div style={{ fontSize: 12, color: '#8A86A8', marginBottom: 10 }}>Accesorii 3D — poartă câte unul pe cap, pe ochi, lângă cap, pe urechi și la gât. Ai {student.points} puncte.</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
-                      {PET_ACCESSORIES.filter(a => !a.retired).map(a => {
+                      {PET_ACCESSORIES.map(a => {
                         const owned = (student.petAccessoriesOwned || []).includes(a.id);
                         const equipped = petAccList(pet).includes(a.id);
                         return (
@@ -15096,7 +15092,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.187';
+const APP_VERSION = 'v2.186';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {
@@ -17117,23 +17113,6 @@ function Root() {
     });
     persistStudentsLocal(next, students);
   }
-  function handleRefundAccessories() {
-    if (isParentSession) return;
-    const next = students.map(s => {
-      if (s.id !== loggedInStudentId) return s;
-      const retired = (s.petAccessoriesOwned || []).map(id => PET_ACCESSORIES.find(a => a.id === id)).filter(a => a && a.retired);
-      if (!retired.length) return s;
-      const total = retired.reduce((t, a) => t + a.price, 0);
-      const ids = retired.map(a => a.id);
-      return {
-        ...s, points: s.points + total,
-        petAccessoriesOwned: s.petAccessoriesOwned.filter(id => !ids.includes(id)),
-        pets: (s.pets || []).map(p => ({ ...p, accessories: petAccList(p).filter(id => !ids.includes(id)), accessory: null })),
-        pointsLog: [{ id: uid(), delta: total, reason: `Puncte înapoi: accesorii retrase (${retired.map(a => a.label).join(', ')})`, date: new Date().toISOString() }, ...(s.pointsLog || [])],
-      };
-    });
-    persistStudentsLocal(next, students);
-  }
   function handleEquipAccessory(petId, id) {
     if (isParentSession) return;
     const next = students.map(s => s.id !== loggedInStudentId ? s : { ...s, pets: (s.pets || []).map(p => p.id === petId ? { ...p, accessories: id ? petAccToggle(petAccList(p), id) : [], accessory: null } : p) });
@@ -17452,7 +17431,7 @@ function Root() {
     if (loggedInStudentId) {
       const student = students.find(s => s.id === loggedInStudentId);
       if (!student) { setLoggedInStudentIdPersist(null); return null; }
-      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} onClaimBinder={handleClaimBinder} onUsePetItem={handleUsePetItem} onPetPatch={handlePetPatch} onPetOverfed={handlePetOverfed} onPetLesson={handlePetLesson} onPetDuel={handlePetDuel} onBuyRoom={handleBuyRoom} onRoomPatch={handleRoomPatch} onBingoBuy={handleBingoBuy} onBingoCross={handleBingoCross} onBingoReward={handleBingoReward} onPetGift={handlePetGift} onPetFriend={handlePetFriend} onRefundAccessories={handleRefundAccessories} lang={uiLang} onSetLang={setUiLangPersist} />;
+      return <StudentDashboard student={student} tests={tests} classes={classes} onLogout={() => setLoggedInStudentIdPersist(null)} onBuySticker={handleBuySticker} onSubmitTest={handleSubmitTest} onOpenExternalTest={handleOpenExternalTest} onPetAdd={handlePetAdd} onPetRename={handlePetRename} onPetSetVariant={handlePetSetVariant} onPetFeed={handlePetFeed} onPetBuyPowerup={handlePetBuyPowerup} onChangePassword={handleChangePassword} onGameStart={handleGameStart} onGameFinish={handleGameFinish} onSetAvatar={handleSetAvatar} onBankBorrow={handleBankBorrow} onBankRepay={handleBankRepay} onBankSync={handleBankSync} onBankDeposit={handleBankDeposit} onBankWithdrawDeposit={handleBankWithdrawDeposit} onPayCardDebt={handlePayCardDebt} onPayCardDebtWithSticker={handlePayCardDebtWithSticker} onSellSticker={handleSellSticker} onAcceptConsent={handleAcceptConsent} classmates={students.filter(s => s.classId === student.classId)} allStudents={students} onCheckStreak={handleCheckStreak} onWheelSpin={handleWheelSpin} onBuyAccessory={handleBuyAccessory} onEquipAccessory={handleEquipAccessory} onListSticker={handleListSticker} onCancelListing={handleCancelListing} onMarketBuy={handleMarketBuy} onClaimDividend={handleClaimDividend} onBuyAvatarFrame={handleBuyAvatarFrame} onEquipAvatarFrame={handleEquipAvatarFrame} onBuyPetSlot={handleBuyPetSlot} onListPet={handleListPet} onCancelPetListing={handleCancelPetListing} onBuyPetFromMarket={handleBuyPetFromMarket} onBuyEgg={handleBuyEgg} announcement={announcement} classAnnouncement={classAnnouncementsMap[student.classId] || ''} onCelebrateBirthday={handleCelebrateBirthday} onClaimDuelReward={handleClaimDuelReward} onClaimBattleReward={handleClaimBattleReward} onEarnStudentTestReward={handleEarnStudentTestReward} viewMode={viewMode} onParentShare={handleParentShare} onChangeParentPassword={handleChangeParentPassword} onBuyParentSticker={handleBuyParentSticker} onReadArticle={handleReadArticle} onParentMine={handleParentMine} onUpdateHeroConfig={handleUpdateHeroConfig} onClaimHeroBattleReward={handleClaimHeroBattleReward} onAssignHeroCardNumber={handleAssignHeroCardNumber} onTransferPointsToChild={handleTransferPointsToChild} academicArticles={academicArticles} onJudgeResolveCard={handleJudgeResolveCard} onPayAllDebtsWithWildcard={handlePayAllDebtsWithWildcard} onConsumeDjSticker={handleConsumeDjSticker} onOpenExploreChest={handleOpenExploreChest} onBuyChairs={handleBuyChairs} onThrowChair={handleThrowChair} onCollectTreasureFragment={handleCollectTreasureFragment} treasureWinnerInfo={treasureWinnerInfo} treasureWinResult={treasureWinResult} onCloseTreasureWinResult={() => setTreasureWinResult(null)} onPenaltyReward={handlePenaltyReward} onClaimBinder={handleClaimBinder} onUsePetItem={handleUsePetItem} onPetPatch={handlePetPatch} onPetOverfed={handlePetOverfed} onPetLesson={handlePetLesson} onPetDuel={handlePetDuel} onBuyRoom={handleBuyRoom} onRoomPatch={handleRoomPatch} onBingoBuy={handleBingoBuy} onBingoCross={handleBingoCross} onBingoReward={handleBingoReward} onPetGift={handlePetGift} onPetFriend={handlePetFriend} lang={uiLang} onSetLang={setUiLangPersist} />;
     }
     return <StudentLogin classes={classes} students={students} initialAsParent={mode === 'parent'} onLoggedIn={(id, m) => { setLoggedInStudentIdPersist(id); setViewModePersist(m || 'student'); }} onBack={() => setModePersist(null)} lang={uiLang} />;
   }

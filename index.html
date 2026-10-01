@@ -3649,6 +3649,24 @@ async function resolvePendingCard(cardId, status) {
   const db = getDb(); if (!db) return;
   try { await db.collection('fluentopia_pending_cards').doc(cardId).update({ status }); } catch (e) { console.error('resolvePendingCard error', e); }
 }
+// ---- profesorii: cine e conectat acum și istoricul conectărilor (vizibil doar pentru Valentin) ----
+async function teacherHeartbeat(name, isLogin, online) {
+  const db = getDb(); if (!db || !name) return;
+  try {
+    await db.collection('fluentopia_teacher_presence').doc(name).set({ name, lastSeen: Date.now(), online: online !== false, ...(isLogin ? { loginAt: Date.now() } : {}) }, { merge: true });
+    if (isLogin) await db.collection('fluentopia_teacher_logins').add({ name, date: new Date().toISOString(), device: /Mobi|Android/i.test(navigator.userAgent) ? 'telefon' : 'calculator' });
+  } catch (e) { console.error('teacherHeartbeat error', e); }
+}
+function listenTeacherPresence(cb) {
+  const db = getDb(); if (!db) return () => {};
+  return db.collection('fluentopia_teacher_presence').onSnapshot(snap => cb(snap.docs.map(d => d.data())), err => console.error('teacher presence listen error', err));
+}
+function listenTeacherLogins(days, cb) {
+  const db = getDb(); if (!db) return () => {};
+  const since = new Date(); since.setHours(0, 0, 0, 0); since.setDate(since.getDate() - (days - 1));
+  return db.collection('fluentopia_teacher_logins').where('date', '>=', since.toISOString())
+    .onSnapshot(snap => cb(snap.docs.map(d => d.data()).sort((a, b) => (b.date || '').localeCompare(a.date || ''))), err => console.error('teacher logins listen error', err));
+}
 function listenRecentLoginEvents(days, cb) {                     // conectările din ultimele N zile (pentru statisticile pe săptămână)
   const db = getDb(); if (!db) return () => {};
   const since = new Date(); since.setHours(0, 0, 0, 0); since.setDate(since.getDate() - (days - 1));
@@ -11126,6 +11144,26 @@ function TeacherApp({ onExit, teacherName }) {
   const [editSkillRo, setEditSkillRo] = useState('');
   const [showBingo, setShowBingo] = useState(false);
   const [showEconomy, setShowEconomy] = useState(false);
+  const isHeadTeacher = teacherName === 'Valentin';                 // doar Valentin vede ceilalți profesori
+  const [showTeachers, setShowTeachers] = useState(false);
+  const [teacherPresence, setTeacherPresence] = useState([]);
+  const [teacherLogins, setTeacherLogins] = useState([]);
+  const [presenceTick, setPresenceTick] = useState(Date.now());
+  useEffect(() => {                                                 // fiecare profesor își anunță prezența: la intrare + la fiecare minut
+    teacherHeartbeat(teacherName, true);
+    const iv = setInterval(() => { if (!document.hidden) teacherHeartbeat(teacherName, false); }, 60000);
+    const bye = () => teacherHeartbeat(teacherName, false, false);
+    window.addEventListener('beforeunload', bye);
+    return () => { clearInterval(iv); window.removeEventListener('beforeunload', bye); bye(); };
+  }, [teacherName]);
+  useEffect(() => {
+    if (!isHeadTeacher) return;
+    const u1 = listenTeacherPresence(setTeacherPresence);
+    const u2 = listenTeacherLogins(7, setTeacherLogins);
+    const iv = setInterval(() => setPresenceTick(Date.now()), 30000);
+    return () => { u1(); u2(); clearInterval(iv); };
+  }, [isHeadTeacher]);
+  const teacherOnline = p => p && p.online !== false && presenceTick - (p.lastSeen || 0) < 150000;
   const [bingoState, setBingoState] = useState(null);
   const [bingoWordsDraft, setBingoWordsDraft] = useState('');
   const [bingoJustDrawn, setBingoJustDrawn] = useState(null);       // ultimul cuvânt extras — arătat mare, câteva secunde
@@ -11731,6 +11769,11 @@ function TeacherApp({ onExit, teacherName }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
           <span style={{ fontSize: 12, color: '#A5A2C0' }}>Profesor: {teacherName}</span>
         </div>
+        {isHeadTeacher && (
+          <button onClick={() => setShowTeachers(true)} style={{ fontSize: 12.5, fontWeight: 700, color: '#C7C8E0', background: '#151225', border: '1px solid #2E2850', borderRadius: 10, cursor: 'pointer', textAlign: 'left', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            👩‍🏫 Profesori <span style={{ marginLeft: 'auto', fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(74,222,128,0.15)', color: '#4ADE80' }}>{TEACHERS.filter(n => n !== teacherName && teacherOnline(teacherPresence.find(p => p.name === n))).length} online</span>
+          </button>
+        )}
         <button onClick={onExit} style={{ fontSize: 12.5, fontWeight: 700, color: '#C7C8E0', background: '#151225', border: '1px solid #2E2850', borderRadius: 10, cursor: 'pointer', textAlign: 'left', padding: '8px 12px', margin: '0 8px' }}>‹ Schimbă utilizator</button>
         <div>
           <button onClick={() => setShowTeacherTools(v => !v)} style={{
@@ -13730,6 +13773,40 @@ function TeacherApp({ onExit, teacherName }) {
           </div>
         </div>
       )}
+      {showTeachers && isHeadTeacher && (
+        <div onClick={() => setShowTeachers(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 58, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0F0C1C', border: '1px solid #2E2850', borderRadius: 20, padding: 22, maxWidth: 560, width: '100%', maxHeight: '92vh', overflowY: 'auto', color: '#fff' }} className="scrollbar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 className="heading-font" style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>👩‍🏫 Profesori</h3>
+              <button onClick={() => setShowTeachers(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A86A8' }}><IX size={18}/></button>
+            </div>
+            {TEACHERS.map(n => {
+              const p = teacherPresence.find(x => x.name === n);
+              const on = teacherOnline(p);
+              const last = p && p.lastSeen ? new Date(p.lastSeen) : null;
+              const todayCount = teacherLogins.filter(l => l.name === n && (l.date || '').slice(0, 10) === new Date().toISOString().slice(0, 10)).length;
+              return (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, background: '#151225', border: `1px solid ${on ? '#4ADE8066' : '#2E2850'}`, marginBottom: 8 }}>
+                  <span style={{ width: 11, height: 11, borderRadius: '50%', background: on ? '#4ADE80' : '#4A4560', boxShadow: on ? '0 0 8px #4ADE80' : 'none' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>{n}{n === teacherName ? ' (tu)' : ''}</div>
+                    <div style={{ fontSize: 11.5, color: '#A9A5C4' }}>{on ? `Conectat acum${p.loginAt ? ` · de la ${new Date(p.loginAt).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}` : ''}` : last ? `Văzut ultima dată: ${last.toLocaleDateString('ro-RO')} ${last.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}` : 'Nu s-a conectat încă (de la această versiune)'}</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#C9C4E6', textAlign: 'right' }}>azi: <b>{todayCount}</b> {todayCount === 1 ? 'intrare' : 'intrări'}</div>
+                </div>
+              );
+            })}
+            <div style={{ fontSize: 12.5, fontWeight: 800, margin: '14px 0 8px' }}>Istoric conectări (ultimele 7 zile)</div>
+            {teacherLogins.length === 0 ? <div style={{ fontSize: 12, color: '#6E6A8C' }}>Încă nicio conectare înregistrată.</div> : teacherLogins.slice(0, 60).map((l, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: '1px solid #221D3A' }}>
+                <span><b>{l.name}</b> · {l.device}</span>
+                <span style={{ color: '#A9A5C4' }}>{new Date(l.date).toLocaleDateString('ro-RO')} {new Date(l.date).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            ))}
+            <div style={{ fontSize: 10.5, color: '#6E6A8C', marginTop: 10 }}>„Conectat acum" = consola e deschisă (se actualizează la fiecare minut). Doar contul Valentin vede această listă.</div>
+          </div>
+        </div>
+      )}
       {showEconomy && (() => {
         const ec = pointsEconomy(students);
         const col = { green: '#4ADE80', yellow: '#F5C542', red: '#F87171' }[ec.level];
@@ -15002,7 +15079,7 @@ function ClassChatTeaser() {
   );
 }
 
-const APP_VERSION = 'v2.183';
+const APP_VERSION = 'v2.184';
 const PARENT_MINING_DAILY_BONUS = 20;
 const PARENT_ARTICLES = [
   {

@@ -1,19 +1,13 @@
-const CACHE_NAME = 'fluentopia-v4';
+const CACHE_NAME = 'fluentopia-v5';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).catch(() => {}));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))));
   self.clients.claim();
 });
 
@@ -21,30 +15,26 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ('focus' in client) return client.focus();
-      }
+      for (const client of clientList) { if ('focus' in client) return client.focus(); }
       if (self.clients.openWindow) return self.clients.openWindow('./');
     })
   );
 });
 
-// Network-first: always try to fetch the latest version first.
-// Only fall back to the cached copy if the network is unavailable (offline).
+// Doar fișierele aplicației (același domeniu) trec prin service worker.
+// Firebase/Firestore, YouTube, fonturi etc. merg direct la rețea — altfel conexiunile Firestore (care țin deschis un flux)
+// erau copiate în cache și încetineau aplicația, iar când nu exista copie apărea eroarea „Failed to convert value to 'Response'".
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
   event.respondWith(
-    fetch(event.request, { cache: 'no-cache' })                // revalidează mereu cu serverul (GitHub Pages ține fișierele ~10 min în cache) — un redeploy se vede imediat
-      .then((networkResponse) => {
-        let responseClone;
-        try { responseClone = networkResponse.clone(); } catch (e) { responseClone = null; }
-        if (responseClone) {
-          event.waitUntil(
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone)).catch(() => {})
-          );
-        }
-        return networkResponse;
+    fetch(req, { cache: 'no-cache' })
+      .then((res) => {
+        if (res && res.ok && res.type === 'basic') { const copy = res.clone(); event.waitUntil(caches.open(CACHE_NAME).then((c) => c.put(req, copy)).catch(() => {})); }
+        return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')).then((hit) => hit || Response.error()))
   );
 });

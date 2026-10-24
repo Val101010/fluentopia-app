@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fluentopia-v6';
+const CACHE_NAME = 'fluentopia-v7';
 const APP_SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -29,6 +29,16 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Pagina lecției Zoom primește „izolare” (COOP/COEP), ca Zoom să poată folosi video HD și vederea în grilă.
+  if (url.pathname.endsWith('/lectie.html')) {
+    event.respondWith(fetch(req, { cache: 'no-cache' }).then((res) => {
+      const h = new Headers(res.headers);
+      h.set('Cross-Origin-Opener-Policy', 'same-origin');
+      h.set('Cross-Origin-Embedder-Policy', 'credentialless');
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+    }).catch(() => Response.error()));
+    return;
+  }
   event.respondWith(
     caches.open(CACHE_NAME).then((cache) =>
       cache.match(req).then((hit) => {
